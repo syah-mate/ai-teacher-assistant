@@ -55,6 +55,19 @@
 			dotColor: 'bg-cyan-500'
 		}
 	];
+
+	const settingsItems = [
+		{
+			href: '/dashboard/pengaturan/integrasi',
+			label: 'Integrasi',
+			icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
+		},
+		{
+			href: '/dashboard/pengaturan/plan',
+			label: 'Plan',
+			icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'
+		}
+	];
 </script>
 
 <div class="flex min-h-screen bg-gray-50">
@@ -132,6 +145,24 @@
 						: 'text-gray-600 hover:bg-gray-100'}"
 				>
 					<span class="h-1.5 w-1.5 shrink-0 rounded-full {item.dotColor}"></span>
+					<span class="truncate">{item.label}</span>
+				</a>
+			{/each}
+
+			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+				Pengaturan
+			</p>
+			{#each settingsItems as item}
+				<a
+					href={item.href}
+					class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page
+						.url.pathname === item.href
+						? 'border border-blue-100 bg-blue-50 text-blue-700'
+						: 'text-gray-600 hover:bg-gray-100'}"
+				>
+					<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={item.icon} />
+					</svg>
 					<span class="truncate">{item.label}</span>
 				</a>
 			{/each}
