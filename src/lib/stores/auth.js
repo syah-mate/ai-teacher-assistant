@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
 const HARDCODED = {
-	username: 'guru@esolusi.id',
+	username: 'guru@TwinLabs.id',
 	password: 'guru123',
 	name: 'User Guru',
 	role: 'Akun Premium eSolusi'

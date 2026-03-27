@@ -60,7 +60,7 @@
 					</div>
 					<div class="text-left">
 						<h1 class="text-lg font-bold leading-tight text-white">Asisten Guru AI</h1>
-						<p class="text-xs text-blue-200">by eSolusi.id</p>
+						<p class="text-xs text-blue-200">by TwinLabs</p>
 					</div>
 				</div>
 				<p class="text-sm text-blue-100">Kerjaan Beres Tanpa Ribet ✨</p>
@@ -92,7 +92,7 @@
 								id="username"
 								type="text"
 								bind:value={username}
-								placeholder="guru@esolusi.id"
+								placeholder="guru@TwinLabs"
 								class="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 								required
 							/>
@@ -205,13 +205,13 @@
 				<div class="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
 					<p class="mb-1.5 text-xs font-medium text-blue-700">👤 Akun Demo:</p>
 					<div class="space-y-1 font-mono text-xs text-blue-600">
-						<p>Email: <span class="font-semibold">guru@esolusi.id</span></p>
+						<p>Email: <span class="font-semibold">guru@TwinLabs</span></p>
 						<p>Password: <span class="font-semibold">guru123</span></p>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<p class="mt-6 text-center text-xs text-blue-200">© 2026 eSolusi.id — Asisten Guru AI</p>
+		<p class="mt-6 text-center text-xs text-blue-200">© 2026 TwinLabs — Asisten Guru AI</p>
 	</div>
 </div>

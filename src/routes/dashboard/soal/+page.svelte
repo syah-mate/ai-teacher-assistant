@@ -91,7 +91,7 @@ ${
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — eSolusi.id
+  Dibuat dengan Asisten Guru AI — TwinLabs
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 

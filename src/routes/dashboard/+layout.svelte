@@ -94,7 +94,7 @@
 				</div>
 				<div>
 					<p class="text-sm font-bold leading-tight text-gray-800">Asisten Guru AI</p>
-					<p class="text-xs text-gray-400">BY ESOLUSI.ID</p>
+					<p class="text-xs text-gray-400">BY TwinLabs</p>
 				</div>
 			</div>
 		</div>
@@ -207,7 +207,7 @@
 					</div>
 					<div>
 						<p class="text-sm font-semibold text-gray-800">Asisten Guru AI</p>
-						<p class="text-xs text-gray-400">by eSolusi.id — Kerjaan Beres Tanpa Ribet</p>
+						<p class="text-xs text-gray-400">by TwinLabs — Kerjaan Beres Tanpa Ribet</p>
 					</div>
 				</div>
 			</div>

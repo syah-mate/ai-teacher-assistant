@@ -142,7 +142,7 @@ TIPS DESAIN PRESENTASI:
   📱 Pastikan terbaca dari jarak 5 meter
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — eSolusi.id
+  Dibuat dengan Asisten Guru AI — TwinLabs
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 

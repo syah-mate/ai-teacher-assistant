@@ -152,9 +152,9 @@
 	<!-- Footer -->
 	<div class="mt-12 border-t border-gray-100 pt-6 text-center text-sm text-gray-400">
 		<p>
-			© 2026 eSolusi.id —
+			© 2026 TwinLabs —
 			<span class="font-medium text-red-500">DILARANG MEMBAGIKAN LINK INI KEPADA SIAPAPUN</span>
 		</p>
-		<p class="mt-1">support email: esolusi.id@gmail.com</p>
+		<p class="mt-1">support email: TwinLabs@gmail.com</p>
 	</div>
 </div>

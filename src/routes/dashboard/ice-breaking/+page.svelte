@@ -105,7 +105,7 @@ TRANSISI KE MATERI:
    Sekarang mari kita masuk ke materi ${tema || 'pembelajaran'}..."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — eSolusi.id
+  Dibuat dengan Asisten Guru AI — TwinLabs
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 
