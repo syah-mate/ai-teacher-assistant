@@ -1,32 +1,9 @@
 <script>
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth.js';
+	import { enhance } from '$app/forms';
 
-	let username = $state('');
-	let password = $state('');
-	let error = $state('');
-	let loading = $state(false);
+	let { data, form } = $props();
 	let showPassword = $state(false);
-
-	onMount(() => {
-		const stored = localStorage.getItem('asisten_guru_auth');
-		if (stored) goto('/dashboard');
-	});
-
-	async function handleLogin(e) {
-		e.preventDefault();
-		error = '';
-		loading = true;
-		await new Promise((r) => setTimeout(r, 800));
-		const result = auth.login(username, password);
-		loading = false;
-		if (result.success) {
-			goto('/dashboard');
-		} else {
-			error = result.error;
-		}
-	}
+	let loading = $state(false);
 </script>
 
 <svelte:head>
@@ -71,11 +48,11 @@
 				<h2 class="mb-1 text-xl font-semibold text-gray-800">Masuk ke Akun Guru</h2>
 				<p class="mb-6 text-sm text-gray-500">Silakan masukkan kredensial Anda untuk melanjutkan.</p>
 
-				<form onsubmit={handleLogin} class="space-y-5">
+				<form method="POST" use:enhance class="space-y-5">
 					<!-- Username -->
 					<div>
 						<label for="username" class="mb-1.5 block text-sm font-medium text-gray-700"
-							>Email / Username</label
+							>Username</label
 						>
 						<div class="relative">
 							<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
@@ -90,9 +67,10 @@
 							</span>
 							<input
 								id="username"
+								name="username"
 								type="text"
-								bind:value={username}
-								placeholder="guru@TwinLabs"
+								value={form?.username ?? ''}
+								placeholder="Masukkan username"
 								class="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 								required
 							/>
@@ -117,8 +95,8 @@
 							</span>
 							<input
 								id="password"
+								name="password"
 								type={showPassword ? 'text' : 'password'}
-								bind:value={password}
 								placeholder="••••••••"
 								class="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-10 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 								required
@@ -157,7 +135,7 @@
 						</div>
 					</div>
 
-					{#if error}
+					{#if form?.error}
 						<div
 							class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
 						>
@@ -169,35 +147,15 @@
 									d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 								/>
 							</svg>
-							{error}
+							{form.error}
 						</div>
 					{/if}
 
 					<button
 						type="submit"
-						disabled={loading}
-						class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-blue-400"
+						class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 font-semibold text-white transition-colors hover:bg-blue-700"
 					>
-						{#if loading}
-							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-								<circle
-									class="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									stroke-width="4"
-								></circle>
-								<path
-									class="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path>
-							</svg>
-							Masuk...
-						{:else}
-							Masuk ke Dashboard
-						{/if}
+						Masuk ke Dashboard
 					</button>
 				</form>
 
@@ -205,8 +163,8 @@
 				<div class="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
 					<p class="mb-1.5 text-xs font-medium text-blue-700">👤 Akun Demo:</p>
 					<div class="space-y-1 font-mono text-xs text-blue-600">
-						<p>Email: <span class="font-semibold">guru@TwinLabs</span></p>
-						<p>Password: <span class="font-semibold">guru123</span></p>
+						<p>Username: <span class="font-semibold">admin</span></p>
+						<p>Password: <span class="font-semibold">123123</span></p>
 					</div>
 				</div>
 			</div>

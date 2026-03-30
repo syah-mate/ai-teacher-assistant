@@ -1,37 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
-
-	let googleDriveApiKey = $state('');
-	let geminiApiKey = $state('');
-	let googleDriveEnabled = $state(false);
 	let saved = $state(false);
-
-	onMount(() => {
-		// Load dari localStorage
-		const savedGoogleKey = localStorage.getItem('googleDriveApiKey');
-		const savedGeminiKey = localStorage.getItem('geminiApiKey');
-		const savedGDriveEnabled = localStorage.getItem('googleDriveEnabled');
-
-		if (savedGoogleKey) googleDriveApiKey = savedGoogleKey;
-		if (savedGeminiKey) geminiApiKey = savedGeminiKey;
-		if (savedGDriveEnabled) googleDriveEnabled = savedGDriveEnabled === 'true';
-	});
-
-	function handleSave() {
-		// Simpan ke localStorage (frontend only)
-		localStorage.setItem('googleDriveApiKey', googleDriveApiKey);
-		localStorage.setItem('geminiApiKey', geminiApiKey);
-		localStorage.setItem('googleDriveEnabled', googleDriveEnabled.toString());
-
-		saved = true;
-		setTimeout(() => {
-			saved = false;
-		}, 3000);
-	}
-
-	function toggleGoogleDrive() {
-		googleDriveEnabled = !googleDriveEnabled;
-	}
 </script>
 
 <svelte:head>
@@ -60,54 +28,51 @@
 		</div>
 	{/if}
 
+	<!-- Security Notice -->
+	<div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+		<div class="flex items-start gap-3">
+			<svg class="h-6 w-6 text-blue-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+			</svg>
+			<div>
+				<h3 class="text-base font-semibold text-blue-900 mb-1">🔒 Keamanan Ditingkatkan</h3>
+				<p class="text-sm text-blue-800 leading-relaxed">
+					API Keys sekarang dikelola secara <strong>server-side</strong> untuk keamanan maksimal. 
+					Konfigurasi dilakukan melalui environment variables (.env) dan tidak pernah ter-expose ke browser.
+					Silakan hubungi administrator untuk mengonfigurasi API keys.
+				</p>
+			</div>
+		</div>
+	</div>
+
 	<div class="space-y-6">
 		<!-- Google Drive Integration -->
 		<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-			<div class="mb-4 flex items-start justify-between">
-				<div>
-					<div class="flex items-center gap-3 mb-2">
-						<div class="rounded-lg bg-blue-100 p-2">
-							<svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-							</svg>
-						</div>
-						<h2 class="text-lg font-semibold text-gray-800">Google Drive</h2>
+			<div class="mb-4">
+				<div class="flex items-center gap-3 mb-2">
+					<div class="rounded-lg bg-blue-100 p-2">
+						<svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+						</svg>
 					</div>
-					<p class="text-sm text-gray-600">
-						Hubungkan dengan Google Drive untuk menyimpan dan mengelola file secara otomatis
-					</p>
+					<div>
+						<h2 class="text-lg font-semibold text-gray-800">Google Drive</h2>
+						<span class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+							Server-side managed
+						</span>
+					</div>
 				</div>
-				<button
-					onclick={toggleGoogleDrive}
-					class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {googleDriveEnabled
-						? 'bg-blue-600'
-						: 'bg-gray-200'}"
-					role="switch"
-					aria-checked={googleDriveEnabled}
-				>
-					<span
-						class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {googleDriveEnabled
-							? 'translate-x-5'
-							: 'translate-x-0'}"
-					></span>
-				</button>
+				<p class="text-sm text-gray-600 mt-3">
+					Integrasi Google Drive memungkinkan penyimpanan otomatis untuk file yang dihasilkan.
+				</p>
 			</div>
 
-			<div class="mt-4">
-				<label for="googleDriveKey" class="block text-sm font-medium text-gray-700 mb-2">
-					Google Drive API Key
-				</label>
-				<input
-					id="googleDriveKey"
-					type="text"
-					bind:value={googleDriveApiKey}
-					disabled={!googleDriveEnabled}
-					placeholder="Masukkan API Key Google Drive"
-					class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-50 disabled:text-gray-400"
-				/>
+			<div class="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+				<h4 class="text-sm font-medium text-gray-700 mb-2">Konfigurasi (Administrator Only)</h4>
+				<code class="text-xs text-gray-600 block">GOOGLE_DRIVE_API_KEY=your_api_key_here</code>
 				<p class="mt-2 text-xs text-gray-500">
-					<a href="https://console.cloud.google.com/" target="_blank" class="text-blue-600 hover:text-blue-700 underline">
-						Dapatkan API Key dari Google Cloud Console
+					<a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 underline">
+						Dapatkan API Key dari Google Cloud Console →
 					</a>
 				</p>
 			</div>
@@ -122,40 +87,44 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 						</svg>
 					</div>
-					<h2 class="text-lg font-semibold text-gray-800">Gemini AI</h2>
+					<div>
+						<h2 class="text-lg font-semibold text-gray-800">Gemini AI</h2>
+						<span class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+							Server-side managed
+						</span>
+					</div>
 				</div>
-				<p class="text-sm text-gray-600">
-					Gunakan API Key Gemini untuk meningkatkan kemampuan AI dalam menghasilkan konten
+				<p class="text-sm text-gray-600 mt-3">
+					Gemini AI digunakan untuk menghasilkan konten pembelajaran berkualitas tinggi.
 				</p>
 			</div>
 
-			<div class="mt-4">
-				<label for="geminiKey" class="block text-sm font-medium text-gray-700 mb-2">
-					Gemini API Key
-				</label>
-				<input
-					id="geminiKey"
-					type="text"
-					bind:value={geminiApiKey}
-					placeholder="Masukkan API Key Gemini"
-					class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-				/>
+			<div class="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+				<h4 class="text-sm font-medium text-gray-700 mb-2">Konfigurasi (Administrator Only)</h4>
+				<code class="text-xs text-gray-600 block">GEMINI_API_KEY=your_api_key_here</code>
 				<p class="mt-2 text-xs text-gray-500">
-					<a href="https://ai.google.dev/" target="_blank" class="text-blue-600 hover:text-blue-700 underline">
-						Dapatkan API Key dari Google AI Studio
+					<a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 underline">
+						Dapatkan API Key dari Google AI Studio →
 					</a>
 				</p>
 			</div>
 		</div>
 
-		<!-- Save button -->
-		<div class="flex justify-end">
-			<button
-				onclick={handleSave}
-				class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-			>
-				Simpan Pengaturan
-			</button>
+		<!-- Info Box -->
+		<div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+			<div class="flex items-start gap-3">
+				<svg class="h-5 w-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				<div class="text-sm text-amber-800">
+					<p class="font-medium mb-1">Catatan untuk Administrator</p>
+					<p>
+						Untuk mengkonfigurasi API keys, edit file <code class="bg-amber-100 px-1.5 py-0.5 rounded text-xs">.env</code> 
+						di root project dan restart aplikasi. Contoh konfigurasi tersedia di file 
+						<code class="bg-amber-100 px-1.5 py-0.5 rounded text-xs">.env.example</code>.
+					</p>
+				</div>
+			</div>
 		</div>
 	</div>
 </div>

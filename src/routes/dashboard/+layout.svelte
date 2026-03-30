@@ -1,27 +1,8 @@
 <script>
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { get } from 'svelte/store';
-	import { auth } from '$lib/stores/auth.js';
 
-	let { children } = $props();
-	let user = $state(null);
+	let { children, data } = $props();
 	let sidebarOpen = $state(false);
-
-	onMount(() => {
-		const stored = get(auth);
-		if (!stored) {
-			goto('/login');
-			return;
-		}
-		user = stored;
-	});
-
-	function handleLogout() {
-		auth.logout();
-		goto('/login');
-	}
 
 	const navItems = [
 		{
@@ -174,27 +155,29 @@
 				<div
 					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white"
 				>
-					{user?.name?.charAt(0) ?? 'G'}
+					{data.user?.name?.charAt(0) ?? 'G'}
 				</div>
 				<div class="min-w-0">
-					<p class="truncate text-sm font-semibold text-gray-800">{user?.name ?? 'Guru'}</p>
-					<p class="truncate text-xs text-gray-400">{user?.role ?? ''}</p>
+					<p class="truncate text-sm font-semibold text-gray-800">{data.user?.name ?? 'Guru'}</p>
+					<p class="truncate text-xs text-gray-400">{data.user?.role ?? ''}</p>
 				</div>
 			</div>
-			<button
-				onclick={handleLogout}
-				class="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
-			>
-				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-					/>
-				</svg>
-				Keluar
-			</button>
+			<form method="POST" action="/logout">
+				<button
+					type="submit"
+					class="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+				>
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+						/>
+					</svg>
+					Keluar
+				</button>
+			</form>
 		</div>
 	</aside>
 

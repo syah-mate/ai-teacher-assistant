@@ -1,7 +1,7 @@
 {
 	"name": "asisten-ai-guru",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -10,6 +10,13 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"lint": "prettier --check .",
 		"format": "prettier --write ."
+	},
+	"dependencies": {
+		"@lucia-auth/adapter-mongodb": "^1.0.3",
+		"@node-rs/argon2": "^1.8.0",
+		"lucia": "^3.2.0",
+		"mongodb": "^6.5.0",
+		"zod": "^3.22.4"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",
