@@ -91,7 +91,7 @@ ${
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — TwinLabs
+  Dibuat dengan Asisten Guru AI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 

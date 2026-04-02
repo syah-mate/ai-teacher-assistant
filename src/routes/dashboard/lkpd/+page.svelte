@@ -173,7 +173,7 @@ Setelah mengerjakan LKPD ini, beri tanda centang ✓:
 Skor Penilaian Diri: _____ / 100
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — TwinLabs
+  Dibuat dengan Asisten Guru AI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 

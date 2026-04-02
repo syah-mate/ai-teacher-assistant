@@ -37,7 +37,7 @@
 					</div>
 					<div class="text-left">
 						<h1 class="text-lg font-bold leading-tight text-white">Asisten Guru AI</h1>
-						<p class="text-xs text-blue-200">by TwinLabs</p>
+						<!-- <p class="text-xs text-blue-200">by TwinLabs</p> -->
 					</div>
 				</div>
 				<p class="text-sm text-blue-100">Kerjaan Beres Tanpa Ribet ✨</p>
@@ -170,6 +170,6 @@
 			</div>
 		</div>
 
-		<p class="mt-6 text-center text-xs text-blue-200">© 2026 TwinLabs — Asisten Guru AI</p>
+		<p class="mt-6 text-center text-xs text-blue-200">Asisten Guru AI</p>
 	</div>
 </div>

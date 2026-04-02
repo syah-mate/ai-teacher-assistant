@@ -155,7 +155,7 @@ F. MEDIA DAN SUMBER BELAJAR
    • Sumber internet yang relevan dan terpercaya
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI — TwinLabs
+  Dibuat dengan Asisten Guru AI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 	}
 
