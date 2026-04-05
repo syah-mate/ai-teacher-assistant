@@ -1,6 +1,7 @@
 <script>
 	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
+	import { ModulAjarOrchestrator } from '$lib/agents/modul-ajar/index.js';
 
 	let form = $state({
 		judulModul: '',
@@ -15,13 +16,28 @@
 		deskripsi: '',
 		saranaPrasarana: '',
 		prasyarat: '',
-		atp: ''
+		atp: '',
+		penulis: '',
+		instansi: 'Sekolah'
 	});
 
+	let generationMode = $state('agentic'); // 'agentic' or 'single'
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
 	let error = $state('');
+	
+	// Progress tracking for agentic mode
+	let progress = $state({
+		step: 0,
+		total: 6,
+		phase: '',
+		message: '',
+		status: 'idle' // idle, running, completed, error
+	});
+	
+	let qualityScore = $state(0);
+	let rawData = $state(null); // Store raw data for debugging
 
 
 	const kelasList = [
@@ -108,7 +124,83 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		isGenerating = true;
 		output = '';
 		error = '';
+		qualityScore = 0;
+		rawData = null;
 		
+		if (generationMode === 'agentic') {
+			await generateWithAgenticAI();
+		} else {
+			await generateWithSinglePrompt();
+		}
+	}
+	
+	/**
+	 * Generate using Agentic AI System (multi-step with specialized agents)
+	 */
+	async function generateWithAgenticAI() {
+		try {
+			progress = {
+				step: 0,
+				total: 6,
+				phase: 'starting',
+				message: '🚀 Memulai sistem Agentic AI...',
+				status: 'running'
+			};
+			
+			const orchestrator = new ModulAjarOrchestrator();
+			
+			const userInput = {
+				judulModul: form.judulModul,
+				mapel: form.mapel,
+				kelas: form.kelas,
+				jenjang: getJenjangFromKelas(form.kelas),
+				jumlahPertemuan: form.jumlahPertemuan,
+				alokasiPerPertemuan: form.alokasiPerPertemuan,
+				metode: form.metode,
+				modePembelajaran: form.modePembelajaran,
+				penulis: form.penulis || 'Guru Mata Pelajaran',
+				instansi: form.instansi || 'Sekolah'
+			};
+			
+			const result = await orchestrator.generateModulAjar(userInput, (progressData) => {
+				progress = progressData;
+			});
+			
+			if (result.success) {
+				output = result.modulAjar;
+				qualityScore = result.metadata.qualityScore;
+				rawData = result.rawData;
+				
+				progress = {
+					...progress,
+					status: 'completed',
+					message: `✅ Modul Ajar berhasil dibuat! (Quality Score: ${result.metadata.qualityScore}/100)`
+				};
+			} else {
+				error = result.error;
+				progress = {
+					...progress,
+					status: 'error',
+					message: '❌ ' + result.error
+				};
+			}
+		} catch (err) {
+			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			console.error('Agentic AI error:', err);
+			progress = {
+				...progress,
+				status: 'error',
+				message: '❌ ' + err.message
+			};
+		} finally {
+			isGenerating = false;
+		}
+	}
+	
+	/**
+	 * Generate using Single Prompt (traditional method)
+	 */
+	async function generateWithSinglePrompt() {
 		try {
 			const prompt = buildModulAjarPrompt();
 			const result = await callGeminiAPI(prompt, {
@@ -127,6 +219,14 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		} finally {
 			isGenerating = false;
 		}
+	}
+	
+	function getJenjangFromKelas(kelas) {
+		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+		const num = kelasMap[kelas] || 10;
+		if (num <= 6) return 'SD';
+		if (num <= 9) return 'SMP';
+		return 'SMA';
 	}
 
 	async function copyOutput() {
@@ -324,7 +424,73 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						></textarea>
 					</div>
+					
+					<!-- Mode Selection -->
+					<div class="col-span-2 rounded-lg border-2 border-purple-200 bg-purple-50 p-4">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-2 block text-sm font-bold text-purple-900">🤖 Mode Generasi AI</label>
+						<div class="space-y-2">
+							<label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-purple-300 bg-white p-3 transition hover:border-purple-500">
+								<input
+									type="radio"
+									name="mode"
+									value="agentic"
+									bind:group={generationMode}
+									class="mt-1"
+								/>
+								<div class="flex-1">
+									<div class="font-semibold text-purple-900">Agentic AI (Recommended) ⭐</div>
+									<div class="text-xs text-gray-600">
+										Multi-step AI dengan specialized agents. Lebih lengkap, terstruktur, dan berkualitas tinggi. Proses lebih lama (~2-3 menit).
+									</div>
+								</div>
+							</label>
+							
+							<label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-gray-200 bg-white p-3 transition hover:border-gray-400">
+								<input
+									type="radio"
+									name="mode"
+									value="single"
+									bind:group={generationMode}
+									class="mt-1"
+								/>
+								<div class="flex-1">
+									<div class="font-semibold text-gray-900">Single Prompt (Classic)</div>
+									<div class="text-xs text-gray-600">
+										Satu kali panggilan AI. Lebih cepat (~30 detik) tapi hasil mungkin kurang detail.
+									</div>
+								</div>
+							</label>
+						</div>
+					</div>
 				</div>
+				
+				<!-- Progress Indicator (Agentic Mode) -->
+				{#if isGenerating && generationMode === 'agentic' && progress.status === 'running'}
+					<div class="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+						<div class="mb-2 flex items-center justify-between text-sm">
+							<span class="font-semibold text-blue-900">{progress.message}</span>
+							<span class="text-blue-700">{progress.step}/{progress.total}</span>
+						</div>
+						
+						<!-- Progress Bar -->
+						<div class="h-2 w-full overflow-hidden rounded-full bg-blue-200">
+							<div 
+								class="h-full bg-blue-600 transition-all duration-500"
+								style="width: {(progress.step / progress.total) * 100}%"
+							></div>
+						</div>
+						
+						<!-- Phase indicator -->
+						<div class="mt-2 flex items-center gap-2 text-xs text-blue-700">
+							<svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<span>Phase: {progress.phase || 'processing'}</span>
+						</div>
+					</div>
+				{/if}
 
 				<button
 					type="submit"
@@ -385,6 +551,37 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					</button>
 				{/if}
 			</div>
+			
+			<!-- Quality Score Indicator (Agentic Mode) -->
+			{#if qualityScore > 0 && generationMode === 'agentic'}
+				<div class="mb-4 rounded-lg border-2 {qualityScore >= 80 ? 'border-green-200 bg-green-50' : qualityScore >= 60 ? 'border-yellow-200 bg-yellow-50' : 'border-orange-200 bg-orange-50'} p-4">
+					<div class="mb-2 flex items-center justify-between">
+						<span class="text-sm font-bold {qualityScore >= 80 ? 'text-green-900' : qualityScore >= 60 ? 'text-yellow-900' : 'text-orange-900'}">
+							Quality Score
+						</span>
+						<span class="text-2xl font-bold {qualityScore >= 80 ? 'text-green-600' : qualityScore >= 60 ? 'text-yellow-600' : 'text-orange-600'}">
+							{qualityScore}/100
+						</span>
+					</div>
+					
+					<div class="h-2 w-full overflow-hidden rounded-full {qualityScore >= 80 ? 'bg-green-200' : qualityScore >= 60 ? 'bg-yellow-200' : 'bg-orange-200'}">
+						<div 
+							class="h-full {qualityScore >= 80 ? 'bg-green-600' : qualityScore >= 60 ? 'bg-yellow-600' : 'bg-orange-600'} transition-all duration-1000"
+							style="width: {qualityScore}%"
+						></div>
+					</div>
+					
+					<div class="mt-2 text-xs {qualityScore >= 80 ? 'text-green-700' : qualityScore >= 60 ? 'text-yellow-700' : 'text-orange-700'}">
+						{#if qualityScore >= 80}
+							✅ Modul ajar berkualitas tinggi dan lengkap!
+						{:else if qualityScore >= 60}
+							⚠️ Modul ajar cukup baik, beberapa bagian bisa diperkaya.
+						{:else}
+							⚠️ Modul ajar perlu review dan perbaikan.
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			{#if isGenerating}
 				<div class="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -397,8 +594,20 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path>
 					</svg>
-					<p class="text-sm">AI sedang menyusun Modul Ajar...</p>
-					<p class="mt-1 text-xs text-gray-400">Mohon tunggu 30-60 detik (multi pertemuan)</p>
+					<p class="text-sm">
+						{#if generationMode === 'agentic'}
+							🤖 Agentic AI sedang bekerja...
+						{:else}
+							AI sedang menyusun Modul Ajar...
+						{/if}
+					</p>
+					<p class="mt-1 text-xs text-gray-400">
+						{#if generationMode === 'agentic'}
+							Estimasi 2-3 menit (multi-step AI)
+						{:else}
+							Mohon tunggu 30-60 detik
+						{/if}
+					</p>
 				</div>
 			{:else if error}
 				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
