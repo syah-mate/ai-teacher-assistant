@@ -15,11 +15,12 @@
  * @param {object} options - Konfigurasi tambahan
  * @param {number} options.maxRetries - Maksimal percobaan ulang (default: 3)
  * @param {number} options.timeout - Timeout dalam ms (default: 30000)
- * @param {string} options.model - Model Gemini yang digunakan (default: 'gemini-2.0-flash')
+ * @param {string} options.model - Model Gemini yang digunakan (server will use GEMINI_MODEL from env)
  * @returns {Promise<{success: boolean, data?: string, error?: string}>}
  */
 export async function callGeminiAPI(prompt, options = {}) {
-	const { maxRetries = 3, timeout = 30000, model = 'gemini-2.0-flash' } = options;
+	const { maxRetries = 3, timeout = 30000 } = options;
+	// Note: Model is controlled by server via GEMINI_MODEL environment variable
 
 	let lastError = null;
 
@@ -33,7 +34,7 @@ export async function callGeminiAPI(prompt, options = {}) {
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ prompt, model }),
+				body: JSON.stringify({ prompt }),
 				signal: controller.signal
 			});
 
@@ -159,7 +160,8 @@ function sleep(ms) {
  * @param {object} options - Konfigurasi
  */
 export async function streamGeminiAPI(prompt, onChunk, options = {}) {
-	const { model = 'gemini-2.0-flash', timeout = 60000 } = options;
+	const { timeout = 60000 } = options;
+	// Note: Model is controlled by server via GEMINI_MODEL environment variable
 
 	try {
 		const controller = new AbortController();

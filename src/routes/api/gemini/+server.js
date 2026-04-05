@@ -5,8 +5,8 @@ import { GEMINI_API_KEY, GEMINI_MODEL } from '$env/static/private';
 // Format: { userId: { count: number, resetTime: timestamp } }
 const rateLimitStore = new Map();
 
-// Rate limit: 50 requests per minute per user
-const RATE_LIMIT = 50;
+// Rate limit: 15 requests per minute per user (Google free tier: 15 RPM)
+const RATE_LIMIT = 15;
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute in milliseconds
 
 /**
@@ -47,8 +47,14 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
+	// Get user ID with fallback
+	const userId = locals.user.userId || locals.user.username || locals.user.id || 'anonymous';
+	console.log(`[Rate Limit] User: ${userId}`);
+
 	// Check rate limit
-	const rateLimit = checkRateLimit(locals.user.userId || locals.user.username);
+	const rateLimit = checkRateLimit(userId);
+	console.log(`[Rate Limit] Count: ${rateLimitStore.get(userId)?.count}/${RATE_LIMIT}, Allowed: ${rateLimit.allowed}`);
+	
 	if (!rateLimit.allowed) {
 		return json(
 			{
@@ -69,8 +75,10 @@ export async function POST({ request, locals }) {
 
 	try {
 		const body = await request.json();
-		// Use model from environment variable, allow client override, fallback to gemini-1.5-flash
-		const { prompt, model = GEMINI_MODEL || 'gemini-1.5-flash' } = body;
+		const { prompt } = body;
+		
+		// ALWAYS use server-side model from environment variable (ignore client model)
+		const model = GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
 		if (!prompt) {
 			return json({ error: 'Prompt is required' }, { status: 400 });
@@ -79,6 +87,8 @@ export async function POST({ request, locals }) {
 		if (!GEMINI_API_KEY) {
 			return json({ error: 'Gemini API Key not configured on server' }, { status: 500 });
 		}
+
+		console.log(`[Gemini API] Using model from env: ${model}`);
 
 		// Call Gemini API with server-side API key
 		const response = await fetch(
