@@ -1,16 +1,13 @@
 import { lucia } from '$lib/server/auth';
 import { fail, redirect } from '@sveltejs/kit';
 import { verify } from '@node-rs/argon2';
-import { MongoClient, ObjectId } from 'mongodb';
-import { MONGODB_URI } from '$env/static/private';
+import { getCollection } from '$lib/server/db.js';
 import { z } from 'zod';
 
 const loginSchema = z.object({
 	username: z.string().min(3, 'Username minimal 3 karakter').max(50),
 	password: z.string().min(6, 'Password minimal 6 karakter')
 });
-
-const client = new MongoClient(MONGODB_URI);
 
 export const load = async ({ locals }) => {
 	// Redirect if already logged in
@@ -36,11 +33,9 @@ export const actions = {
 			});
 		}
 
-		let connection;
 		try {
-			connection = await client.connect();
-			const db = client.db('ai-asisten-guru');
-			const usersCollection = db.collection('users');
+			// Use singleton connection
+			const usersCollection = await getCollection('users');
 
 			// Find user
 			const existingUser = await usersCollection.findOne({

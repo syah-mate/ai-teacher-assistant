@@ -1,18 +1,28 @@
 <script>
+	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
+	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
+
 	let form = $state({
+		judulModul: '',
 		mapel: '',
 		kelas: 'X',
 		fase: 'Fase E',
-		topik: '',
-		waktu: '2x45 menit (2 JP)',
+		jumlahPertemuan: '4',
+		alokasiPerPertemuan: '2x45 menit (2 JP)',
 		kurikulum: 'Kurikulum Merdeka',
 		metode: 'Problem Based Learning (PBL)',
-		tujuan: ''
+		modePembelajaran: 'Luring (Tatap Muka)',
+		deskripsi: '',
+		saranaPrasarana: '',
+		prasyarat: '',
+		atp: ''
 	});
 
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
+	let error = $state('');
+
 
 	const kelasList = [
 		{ val: 'I', fase: 'Fase A' },
@@ -35,138 +45,88 @@
 		if (found) form.fase = found.fase;
 	}
 
-	function generateRPP() {
-		const { mapel, kelas, fase, topik, waktu, kurikulum, metode, tujuan } = form;
-		const sintak =
-			metode === 'Discovery Learning'
-				? `Fase 1 — Stimulasi
-   • Guru menayangkan fenomena/gambar/video terkait ${topik}
-   • Peserta didik mengamati dan mengidentifikasi hal menarik
-Fase 2 — Identifikasi Masalah
-   • Peserta didik merumuskan pertanyaan/hipotesis tentang ${topik}
-Fase 3 — Pengumpulan Data
-   • Melalui eksplorasi buku, internet, dan diskusi kelompok
-Fase 4 — Pengolahan Data
-   • Peserta didik menganalisis data yang telah dikumpulkan
-Fase 5 — Pembuktian
-   • Peserta didik membuktikan hipotesis berdasarkan data
-Fase 6 — Generalisasi
-   • Bersama guru, peserta didik menarik kesimpulan`
-				: metode === 'Problem Based Learning (PBL)'
-					? `Fase 1 — Orientasi Masalah
-   • Guru menyajikan masalah kontekstual terkait ${topik}
-   • Peserta didik mengidentifikasi apa yang diketahui dan dibutuhkan
-Fase 2 — Organisasi Belajar
-   • Peserta didik dibagi dalam kelompok 4–5 orang
-   • Setiap kelompok menerima LKPD tentang ${topik}
-Fase 3 — Penyelidikan
-   • Kelompok mengeksplorasi, berdiskusi, dan mengumpulkan data
-   • Guru memantau dan membimbing proses penyelidikan
-Fase 4 — Pengembangan Hasil
-   • Kelompok menyusun laporan / presentasi solusi masalah
-Fase 5 — Analisis & Evaluasi
-   • Presentasi kelompok, tanya jawab antar kelompok
-   • Guru memberikan klarifikasi dan penguatan konsep`
-					: `Langkah 1 — Pembukaan
-   • Guru menyampaikan topik dan tujuan pembelajaran ${topik}
-   • Tanya jawab apersepsi mengaitkan dengan pengetahuan awal
-Langkah 2 — Penyampaian Materi
-   • Guru menjelaskan konsep utama ${topik} secara sistematis
-   • Contoh konkret dan visualisasi digunakan untuk membantu pemahaman
-Langkah 3 — Kegiatan Siswa
-   • Peserta didik mengerjakan latihan secara mandiri/berpasangan
-   • Diskusi singkat membahas kesulitan yang ditemukan
-Langkah 4 — Presentasi & Konfirmasi
-   • Beberapa siswa mempresentasikan jawaban
-   • Guru memberikan umpan balik dan koreksi`;
+	function buildModulAjarPrompt() {
+		const { mapel, kelas, topik, waktu, metode, tujuan } = form;
+		
+		// Convert Roman numeral to number for fase mapping
+		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+		const kelasNumber = kelasMap[kelas];
+		
+		// Get curriculum context
+		const systemContext = getKurikulumMerdekaContext(kelasNumber, mapel);
+		
+		// Get model pembelajaran details
+		const modelKey = metode.includes('PBL') ? 'pbl' : 
+		                 metode.includes('Discovery') ? 'discoveryLearning' :
+		                 metode.includes('Project') ? 'projectBased' : 'pbl';
+		const modelDetail = getModelPembelajaran(modelKey);
+		
+		const outputFormat = `
+FORMAT:
 
-		return `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  MODUL AJAR / RPP ${kurikulum.toUpperCase()}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ MODUL AJAR ${mapel} - ${topik} ━━
 
-A. IDENTITAS MODUL
-   Mata Pelajaran   : ${mapel}
-   Kelas / Fase     : ${kelas} / ${fase}
-   Topik / Materi   : ${topik}
-   Alokasi Waktu    : ${waktu}
-   Kurikulum        : ${kurikulum}
-   Metode           : ${metode}
-   Penyusun         : User Guru
+A. IDENTITAS
+Mapel: ${mapel} | Kelas: ${kelas} (${form.fase}) | Waktu: ${waktu}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. CP & TUJUAN
+${tujuan || '• Buat 4 tujuan spesifik (C1-C6) untuk ' + topik}
 
-B. TUJUAN PEMBELAJARAN
-${
-	tujuan
-		? tujuan
-		: `Melalui kegiatan ${metode}, peserta didik diharapkan mampu:
-   1. Memahami konsep dasar ${topik} dengan benar
-   2. Menganalisis ${topik} dalam konteks kehidupan sehari-hari
-   3. Menerapkan pengetahuan ${topik} untuk menyelesaikan masalah
-   4. Mengkomunikasikan pemahaman ${topik} secara lisan dan tulisan`
-}
+C. PPP
+• 2-3 dimensi yang dikembangkan
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+D. PEMANTIK
+• 3 pertanyaan menarik
 
-C. PERTANYAAN PEMANTIK
-   1. Apa yang kalian ketahui tentang ${topik}?
-   2. Bagaimana ${topik} berkaitan dengan kehidupan sehari-hari?
-   3. Apa manfaat mempelajari ${topik} bagi kalian?
+E. PEMBELAJARAN (${metode})
+${modelDetail.sintak.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+Detail per fase untuk ${topik}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+F. ASESMEN
+• Diagnostik, Formatif, Sumatif + rubrik
 
-D. KEGIATAN PEMBELAJARAN
+G. MEDIA & PENGAYAAN
 
-▌PENDAHULUAN (10 Menit)
-   • Guru membuka dengan salam, doa, dan presensi
-   • Guru menyampaikan tujuan pembelajaran dan alur kegiatan
-   • Apersepsi: mengaitkan ${topik} dengan pengetahuan/pengalaman siswa
-   • Guru memberikan motivasi pentingnya mempelajari ${topik}
+Konten spesifik ${topik}, praktis, siap pakai.`;
 
-▌KEGIATAN INTI (${waktu})
-${sintak}
+		const userInput = {
+			mataPelajaran: mapel,
+			kelas: `${kelas} (${form.fase})`,
+			topik: topik,
+			alokasiWaktu: waktu,
+			metodePembelajaran: `${metode} (${modelDetail.deskripsi})`,
+			tujuanKhusus: tujuan || 'Buat tujuan pembelajaran yang sesuai'
+		};
 
-▌PENUTUP (10 Menit)
-   • Guru bersama peserta didik merangkum poin penting ${topik}
-   • Peserta didik mengerjakan kuis singkat (3–5 soal)
-   • Guru memberikan tugas/PR dan informasi pertemuan berikutnya
-   • Guru menutup pembelajaran dengan doa dan salam
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-E. ASESMEN
-
-   📋 Diagnostik  : Tanya jawab di awal pembelajaran
-   📝 Formatif    : Observasi, LKPD, kuis singkat
-   📊 Sumatif     : Ulangan harian tentang ${topik}
-
-   Instrumen Penilaian:
-   • Pengetahuan  : Tes tertulis PG dan uraian
-   • Keterampilan : Presentasi kelompok dan portofolio
-   • Sikap        : Lembar observasi keaktifan & kerja sama
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-F. MEDIA DAN SUMBER BELAJAR
-   • Buku teks ${mapel} Kelas ${kelas} (Kemendikbud)
-   • LKPD tentang ${topik}
-   • Papan tulis, spidol warna, dan proyektor
-   • Video pembelajaran / animasi terkait ${topik}
-   • Sumber internet yang relevan dan terpercaya
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+		return buildPrompt(systemContext, userInput, outputFormat);
 	}
 
 	async function handleGenerate(e) {
 		e.preventDefault();
-		if (!form.mapel || !form.topik) return;
+		if (!form.mapel || !form.judulModul) return;
+		
 		isGenerating = true;
 		output = '';
-		await new Promise((r) => setTimeout(r, 2000));
-		output = generateRPP();
-		isGenerating = false;
+		error = '';
+		
+		try {
+			const prompt = buildModulAjarPrompt();
+			const result = await callGeminiAPI(prompt, {
+				maxRetries: 3,
+				timeout: 60000
+			});
+			
+			if (result.success) {
+				output = result.data;
+			} else {
+				error = result.error;
+			}
+		} catch (err) {
+			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			console.error('Generate error:', err);
+		} finally {
+			isGenerating = false;
+		}
 	}
 
 	async function copyOutput() {
@@ -201,9 +161,9 @@ F. MEDIA DAN SUMBER BELAJAR
 			</svg>
 		</div>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">RPP / Modul Ajar Generator</h1>
+			<h1 class="text-2xl font-bold text-gray-800">Modul Ajar Generator</h1>
 			<p class="text-sm text-gray-500">
-				Buat rencana pelaksanaan pembelajaran secara otomatis dan terstruktur
+				Buat Modul Ajar Kurikulum Merdeka sesuai Standar Nasional (multi pertemuan)
 			</p>
 		</div>
 	</div>
@@ -211,20 +171,34 @@ F. MEDIA DAN SUMBER BELAJAR
 	<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
 		<!-- Form -->
 		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-			<h2 class="mb-5 text-base font-semibold text-gray-700">Data Pembelajaran</h2>
+			<h2 class="mb-5 text-base font-semibold text-gray-700">Data Modul Ajar</h2>
 			<form onsubmit={handleGenerate} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-					<label for="mapel-input" class="mb-1 block text-sm font-medium text-gray-700">Mata Pelajaran *</label>
-					<input
-						id="mapel-input"
+						<label for="judul-input" class="mb-1 block text-sm font-medium text-gray-700">Judul Modul Ajar *</label>
+						<input
+							id="judul-input"
+							type="text"
+							bind:value={form.judulModul}
+							placeholder="cth: Sistem Persamaan Linear, Teks Eksposisi, Sistem Pencernaan..."
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+							required
+						/>
+						<p class="mt-1 text-xs text-gray-500">Judul modul mencakup topik besar untuk beberapa pertemuan</p>
+					</div>
+					
+					<div class="col-span-2">
+						<label for="mapel-input" class="mb-1 block text-sm font-medium text-gray-700">Mata Pelajaran *</label>
+						<input
+							id="mapel-input"
 							type="text"
 							bind:value={form.mapel}
-							placeholder="cth: Matematika, Bahasa Indonesia..."
+							placeholder="cth: Matematika, Bahasa Indonesia, IPA..."
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 							required
 						/>
 					</div>
+					
 					<div>
 						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="mb-1 block text-sm font-medium text-gray-700">Kelas</label>
@@ -237,9 +211,10 @@ F. MEDIA DAN SUMBER BELAJAR
 							{/each}
 						</select>
 					</div>
+					
 					<div>
 						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Fase (Kur. Merdeka)</label>
+						<label class="mb-1 block text-sm font-medium text-gray-700">Fase</label>
 						<input
 							type="text"
 							bind:value={form.fase}
@@ -247,22 +222,27 @@ F. MEDIA DAN SUMBER BELAJAR
 							class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
 						/>
 					</div>
-					<div class="col-span-2">
-					<label for="topik-input" class="mb-1 block text-sm font-medium text-gray-700">Topik / Materi *</label>
-					<input
-						id="topik-input"
-							type="text"
-							bind:value={form.topik}
-							placeholder="cth: Persamaan Linear Satu Variabel"
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
-							required
-						/>
-					</div>
+					
 					<div>
 						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Alokasi Waktu</label>
+						<label class="mb-1 block text-sm font-medium text-gray-700">Jumlah Pertemuan</label>
 						<select
-							bind:value={form.waktu}
+							bind:value={form.jumlahPertemuan}
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						>
+							<option value="2">2 Pertemuan</option>
+							<option value="3">3 Pertemuan</option>
+							<option value="4">4 Pertemuan</option>
+							<option value="5">5 Pertemuan</option>
+							<option value="6">6 Pertemuan</option>
+						</select>
+					</div>
+					
+					<div>
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Alokasi per Pertemuan</label>
+						<select
+							bind:value={form.alokasiPerPertemuan}
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						>
 							<option>1x40 menit (1 JP)</option>
@@ -272,40 +252,75 @@ F. MEDIA DAN SUMBER BELAJAR
 							<option>3x45 menit (3 JP)</option>
 						</select>
 					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Kurikulum</label>
-						<select
-							bind:value={form.kurikulum}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
-						>
-							<option>Kurikulum Merdeka</option>
-							<option>Kurikulum 2013 (K13)</option>
-						</select>
-					</div>
+					
 					<div class="col-span-2">
-					<label for="metode-select" class="mb-1 block text-sm font-medium text-gray-700">Metode Pembelajaran</label>
-					<select
-						id="metode-select"
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Model Pembelajaran</label>
+						<select
 							bind:value={form.metode}
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						>
 							<option>Problem Based Learning (PBL)</option>
 							<option>Project Based Learning (PJBL)</option>
 							<option>Discovery Learning</option>
+							<option>Inquiry Learning</option>
 							<option>Cooperative Learning</option>
-							<option>Ceramah Interaktif + Diskusi</option>
 						</select>
 					</div>
+					
 					<div class="col-span-2">
 						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700"
-							>Tujuan Pembelajaran <span class="text-gray-400">(opsional)</span></label
+						<label class="mb-1 block text-sm font-medium text-gray-700">Mode Pembelajaran</label>
+						<select
+							bind:value={form.modePembelajaran}
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						>
+							<option>Luring (Tatap Muka)</option>
+							<option>Daring (Online)</option>
+							<option>Campuran (Hybrid)</option>
+						</select>
+					</div>
+					
+					<div class="col-span-2">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Deskripsi Umum Modul <span class="text-gray-400">(opsional)</span></label>
 						<textarea
-							bind:value={form.tujuan}
-							rows="3"
-							placeholder="Kosongkan untuk dibuat otomatis oleh AI..."
+							bind:value={form.deskripsi}
+							rows="2"
+							placeholder="Gambaran umum modul (kosongkan untuk dibuat AI)..."
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						></textarea>
+					</div>
+					
+					<div class="col-span-2">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Alur Tujuan Pembelajaran (ATP) <span class="text-gray-400">(opsional)</span></label>
+						<textarea
+							bind:value={form.atp}
+							rows="2"
+							placeholder="Alur pencapaian tujuan dari pertemuan 1-{form.jumlahPertemuan} (kosongkan untuk dibuat AI)..."
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						></textarea>
+					</div>
+					
+					<div class="col-span-2">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Sarana & Prasarana <span class="text-gray-400">(opsional)</span></label>
+						<textarea
+							bind:value={form.saranaPrasarana}
+							rows="2"
+							placeholder="Media, alat, bahan yang dibutuhkan (kosongkan untuk dibuat AI)..."
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						></textarea>
+					</div>
+					
+					<div class="col-span-2">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="mb-1 block text-sm font-medium text-gray-700">Prasyarat Kompetensi <span class="text-gray-400">(opsional)</span></label>
+						<textarea
+							bind:value={form.prasyarat}
+							rows="2"
+							placeholder="Kompetensi yang harus sudah dikuasai siswa (kosongkan untuk dibuat AI)..."
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						></textarea>
 					</div>
@@ -326,7 +341,7 @@ F. MEDIA DAN SUMBER BELAJAR
 								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 							></path>
 						</svg>
-						Sedang Membuat RPP...
+						Sedang Membuat Modul Ajar...
 					{:else}
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path
@@ -336,7 +351,7 @@ F. MEDIA DAN SUMBER BELAJAR
 								d="M13 10V3L4 14h7v7l9-11h-7z"
 							/>
 						</svg>
-						Generate RPP / Modul Ajar
+						Generate Modul Ajar
 					{/if}
 				</button>
 			</form>
@@ -382,7 +397,27 @@ F. MEDIA DAN SUMBER BELAJAR
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path>
 					</svg>
-					<p class="text-sm">AI sedang menyusun RPP...</p>
+					<p class="text-sm">AI sedang menyusun Modul Ajar...</p>
+					<p class="mt-1 text-xs text-gray-400">Mohon tunggu 30-60 detik (multi pertemuan)</p>
+				</div>
+			{:else if error}
+				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
+					<svg class="mb-3 h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+						/>
+					</svg>
+					<p class="mb-2 font-medium text-red-800">Gagal Generate Modul Ajar</p>
+					<p class="text-sm text-red-600">{error}</p>
+					<button
+						onclick={() => { error = ''; handleGenerate(new Event('submit')); }}
+						class="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
+					>
+						Coba Lagi
+					</button>
 				</div>
 			{:else if output}
 				<pre
@@ -397,7 +432,7 @@ F. MEDIA DAN SUMBER BELAJAR
 							d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 						/>
 					</svg>
-					<p class="text-sm">Hasil RPP akan muncul di sini</p>
+					<p class="text-sm">Hasil Modul Ajar akan muncul di sini</p>
 					<p class="mt-1 text-xs">Isi form dan klik Generate</p>
 				</div>
 			{/if}

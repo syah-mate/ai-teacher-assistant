@@ -1,16 +1,11 @@
 import { MongodbAdapter } from '@lucia-auth/adapter-mongodb';
 import { Lucia } from 'lucia';
 import { dev } from '$app/environment';
-import { MONGODB_URI } from '$env/static/private';
-import { MongoClient, ObjectId } from 'mongodb';
+import { getMongoClient, getDatabase } from './db.js';
 
-const client = new MongoClient(MONGODB_URI);
-
-// Connect and setup collections
-const connectPromise = client.connect();
-await connectPromise;
-
-const db = client.db('ai-asisten-guru');
+// Use singleton MongoDB connection
+const client = await getMongoClient();
+const db = await getDatabase();
 const users = db.collection('users');
 const sessions = db.collection('sessions');
 

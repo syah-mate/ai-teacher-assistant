@@ -1,4 +1,7 @@
 <script>
+	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
+	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
+
 	let form = $state({
 		sekolah: '',
 		mapel: '',
@@ -13,178 +16,90 @@
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
+	let error = $state('');
 
-	function generateLKPD() {
-		const { sekolah, mapel, kelas, semester, topik, tujuan, model, waktu } = form;
+	function buildLKPDPrompt() {
+		const { sekolah, mapel, kelas, topik, tujuan, model, waktu, semester } = form;
+		
+		// Convert Roman numeral to number
+		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+		const kelasNumber = kelasMap[kelas];
+		
+		// Get curriculum context
+		const systemContext = getKurikulumMerdekaContext(kelasNumber, mapel);
+		
+		// Get model pembelajaran details
+		const modelKey = model.includes('Discovery') ? 'discoveryLearning' : 
+		                 model.includes('Problem') ? 'pbl' :
+		                 model.includes('Project') ? 'projectBased' : 
+		                 model.includes('Inquiry') ? 'inquiryLearning' : 'discoveryLearning';
+		const modelDetail = getModelPembelajaran(modelKey);
 
-		const aktivitas =
-			model === 'Discovery Learning'
-				? `Kegiatan 1: Amati dan Temukan
-┌─────────────────────────────────────────┐
-│ Amati gambar/fenomena berikut ini:       │
-│ [Gambar/ilustrasi terkait ${topik}]      │
-└─────────────────────────────────────────┘
+		const outputFormat = `
+FORMAT:
 
-Pertanyaan Pengamatan:
-a. Apa yang kamu lihat dari gambar tersebut?
-   Jawab: ..................................................
+━━ LKPD ${topik} ━━
 
-b. Apa yang menjadi ciri khas dari ${topik}?
-   Jawab: ..................................................
+Sekolah: ${sekolah || '___'} | ${mapel} | Kls ${kelas}/${semester} | ${waktu}
+Nama: _____ No: _____ Tgl: _____
 
-c. Apa pertanyaan yang muncul setelah kamu mengamati?
-   Jawab: ..................................................
+A. TUJUAN
+${tujuan || '• 3 tujuan untuk ' + topik}
 
-─────────────────────────────────────────
+B. KEGIATAN (${model})
+${modelDetail.sintak.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-Kegiatan 2: Selidiki dan Analisis
-Berdasarkan pengamatanmu, coba lakukan penyelidikan dengan menjawab pertanyaan berikut:
+Detail: stimulus menarik, pertanyaan bertingkat, aktivitas hands-on, tempat jawaban.
 
-1. Berdasarkan pengamatan, jelaskan pengertian ${topik}!
-   Jawab: ..................................................
-   ..................................................
+C. EVALUASI
+4-5 soal: 2 soal C1-C2, 2 soal C3-C4, 1 soal C5-C6 (jika sesuai kelas)
 
-2. Sebutkan minimal 3 contoh ${topik} yang kamu temukan di kehidupan sehari-hari!
-   a. ..................................................
-   b. ..................................................
-   c. ..................................................
+D. REFLEKSI
+[ ] Paham konsep
+[ ] Bisa beri contoh  
+[ ] Indikator lain
+Skor: _____/100
 
-3. Apa perbedaan antara _________ dan _________ dalam konteks ${topik}?
-   Jawab: ..................................................
-   ..................................................
+Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 
-─────────────────────────────────────────
+		const userInput = {
+			mataPelajaran: mapel,
+			kelas: `${kelas} (Semester ${semester})`,
+			topik: topik,
+			alokasiWaktu: waktu,
+			modelPembelajaran: `${model} (${modelDetail.deskripsi})`,
+			tujuanKhusus: tujuan || 'Buat tujuan pembelajaran yang sesuai'
+		};
 
-Kegiatan 3: Simpulkan
-Berdasarkan seluruh kegiatan di atas, buatlah kesimpulan tentang ${topik}!
-
-Kesimpulan Saya:
-..................................................
-..................................................
-..................................................`
-				: `Kegiatan 1: Identifikasi Masalah
-┌─────────────────────────────────────────┐
-│ MASALAH KONTEKSTUAL                      │
-│ Perhatikan situasi berikut yang berkaitan│
-│ dengan ${topik}:                         │
-│ [Deskripsi situasi masalah]              │
-└─────────────────────────────────────────┘
-
-Pertanyaan:
-1. Apa masalah utama yang perlu diselesaikan?
-   Jawab: ..................................................
-
-2. Informasi apa yang diketahui dari masalah tersebut?
-   Jawab: ..................................................
-
-─────────────────────────────────────────
-
-Kegiatan 2: Rancang Solusi
-Diskusikan dengan kelompokmu untuk merancang solusi masalah di atas!
-
-Langkah-langkah penyelesaian:
-Step 1: ..................................................
-Step 2: ..................................................
-Step 3: ..................................................
-
-─────────────────────────────────────────
-
-Kegiatan 3: Presentasi & Refleksi
-Presentasikan solusi kelompokmu, kemudian jawab pertanyaan refleksi:
-
-1. Strategi apa yang paling efektif untuk menyelesaikan masalah ini?
-   Jawab: ..................................................
-
-2. Apa yang perlu diperbaiki dari solusi kelompokmu?
-   Jawab: ..................................................`;
-
-		return `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  LEMBAR KERJA PESERTA DIDIK (LKPD)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Nama Sekolah     : ${sekolah || '_______________________'}
-Mata Pelajaran   : ${mapel}
-Kelas / Semester : ${kelas} / ${semester}
-Topik            : ${topik}
-Alokasi Waktu    : ${waktu}
-Model            : ${model}
-
-Nama Siswa       : _______________________
-No. Absen        : _______________________
-Tanggal          : _______________________
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-A. TUJUAN PEMBELAJARAN
-${
-	tujuan
-		? tujuan
-		: `Setelah mengerjakan LKPD ini, peserta didik diharapkan mampu:
-   1. Menjelaskan konsep ${topik} dengan bahasa sendiri
-   2. Mengidentifikasi contoh-contoh ${topik} dalam kehidupan nyata
-   3. Menganalisis dan menyelesaikan masalah terkait ${topik}
-   4. Menyimpulkan hasil temuan tentang ${topik}`
-}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-B. PETUNJUK UMUM
-   ✓ Kerjakan secara individu/berpasangan sesuai instruksi guru
-   ✓ Baca setiap pertanyaan dengan seksama sebelum menjawab
-   ✓ Gunakan sumber belajar yang relevan (buku, internet)
-   ✓ Tulis jawaban dengan jelas dan lengkap
-   ✓ Tanyakan kepada guru jika ada yang tidak dimengerti
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-C. KEGIATAN BELAJAR
-
-${aktivitas}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-D. SOAL EVALUASI
-
-1. Jelaskan apa yang dimaksud dengan ${topik}!
-   Jawab:
-   _______________________________________________
-   _______________________________________________
-
-2. Berikan 2 contoh penerapan ${topik} dalam kehidupan sehari-hari!
-   a. _______________________________________________
-   b. _______________________________________________
-
-3. (Soal Analisis) Berdasarkan pemahamanmu, apa hubungan antara ${topik} dengan materi sebelumnya?
-   Jawab:
-   _______________________________________________
-   _______________________________________________
-   _______________________________________________
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-E. REFLEKSI DIRI
-
-Setelah mengerjakan LKPD ini, beri tanda centang ✓:
-
-[ ] Saya memahami konsep ${topik} dengan baik
-[ ] Saya dapat memberikan contoh ${topik} dari kehidupan nyata
-[ ] Saya masih perlu belajar lebih lanjut tentang bagian ______
-
-Skor Penilaian Diri: _____ / 100
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+		return buildPrompt(systemContext, userInput, outputFormat);
 	}
 
 	async function handleGenerate(e) {
 		e.preventDefault();
 		if (!form.mapel || !form.topik) return;
+		
 		isGenerating = true;
 		output = '';
-		await new Promise((r) => setTimeout(r, 2000));
-		output = generateLKPD();
-		isGenerating = false;
+		error = '';
+		
+		try {
+			const prompt = buildLKPDPrompt();
+			const result = await callGeminiAPI(prompt, {
+				maxRetries: 3,
+				timeout: 45000
+			});
+			
+			if (result.success) {
+				output = result.data;
+			} else {
+				error = result.error;
+			}
+		} catch (err) {
+			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			console.error('Generate error:', err);
+		} finally {
+			isGenerating = false;
+		}
 	}
 
 	async function copyOutput() {
@@ -399,6 +314,26 @@ Skor Penilaian Diri: _____ / 100
 						></path>
 					</svg>
 					<p class="text-sm">AI sedang menyusun LKPD...</p>
+					<p class="mt-1 text-xs text-gray-400">Mohon tunggu 10-30 detik</p>
+				</div>
+			{:else if error}
+				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
+					<svg class="mb-3 h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+						/>
+					</svg>
+					<p class="mb-2 font-medium text-red-800">Gagal Generate LKPD</p>
+					<p class="text-sm text-red-600">{error}</p>
+					<button
+						onclick={() => { error = ''; handleGenerate(new Event('submit')); }}
+						class="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
+					>
+						Coba Lagi
+					</button>
 				</div>
 			{:else if output}
 				<pre

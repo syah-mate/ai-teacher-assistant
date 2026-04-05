@@ -1,4 +1,7 @@
 <script>
+	import { getKurikulumMerdekaContext } from '$lib/prompts/kurikulum-merdeka-base.js';
+	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
+
 	let form = $state({
 		mapel: '',
 		kelas: 'X',
@@ -12,9 +15,17 @@
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
+	let error = $state('');
 
-	function generatePPT() {
+	function buildPPTPrompt() {
 		const { mapel, kelas, topik, jumlahSlide, gaya, poinUtama, targetAudiens } = form;
+		
+		// Convert Roman numeral to number
+		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+		const kelasNumber = kelasMap[kelas];
+		
+		// Get curriculum context
+		const systemContext = getKurikulumMerdekaContext(kelasNumber, mapel);
 
 		const poinList = poinUtama
 			? poinUtama
@@ -22,138 +33,85 @@
 					.filter((p) => p.trim())
 					.map((p, i) => `  ${i + 1}. ${p.trim()}`)
 					.join('\n')
-			: `  1. Pengertian dan definisi ${topik}
-  2. Sejarah dan perkembangan ${topik}
-  3. Jenis-jenis atau klasifikasi ${topik}
-  4. Prinsip dan mekanisme kerja ${topik}
-  5. Contoh nyata ${topik} dalam kehidupan
-  6. Keterkaitan ${topik} dengan topik lain`;
+			: null;
 
-		const slidePerSection = Math.max(1, Math.floor((jumlahSlide - 3) / 5));
+		const outputFormat = `
+FORMAT:
 
-		return `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  KERANGKA PPT / MATERI AJAR
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ KERANGKA PPT ${topik} ━━
 
-  Mata Pelajaran   : ${mapel}
-  Kelas            : ${kelas}
-  Topik            : ${topik}
-  Jumlah Slide     : ±${jumlahSlide} slide
-  Gaya Presentasi  : ${gaya}
-  Target Audiens   : ${targetAudiens}
+${mapel} | Kls ${kelas} | ${jumlahSlide} slide | ${gaya}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POIN:
+${poinList || '5-7 poin untuk ' + topik}
 
-POIN UTAMA YANG AKAN DIBAHAS:
-${poinList}
+SLIDE:
+1. COVER: Judul + visual
+2. DAFTAR ISI: Peta konsep
+3. TUJUAN: 3-4 tujuan (C1-C6)
+4-${jumlahSlide - 1}. KONTEN:
+   • Definisi & kunci
+   • Konsep & mekanisme
+   • Contoh nyata
+   • Latihan
+${jumlahSlide}. PENUTUP: Ringkasan + kuis
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Detail tiap slide: judul jelas, poin ringkas (5-7 baris max), visual konkrit, contoh nyata ${topik}.
 
-STRUKTUR SLIDE LENGKAP:
-
-▌ SLIDE 1 — COVER / JUDUL
-  Judul      : ${topik}
-  Sub Judul  : ${mapel} | Kelas ${kelas}
-  Visual     : Gambar/ilustrasi menarik terkait ${topik}
-  Teks       : Logo sekolah, nama penyusun, tahun ajaran
-
-▌ SLIDE 2 — PETA KONSEP / DAFTAR ISI
-  Konten     : Peta konsep atau daftar isi yang akan dipelajari
-  Visual     : Diagram mind map atau numbered list yang menarik
-  Teks       : "Apa saja yang akan kita pelajari hari ini?"
-
-▌ SLIDE 3 — TUJUAN PEMBELAJARAN
-  Konten     : Daftar tujuan pembelajaran yang ingin dicapai
-  Visual     : Ikon target/checklist
-  Teks       :
-    • Peserta didik dapat menjelaskan ${topik} dengan tepat
-    • Peserta didik dapat menganalisis contoh ${topik}
-    • Peserta didik dapat menerapkan konsep ${topik}
-
-─────────────────────────────────────
-  BAGIAN INTI (${jumlahSlide - 4} slide)
-─────────────────────────────────────
-
-▌ SLIDE 4–${Math.min(4 + slidePerSection, jumlahSlide - 2)} — PENGENALAN & DEFINISI
-  Konten     : Pengertian dan definisi ${topik}
-  Visual     : Infografis atau ilustrasi konsep dasar
-  Teks       :
-    • Definisi resmi ${topik} menurut para ahli
-    • Kata kunci penting yang perlu dipahami
-    • Analogi sederhana untuk membantu pemahaman
-  Catatan    : Gunakan font besar dan warna kontras
-
-▌ SLIDE ${Math.min(4 + slidePerSection + 1, jumlahSlide - 2)}–${Math.min(4 + slidePerSection * 2, jumlahSlide - 2)} — KONSEP & MEKANISME
-  Konten     : Penjelasan mendalam tentang ${topik}
-  Visual     : Diagram alur, grafik, atau bagan
-  Teks       :
-    • Bagaimana ${topik} bekerja / berlangsung
-    • Faktor-faktor yang mempengaruhi ${topik}
-    • Hubungan sebab-akibat dalam ${topik}
-  Catatan    : Pisahkan slide per poin agar tidak terlalu padat
-
-▌ SLIDE ${Math.min(4 + slidePerSection * 2 + 1, jumlahSlide - 2)}–${Math.min(4 + slidePerSection * 3, jumlahSlide - 2)} — CONTOH & APLIKASI
-  Konten     : Contoh konkret ${topik} dalam kehidupan nyata
-  Visual     : Foto, video embed, atau studi kasus
-  Teks       :
-    • Contoh 1: [konteks kehidupan sehari-hari]
-    • Contoh 2: [konteks ilmu pengetahuan]
-    • Contoh 3: [konteks teknologi/industri]
-  Catatan    : Tambahkan pertanyaan interaktif untuk siswa
-
-▌ SLIDE ${Math.min(4 + slidePerSection * 3 + 1, jumlahSlide - 2)}–${jumlahSlide - 2} — LATIHAN & DISKUSI
-  Konten     : Soal latihan atau pertanyaan diskusi
-  Visual     : Kotak pertanyaan yang menarik
-  Teks       :
-    • "Dari apa yang kita pelajari, coba jawab..."
-    • Soal latihan 1–3 bertingkat kesulitan
-    • Instruksi diskusi kelompok (jika ada)
-  Catatan    : Berikan waktu 5–10 menit untuk siswa menjawab
-
-─────────────────────────────────────
-  PENUTUP
-─────────────────────────────────────
-
-▌ SLIDE ${jumlahSlide - 1} — KESIMPULAN
-  Konten     : Rangkuman poin-poin penting ${topik}
-  Visual     : Bullet points atau ringkasan visual
-  Teks       :
-    • Poin 1: [ringkasan definisi]
-    • Poin 2: [ringkasan konsep utama]
-    • Poin 3: [aplikasi nyata]
-  Catatan    : Gunakan bullet points singkat, max 5 poin
-
-▌ SLIDE ${jumlahSlide} — PENUTUP & REFERENSI
-  Konten     : Ucapan terima kasih + sumber referensi
-  Visual     : Desain yang clean dan profesional
-  Teks       :
-    • "Terima kasih! Ada pertanyaan?"
-    • Referensi: Buku teks ${mapel} Kelas ${kelas}
-    • Kontak guru (opsional)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-TIPS DESAIN PRESENTASI:
-  🎨 Gunakan palet warna 2–3 warna yang konsisten
-  📝 Maksimal 5–7 baris teks per slide
-  🖼️ Setiap slide minimal 1 visual (gambar/diagram)
-  🔤 Font judul min 32pt, isi min 24pt
-  ✨ Tambahkan animasi masuk yang sederhana (fade/appear)
-  📱 Pastikan terbaca dari jarak 5 meter
+Tips: Warna sesuai tema, font besar (judul 32pt, isi 24pt), 1 visual/slide, animasi sederhana.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Dibuat dengan Asisten Guru AI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PENTING:
+- Semua konten harus SPESIFIK untuk "${topik}" kelas ${kelas}
+- Tidak boleh ada placeholder atau konten generic
+- Setiap slide harus memiliki konten yang lengkap dan siap dipresentasikan
+- Berikan teaching notes yang membantu guru menyampaikan materi
+- Sesuaikan tingkat kesulitan dengan ${targetAudiens}
+- Gaya presentasi ${gaya} harus tercermin dalam penyusunan konten
+`;
+
+		const userInput = {
+			mataPelajaran: mapel,
+			kelas: `${kelas}`,
+			topik: topik,
+			jumlahSlide: `${jumlahSlide} slide`,
+			gayaPresentasi: gaya,
+			targetAudiens: targetAudiens,
+			poinKhusus: poinUtama || 'Buat poin-poin utama yang komprehensif'
+		};
+
+		return buildPrompt(systemContext, userInput, outputFormat);
 	}
 
 	async function handleGenerate(e) {
 		e.preventDefault();
 		if (!form.mapel || !form.topik) return;
+		
 		isGenerating = true;
 		output = '';
-		await new Promise((r) => setTimeout(r, 2000));
-		output = generatePPT();
-		isGenerating = false;
+		error = '';
+		
+		try {
+			const prompt = buildPPTPrompt();
+			const result = await callGeminiAPI(prompt, {
+				maxRetries: 3,
+				timeout: 45000
+			});
+			
+			if (result.success) {
+				output = result.data;
+			} else {
+				error = result.error;
+			}
+		} catch (err) {
+			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			console.error('Generate error:', err);
+		} finally {
+			isGenerating = false;
+		}
 	}
 
 	async function copyOutput() {
@@ -367,6 +325,26 @@ Kosongkan untuk dibuat otomatis oleh AI"
 						></path>
 					</svg>
 					<p class="text-sm">AI sedang menyusun kerangka presentasi...</p>
+					<p class="mt-1 text-xs text-gray-400">Mohon tunggu 10-30 detik</p>
+				</div>
+			{:else if error}
+				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
+					<svg class="mb-3 h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+						/>
+					</svg>
+					<p class="mb-2 font-medium text-red-800">Gagal Generate PPT</p>
+					<p class="text-sm text-red-600">{error}</p>
+					<button
+						onclick={() => { error = ''; handleGenerate(new Event('submit')); }}
+						class="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
+					>
+						Coba Lagi
+					</button>
 				</div>
 			{:else if output}
 				<pre

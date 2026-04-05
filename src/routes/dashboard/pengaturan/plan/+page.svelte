@@ -122,7 +122,7 @@
 	</div>
 
 	<!-- Current plan banner -->
-	<div class="mb-8 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+	<div class="mb-8 rounded-xl bg-linear-to-r from-blue-500 to-blue-600 p-6 text-white">
 		<div class="flex items-center justify-between">
 			<div>
 				<p class="text-sm font-medium text-blue-100 mb-1">Plan Aktif Sekarang</p>
@@ -241,7 +241,12 @@
 
 <!-- Upgrade Modal -->
 {#if showUpgradeModal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={closeModal}>
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={closeModal} role="dialog" aria-modal="true" tabindex="-1">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
 			onclick={(e) => e.stopPropagation()}
@@ -251,6 +256,7 @@
 				<button
 					onclick={closeModal}
 					class="text-gray-400 hover:text-gray-600 transition-colors"
+					aria-label="Tutup modal"
 				>
 					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
