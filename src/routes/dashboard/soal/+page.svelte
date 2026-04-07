@@ -1,4 +1,6 @@
 <script>
+	import { SoalOrchestrator } from '$lib/agents/soal/index.js';
+
 	let form = $state({
 		mapel: '',
 		kelas: 'X',
@@ -13,96 +15,80 @@
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
+	let error = $state('');
 
-	function generateSoal() {
-		const { mapel, kelas, topik, kurikulum, jenis, jumlah, tingkat, level } = form;
+	// Progress tracking for agentic mode
+	let progress = $state({
+		step: 0,
+		total: 2,
+		agent: '',
+		status: ''
+	});
 
-		let soalPG = '';
-		let soalEsai = '';
-
-		const pgOptions = ['A', 'B', 'C', 'D', 'E'];
-		const kunciArray = ['B', 'D', 'A', 'C', 'B', 'D', 'A', 'C', 'B', 'A'];
-
-		if (jenis === 'Pilihan Ganda' || jenis === 'Campuran') {
-			const jumlahPG = jenis === 'Campuran' ? Math.ceil(jumlah * 0.7) : jumlah;
-			const soalList = [];
-			for (let i = 1; i <= jumlahPG; i++) {
-				const kunci = kunciArray[(i - 1) % kunciArray.length];
-				soalList.push(`Soal ${i}. Pernyataan berikut ini yang benar tentang ${topik} adalah...
-   A. Pilihan A terkait ${topik} (keliru)
-   B. Pilihan B terkait ${topik} (benar)
-   C. Pilihan C terkait ${topik} (keliru)
-   D. Pilihan D terkait ${topik} (keliru)
-   ${jenis === 'Campuran' ? '' : 'E. Pilihan E terkait ' + topik + ' (keliru)'}
-   Kunci: ${kunci}`);
-			}
-			soalPG = `▌ BAGIAN A — PILIHAN GANDA (Jumlah: ${jumlahPG} soal)
-Petunjuk: Pilih satu jawaban yang paling tepat!
-
-${soalList.join('\n\n')}`;
-		}
-
-		if (jenis === 'Esai' || jenis === 'Campuran') {
-			const jumlahEsai = jenis === 'Campuran' ? Math.floor(jumlah * 0.3) : jumlah;
-			const esaiList = [];
-			for (let i = 1; i <= jumlahEsai; i++) {
-				esaiList.push(`Soal ${i}. Jelaskan secara detail tentang ${topik} beserta contoh penerapannya dalam kehidupan sehari-hari! (${tingkat === 'Sulit' ? '20' : tingkat === 'Sedang' ? '15' : '10'} poin)
-
-   Rubrik Penilaian:
-   • Menyebutkan definisi ${topik} dengan benar          : 4 poin
-   • Memberikan penjelasan yang lengkap dan tepat        : 6 poin
-   • Memberikan minimal 2 contoh yang relevan            : 4 poin
-   • Penulisan rapi, sistematis, dan menggunakan EYD     : ${tingkat === 'Sulit' ? '6' : tingkat === 'Sedang' ? '1' : '1'} poin`);
-			}
-			soalEsai = `▌ BAGIAN ${jenis === 'Campuran' ? 'B' : 'A'} — ESAI (Jumlah: ${jumlahEsai} soal)
-Petunjuk: Jawablah pertanyaan berikut dengan jelas dan lengkap!
-
-${esaiList.join('\n\n')}`;
-		}
-
-		return `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  BANK SOAL DAN UJIAN — ${kurikulum.toUpperCase()}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Mata Pelajaran   : ${mapel}
-  Kelas            : ${kelas}
-  Topik            : ${topik}
-  Jenis Soal       : ${jenis}
-  Jumlah Soal      : ${jumlah} butir
-  Tingkat Kesulitan: ${tingkat}
-  Level Kognitif   : ${level}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${soalPG}
-${soalEsai ? '\n' + soalEsai : ''}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  KUNCI JAWABAN PILIHAN GANDA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${
-	jenis !== 'Esai'
-		? Array.from(
-				{ length: jenis === 'Campuran' ? Math.ceil(form.jumlah * 0.7) : form.jumlah },
-				(_, i) => `  ${i + 1}. ${['B', 'D', 'A', 'C', 'B', 'D', 'A', 'C', 'B', 'A'][i % 10]}`
-			).join('\n')
-		: '  (Lihat rubrik penilaian pada masing-masing soal esai)'
-}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Dibuat dengan Asisten Guru AI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-	}
+	let qualityScore = $state(0);
+	let qualityIndicator = $state(null);
+	let validationReport = $state('');
 
 	async function handleGenerate(e) {
 		e.preventDefault();
-		if (!form.mapel || !form.topik) return;
+		if (!form.mapel || !form.topik) {
+			error = 'Harap isi Mata Pelajaran dan Topik/Materi';
+			return;
+		}
+
 		isGenerating = true;
 		output = '';
-		await new Promise((r) => setTimeout(r, 2000));
-		output = generateSoal();
-		isGenerating = false;
+		error = '';
+		qualityScore = 0;
+		qualityIndicator = null;
+		validationReport = '';
+
+		try {
+			progress = {
+				step: 0,
+				total: 2,
+				agent: 'Initializing',
+				status: '🚀 Memulai Agentic AI System...'
+			};
+
+			const orchestrator = new SoalOrchestrator();
+
+			const userInput = {
+				...form,
+				userId: 'user' // This will be replaced by actual user ID from session
+			};
+
+			const result = await orchestrator.generateSoal(userInput, (progressData) => {
+				progress = progressData;
+			});
+
+			if (result.success) {
+				output = result.data.content;
+				qualityScore = result.data.metadata.validation.score;
+				qualityIndicator = result.data.qualityIndicator;
+				validationReport = result.data.validationReport;
+
+				progress = {
+					...progress,
+					status: `✅ Soal berhasil dibuat! (Kualitas: ${qualityScore}/100)`
+				};
+			} else {
+				error = result.error || 'Terjadi kesalahan saat membuat soal';
+				progress = {
+					...progress,
+					status: '❌ ' + error
+				};
+			}
+		} catch (err) {
+			console.error('Generation error:', err);
+			error = err.message || 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			progress = {
+				...progress,
+				status: '❌ ' + error
+			};
+		} finally {
+			isGenerating = false;
+		}
 	}
 
 	async function copyOutput() {
@@ -146,8 +132,40 @@ ${
 
 	<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
 		<!-- Form -->
-		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-			<h2 class="mb-5 text-base font-semibold text-gray-700">Konfigurasi Soal</h2>
+		<div class="space-y-4">
+			<!-- Info Card -->
+			<div class="rounded-xl border border-violet-100 bg-violet-50 p-4">
+				<div class="mb-2 flex items-center gap-2">
+					<svg
+						class="h-5 w-5 text-violet-600"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M13 10V3L4 14h7v7l9-11h-7z"
+						/>
+					</svg>
+					<h3 class="font-semibold text-violet-900">Fitur AI Powered</h3>
+				</div>
+				<p class="text-xs leading-relaxed text-violet-700">
+					Generator soal ini menggunakan <strong>Agentic AI System</strong> dengan 2 specialized agents:
+					<br />
+					🤖 <strong>Soal Generator Agent</strong> - Menyusun soal sesuai standar
+					<br />
+					✅ <strong>Validator Agent</strong> - Memvalidasi kualitas soal
+					<br />
+					<span class="mt-2 inline-block text-violet-600"
+						>Soal berkualitas tinggi dengan validasi otomatis!</span
+					>
+				</p>
+			</div>
+
+			<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+				<h2 class="mb-5 text-base font-semibold text-gray-700">Konfigurasi Soal</h2>
 			<form onsubmit={handleGenerate} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
@@ -284,38 +302,99 @@ ${
 								d="M13 10V3L4 14h7v7l9-11h-7z"
 							/>
 						</svg>
-						Generate Soal
+						Generate Soal (AI Powered)
 					{/if}
 				</button>
+
+				<!-- Progress indicator -->
+				{#if isGenerating}
+					<div class="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4">
+						<div class="mb-2 flex items-center justify-between text-sm">
+							<span class="font-medium text-violet-700">{progress.agent}</span>
+							<span class="text-violet-600">Step {progress.step}/{progress.total}</span>
+						</div>
+						<div class="mb-2 h-2 overflow-hidden rounded-full bg-violet-200">
+							<div
+								class="h-full bg-violet-600 transition-all duration-300"
+								style="width: {(progress.step / progress.total) * 100}%"
+							></div>
+						</div>
+						<p class="text-xs text-violet-600">{progress.status}</p>
+					</div>
+				{/if}
+
+				<!-- Error message -->
+				{#if error}
+					<div class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
+						<p class="text-sm text-red-700">❌ {error}</p>
+					</div>
+				{/if}
 			</form>
 		</div>
+	</div>
 
 		<!-- Output -->
 		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
 			<div class="mb-4 flex items-center justify-between">
-				<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
+				<div class="flex items-center gap-3">
+					<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
+					{#if qualityIndicator && qualityScore > 0}
+						<span
+							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium
+							{qualityIndicator.color === 'emerald'
+								? 'bg-emerald-100 text-emerald-700'
+								: qualityIndicator.color === 'green'
+									? 'bg-green-100 text-green-700'
+									: qualityIndicator.color === 'yellow'
+										? 'bg-yellow-100 text-yellow-700'
+										: 'bg-red-100 text-red-700'}"
+						>
+							{qualityIndicator.icon}
+							{qualityIndicator.label} ({qualityScore})
+						</span>
+					{/if}
+				</div>
 				{#if output}
-					<button
-						onclick={copyOutput}
-						class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-					>
-						{#if copied}
-							<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-							</svg>
-							Tersalin!
-						{:else}
-							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-								/>
-							</svg>
-							Salin Teks
+					<div class="flex gap-2">
+						{#if validationReport}
+							<button
+								onclick={() => alert(validationReport)}
+								class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+								title="Lihat laporan validasi AI"
+							>
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+									/>
+								</svg>
+								Validasi
+							</button>
 						{/if}
-					</button>
+						<button
+							onclick={copyOutput}
+							class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+						>
+							{#if copied}
+								<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+								</svg>
+								Tersalin!
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+									/>
+								</svg>
+								Salin Teks
+							{/if}
+						</button>
+					</div>
 				{/if}
 			</div>
 
@@ -330,7 +409,8 @@ ${
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path>
 					</svg>
-					<p class="text-sm">AI sedang menyusun soal...</p>
+					<p class="text-sm font-medium text-violet-600">{progress.status}</p>
+					<p class="mt-1 text-xs text-gray-400">AI sedang menyusun soal berkualitas...</p>
 				</div>
 			{:else if output}
 				<pre
@@ -345,8 +425,8 @@ ${
 							d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 						/>
 					</svg>
-					<p class="text-sm">Kumpulan soal akan muncul di sini</p>
-					<p class="mt-1 text-xs">Isi form dan klik Generate</p>
+					<p class="text-sm font-medium text-gray-400">Kumpulan soal akan muncul di sini</p>
+					<p class="mt-1 text-xs text-gray-400">Isi form dan klik Generate</p>
 				</div>
 			{/if}
 		</div>

@@ -1,6 +1,7 @@
 <script>
 	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
+	import { LKPDOrchestrator } from '$lib/agents/lkpd/index.js';
 
 	let form = $state({
 		sekolah: '',
@@ -10,13 +11,30 @@
 		topik: '',
 		tujuan: '',
 		model: 'Discovery Learning',
-		waktu: '2x40 menit'
+		waktu: '2x40 menit',
+		jenisKegiatan: 'pembelajaran umum', // eksperimen/observasi/diskusi/latihan
+		polaBelajar: 'berkelompok',
+		penulis: '',
+		instansi: ''
 	});
 
+	let generationMode = $state('agentic'); // 'agentic' or 'single'
 	let isGenerating = $state(false);
 	let output = $state('');
 	let copied = $state(false);
 	let error = $state('');
+	
+	// Progress tracking for agentic mode
+	let progress = $state({
+		step: 0,
+		total: 8,
+		phase: '',
+		message: '',
+		status: 'idle' // idle, running, completed, error
+	});
+	
+	let qualityScore = $state(0);
+	let rawData = $state(null);
 
 	function buildLKPDPrompt() {
 		const { sekolah, mapel, kelas, topik, tujuan, model, waktu, semester } = form;
@@ -81,7 +99,87 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 		isGenerating = true;
 		output = '';
 		error = '';
+		qualityScore = 0;
+		rawData = null;
 		
+		if (generationMode === 'agentic') {
+			await generateWithAgenticAI();
+		} else {
+			await generateWithSinglePrompt();
+		}
+	}
+	
+	/**
+	 * Generate using Agentic AI System (multi-step with specialized agents)
+	 */
+	async function generateWithAgenticAI() {
+		try {
+			progress = {
+				step: 0,
+				total: 8,
+				phase: 'starting',
+				message: '🚀 Memulai sistem Agentic AI untuk LKPD...',
+				status: 'running'
+			};
+			
+			const orchestrator = new LKPDOrchestrator();
+			
+			const userInput = {
+				judulLKPD: form.topik,
+				mapel: form.mapel,
+				kelas: form.kelas,
+				semester: form.semester,
+				jenjang: getJenjangFromKelas(form.kelas),
+				alokasiWaktu: form.waktu,
+				jenisKegiatan: form.jenisKegiatan,
+				polaBelajar: form.polaBelajar,
+				topikMateri: form.topik,
+				deskripsiMateri: form.tujuan, // Bisa digunakan untuk deskripsi tambahan
+				penulis: form.penulis || 'Guru Mata Pelajaran',
+				instansi: form.instansi || form.sekolah || 'Sekolah',
+				metode: form.model
+			};
+			
+			const result = await orchestrator.generateLKPD(userInput, (progressData) => {
+				progress = progressData;
+			});
+			
+			if (result.success) {
+				// Format output for display
+				output = formatLKPDOutput(result.data);
+				qualityScore = result.metadata.qualityScore;
+				rawData = result.data;
+				
+				progress = {
+					...progress,
+					status: 'completed',
+					message: `✅ LKPD berhasil dibuat! (Quality Score: ${result.metadata.qualityScore}/100)`
+				};
+			} else {
+				error = result.error;
+				progress = {
+					...progress,
+					status: 'error',
+					message: '❌ ' + result.error
+				};
+			}
+		} catch (err) {
+			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
+			console.error('Agentic AI error:', err);
+			progress = {
+				...progress,
+				status: 'error',
+				message: '❌ ' + err.message
+			};
+		} finally {
+			isGenerating = false;
+		}
+	}
+	
+	/**
+	 * Generate using single prompt (legacy mode)
+	 */
+	async function generateWithSinglePrompt() {
 		try {
 			const prompt = buildLKPDPrompt();
 			const result = await callGeminiAPI(prompt, {
@@ -100,6 +198,199 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 		} finally {
 			isGenerating = false;
 		}
+	}
+	
+	/**
+	 * Format LKPD data to readable text
+	 */
+	function formatLKPDOutput(data) {
+		let output = '';
+		
+		// Header & Identitas
+		output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+		output += `   LEMBAR KERJA PESERTA DIDIK (LKPD)\n`;
+		output += `   ${data.identitas?.judulLKPD || ''}\n`;
+		output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+		
+		// Identitas
+		const id = data.identitas?.identitas;
+		if (id) {
+			output += `📋 IDENTITAS LKPD\n`;
+			output += `Mata Pelajaran : ${id.mataPelajaran}\n`;
+			output += `Kelas/Semester : ${id.kelas} / ${id.semester}\n`;
+			output += `Fase           : ${id.fase}\n`;
+			output += `Alokasi Waktu  : ${id.alokasiWaktu}\n`;
+			if (form.sekolah) output += `Sekolah        : ${form.sekolah}\n`;
+			output += `\nNama  : _____________________  No: _____  Tgl: _____\n\n`;
+		}
+		
+		// Capaian Pembelajaran
+		if (data.capaianPembelajaran) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `🎯 A. CAPAIAN PEMBELAJARAN\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			output += `${data.capaianPembelajaran.capaianUtama}\n\n`;
+		}
+		
+		// Tujuan Pembelajaran
+		if (data.tujuanPembelajaran?.length > 0) {
+			output += `📌 TUJUAN PEMBELAJARAN:\n`;
+			data.tujuanPembelajaran.forEach((tp, i) => {
+				output += `${i + 1}. ${tp.tujuan}\n`;
+			});
+			output += `\n`;
+		}
+		
+		// Petunjuk Belajar
+		if (data.petunjukBelajar) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `📖 B. PETUNJUK BELAJAR\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			const pb = data.petunjukBelajar.petunjukUmum;
+			if (pb) {
+				output += `Pola Belajar: ${pb.polaBelajar}\n`;
+				output += `Waktu: ${pb.waktuPengerjaan}\n\n`;
+				output += `INSTRUKSI UMUM:\n`;
+				pb.instruksiUmum?.forEach((instr, i) => {
+					output += `${i + 1}. ${instr}\n`;
+				});
+				output += `\n`;
+			}
+			
+			if (data.petunjukBelajar.petunjukKhusus?.length > 0) {
+				output += `LANGKAH-LANGKAH:\n`;
+				data.petunjukBelajar.petunjukKhusus.forEach((pk) => {
+					output += `${pk.langkah}. ${pk.instruksi}\n`;
+					if (pk.tips) output += `   💡 Tips: ${pk.tips}\n`;
+				});
+				output += `\n`;
+			}
+		}
+		
+		// Materi Pendukung
+		if (data.materiPendukung) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `📚 C. MATERI PENDUKUNG\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			const rm = data.materiPendukung.ringkasanMateri;
+			if (rm?.konsepKunci) {
+				output += `🔑 KONSEP KUNCI:\n\n`;
+				rm.konsepKunci.forEach((kk, i) => {
+					output += `${i + 1}. ${kk.nama}\n`;
+					output += `   ${kk.definisi}\n`;
+					if (kk.penjelasan) output += `   ${kk.penjelasan}\n`;
+					output += `\n`;
+				});
+			}
+			
+			if (rm?.poinPenting) {
+				output += `⭐ POIN PENTING:\n`;
+				rm.poinPenting.forEach((pp, i) => {
+					output += `• ${pp}\n`;
+				});
+				output += `\n`;
+			}
+		}
+		
+		// Langkah Kerja
+		if (data.langkahKerja?.bagianUtama?.length > 0) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `✏️ D. LANGKAH KERJA & TUGAS\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			data.langkahKerja.bagianUtama.forEach((bagian, idx) => {
+				output += `${bagian.bagian}\n`;
+				if (bagian.tujuanBagian) output += `Tujuan: ${bagian.tujuanBagian}\n\n`;
+				
+				bagian.langkahKerja?.forEach((lk) => {
+					output += `${lk.nomor}. ${lk.instruksi}\n`;
+					
+					if (lk.pertanyaanPemandu?.length > 0) {
+						output += `\n   PERTANYAAN:\n`;
+						lk.pertanyaanPemandu.forEach((p, i) => {
+							output += `   ${String.fromCharCode(97 + i)}. ${p}\n`;
+						});
+					}
+					
+					output += `\n   Jawaban:\n`;
+					output += `   ${'_'.repeat(70)}\n`;
+					output += `   ${'_'.repeat(70)}\n`;
+					output += `   ${'_'.repeat(70)}\n\n`;
+				});
+				output += `\n`;
+			});
+		}
+		
+		// Evaluasi
+		if (data.evaluasi?.soalEvaluasi?.length > 0) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `📊 E. EVALUASI\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			data.evaluasi.soalEvaluasi.forEach((soal, i) => {
+				output += `${i + 1}. ${soal.soal}\n`;
+				output += `   (${soal.levelKognitif} - ${soal.skorMaksimal} poin)\n\n`;
+				output += `   Jawaban:\n`;
+				output += `   ${'_'.repeat(70)}\n`;
+				output += `   ${'_'.repeat(70)}\n\n`;
+			});
+			
+			output += `\nTotal Skor: _____ / ${data.evaluasi.totalSkor || 100}\n\n`;
+		}
+		
+		// Refleksi
+		if (data.refleksiDiri) {
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `💭 F. REFLEKSI DIRI\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			data.refleksiDiri.pertanyaanRefleksi?.forEach((pr, i) => {
+				output += `${i + 1}. ${pr}\n`;
+				output += `   ${'_'.repeat(70)}\n\n`;
+			});
+		}
+		
+		// Quality Info
+		if (data.validasi) {
+			output += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+			output += `✅ VALIDASI KUALITAS LKPD\n`;
+			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			output += `Kualitas Keseluruhan: ${data.validasi.kualitasKeseluruhan}/100\n\n`;
+			
+			if (data.validasi.syaratDidaktik) {
+				output += `• Syarat Didaktik: ${data.validasi.syaratDidaktik.status} (${data.validasi.syaratDidaktik.score}/100)\n`;
+			}
+			if (data.validasi.syaratKonstruksi) {
+				output += `• Syarat Konstruksi: ${data.validasi.syaratKonstruksi.status} (${data.validasi.syaratKonstruksi.score}/100)\n`;
+			}
+			if (data.validasi.syaratTeknis) {
+				output += `• Syarat Teknis: ${data.validasi.syaratTeknis.status} (${data.validasi.syaratTeknis.score}/100)\n`;
+			}
+			
+			if (data.validasi.rekomendasi?.length > 0) {
+				output += `\nREKOMENDASI PERBAIKAN:\n`;
+				data.validasi.rekomendasi.forEach((rek, i) => {
+					output += `${i + 1}. ${rek}\n`;
+				});
+			}
+		}
+		
+		output += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+		output += `Generated by LKPD Agentic AI System\n`;
+		output += `${new Date().toLocaleString('id-ID')}\n`;
+		output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+		
+		return output;
+	}
+	
+	function getJenjangFromKelas(kelas) {
+		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+		const kelasNum = kelasMap[kelas] || 7;
+		if (kelasNum >= 1 && kelasNum <= 6) return 'SD';
+		if (kelasNum >= 7 && kelasNum <= 9) return 'SMP';
+		return 'SMA';
 	}
 
 	async function copyOutput() {
@@ -146,6 +437,28 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
 			<h2 class="mb-5 text-base font-semibold text-gray-700">Data LKPD</h2>
 			<form onsubmit={handleGenerate} class="space-y-4">
+				<!-- Mode Selection -->
+				<div class="col-span-2 rounded-lg bg-emerald-50 p-3">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
+					<label class="mb-2 block text-sm font-medium text-emerald-900">Mode Generasi</label>
+					<div class="flex gap-3">
+						<label class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border-2 {generationMode === 'agentic' ? 'border-emerald-500 bg-emerald-100' : 'border-gray-200 bg-white'} p-3 transition-all">
+							<input type="radio" bind:group={generationMode} value="agentic" class="text-emerald-600" />
+							<div>
+								<div class="text-sm font-semibold text-gray-800">🤖 Agentic AI</div>
+								<div class="text-xs text-gray-600">Multi-step, validasi kualitas</div>
+							</div>
+						</label>
+						<label class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border-2 {generationMode === 'single' ? 'border-emerald-500 bg-emerald-100' : 'border-gray-200 bg-white'} p-3 transition-all">
+							<input type="radio" bind:group={generationMode} value="single" class="text-emerald-600" />
+							<div>
+								<div class="text-sm font-semibold text-gray-800">⚡ Single Prompt</div>
+								<div class="text-xs text-gray-600">Cepat, sederhana</div>
+							</div>
+						</label>
+					</div>
+				</div>
+
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
 						<!-- svelte-ignore a11y_label_has_associated_control -->
@@ -270,13 +583,55 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 						Generate LKPD
 					{/if}
 				</button>
+				
+				<!-- Progress Tracker (Agentic Mode) -->
+				{#if isGenerating && generationMode === 'agentic' && progress.status === 'running'}
+					<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+						<div class="mb-2 flex items-center justify-between text-sm">
+							<span class="font-medium text-emerald-900">{progress.message}</span>
+							<span class="text-emerald-700">{progress.step}/{progress.total}</span>
+						</div>
+						<div class="h-2 overflow-hidden rounded-full bg-emerald-200">
+							<div
+								class="h-full bg-emerald-500 transition-all duration-500"
+								style="width: {(progress.step / progress.total) * 100}%"
+							></div>
+						</div>
+						<div class="mt-2 text-xs text-emerald-700">
+							{#if progress.phase === 'identitas'}
+								📋 Menyusun identitas dan informasi umum...
+							{:else if progress.phase === 'capaian-kompetensi'}
+								🎯 Mengidentifikasi capaian pembelajaran...
+							{:else if progress.phase === 'petunjuk-belajar'}
+								📖 Membuat petunjuk kerja...
+							{:else if progress.phase === 'materi-pendukung'}
+								📚 Menyiapkan materi pendukung...
+							{:else if progress.phase === 'langkah-kerja'}
+								✏️ Merancang aktivitas dan tugas...
+							{:else if progress.phase === 'evaluasi-refleksi'}
+								📊 Membuat evaluasi dan refleksi...
+							{:else if progress.phase === 'validation'}
+								✅ Memvalidasi kualitas LKPD...
+							{:else if progress.phase === 'compilation'}
+								📦 Menyusun LKPD final...
+							{/if}
+						</div>
+					</div>
+				{/if}
 			</form>
 		</div>
 
 		<!-- Output -->
 		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
 			<div class="mb-4 flex items-center justify-between">
-				<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
+				<div class="flex items-center gap-3">
+					<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
+					{#if qualityScore > 0 && generationMode === 'agentic'}
+						<span class="rounded-full px-3 py-1 text-xs font-semibold {qualityScore >= 85 ? 'bg-emerald-100 text-emerald-700' : qualityScore >= 70 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
+							Quality: {qualityScore}/100
+						</span>
+					{/if}
+				</div>
 				{#if output}
 					<button
 						onclick={copyOutput}

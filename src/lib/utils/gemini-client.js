@@ -14,12 +14,13 @@
  * @param {string} prompt - Prompt untuk dikirim ke Gemini
  * @param {object} options - Konfigurasi tambahan
  * @param {number} options.maxRetries - Maksimal percobaan ulang (default: 3)
- * @param {number} options.timeout - Timeout dalam ms (default: 30000)
+ * @param {number} options.timeout - Timeout dalam ms (default: 120000 / 2 menit untuk queue)
+ * @param {function} options.onQueued - Callback ketika masuk antrian: ({ position, estimatedWait }) => void
  * @param {string} options.model - Model Gemini yang digunakan (server will use GEMINI_MODEL from env)
  * @returns {Promise<{success: boolean, data?: string, error?: string}>}
  */
 export async function callGeminiAPI(prompt, options = {}) {
-	const { maxRetries = 3, timeout = 30000 } = options;
+	const { maxRetries = 3, timeout = 120000, onQueued = null } = options;
 	// Note: Model is controlled by server via GEMINI_MODEL environment variable
 
 	let lastError = null;
@@ -59,10 +60,32 @@ export async function callGeminiAPI(prompt, options = {}) {
 					};
 				}
 
+				if (response.status === 503) {
+					// Queue full - retry setelah estimatedWait
+					const waitSeconds = errorData.estimatedWaitSeconds || 60;
+					if (onQueued) {
+						onQueued({
+							position: errorData.queueSize || 0,
+							estimatedWait: waitSeconds
+						});
+					}
+
+					if (attempt < maxRetries) {
+						const delay = Math.min(waitSeconds * 1000, 30000); // Max 30 detik
+						await sleep(delay);
+						continue;
+					}
+
+					return {
+						success: false,
+						error: `Server sedang sangat sibuk. Estimasi tunggu: ${waitSeconds} detik. Silakan coba lagi.`
+					};
+				}
+
 				if (response.status === 429) {
 					// Rate limit exceeded
 					if (attempt < maxRetries) {
-						const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff
+						const delay = Math.min(1000 * Math.pow(2, attempt), 30000); // Exponential backoff
 						await sleep(delay);
 						continue;
 					}
@@ -81,7 +104,7 @@ export async function callGeminiAPI(prompt, options = {}) {
 					continue;
 				}
 
-				throw new Error(errorData.error || 'Terjadi kesalahan saat menghubungi server');
+				throw new Error(errorData.message || errorData.error || 'Terjadi kesalahan saat menghubungi server');
 			}
 
 			const data = await response.json();
