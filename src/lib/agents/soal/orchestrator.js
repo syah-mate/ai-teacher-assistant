@@ -35,6 +35,21 @@ export class SoalOrchestrator {
 		let currentStep = 0;
 
 		try {
+			// CRITICAL: Start generate session and check rate limit ONCE
+			// This ensures 1 user action = 1 quota usage (not per-agent)
+			const sessionResponse = await fetch('/api/generate-session/start', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			if (!sessionResponse.ok) {
+				const errorData = await sessionResponse.json().catch(() => ({}));
+				if (sessionResponse.status === 429) {
+					throw new Error(errorData.error || 'Batas generate tercapai. Silakan tunggu hingga kuota reset.');
+				}
+				throw new Error(errorData.error || 'Gagal memulai sesi generate');
+			}
+
 			this.log('🚀 Starting Soal generation with Agentic AI');
 
 			// Step 1: Generate Soal
@@ -99,7 +114,23 @@ export class SoalOrchestrator {
 			const finalResult = this.compileFinalResult();
 
 			this.log('✅ Soal generation process completed successfully!');
-
+		// CRITICAL: Decrement quota HANYA setelah generate sukses
+		try {
+			const completeResponse = await fetch('/api/generate-session/complete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			
+			if (completeResponse.ok) {
+				const completeData = await completeResponse.json();
+				this.log(`✅ Generate counted. Remaining: ${completeData.remaining}/${completeData.limit}`);
+			} else {
+				this.log('⚠️ Failed to count generate, but result is still valid', 'warn');
+			}
+		} catch (completeError) {
+			// Non-critical error - generate sukses tapi counting gagal
+			this.log('⚠️ Failed to count generate (non-critical): ' + completeError.message, 'warn');
+		}
 			return {
 				success: true,
 				data: finalResult,

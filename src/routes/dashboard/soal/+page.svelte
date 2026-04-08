@@ -72,6 +72,9 @@
 					...progress,
 					status: `✅ Soal berhasil dibuat! (Kualitas: ${qualityScore}/100)`
 				};
+
+				// Dispatch event to update rate limit indicator
+				window.dispatchEvent(new Event('generate-success'));
 			} else {
 				error = result.error || 'Terjadi kesalahan saat membuat soal';
 				progress = {

@@ -1,8 +1,20 @@
 <script>
 	import { page } from '$app/stores';
+	import RateLimitIndicator from '$lib/components/RateLimitIndicator.svelte';
+	import { goto } from '$app/navigation';
 
 	let { children, data } = $props();
 	let sidebarOpen = $state(false);
+	let rateLimitIndicator;
+
+	async function handleLogout() {
+		try {
+			await fetch('/logout', { method: 'POST' });
+			goto('/login');
+		} catch (error) {
+			console.error('Logout error:', error);
+		}
+	}
 
 	const navItems = [
 		{
@@ -262,6 +274,9 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-3">
+				<!-- Rate Limit Indicator -->
+				<RateLimitIndicator bind:this={rateLimitIndicator} />
+
 				<span
 					class="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
 				>

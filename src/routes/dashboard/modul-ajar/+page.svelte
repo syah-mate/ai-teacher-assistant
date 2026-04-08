@@ -176,6 +176,9 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					status: 'completed',
 					message: `✅ Modul Ajar berhasil dibuat! (Quality Score: ${result.metadata.qualityScore}/100)`
 				};
+
+				// Dispatch event to update rate limit indicator
+				window.dispatchEvent(new Event('generate-success'));
 			} else {
 				error = result.error;
 				progress = {

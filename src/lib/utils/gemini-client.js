@@ -113,6 +113,11 @@ export async function callGeminiAPI(prompt, options = {}) {
 				throw new Error(data.error);
 			}
 
+			// Dispatch event untuk refresh rate limit indicator
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('generate-success', { detail: data }));
+			}
+
 			return {
 				success: true,
 				data: data.text || data.content || ''

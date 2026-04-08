@@ -155,6 +155,9 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					status: 'completed',
 					message: `✅ LKPD berhasil dibuat! (Quality Score: ${result.metadata.qualityScore}/100)`
 				};
+
+				// Dispatch event to update rate limit indicator
+				window.dispatchEvent(new Event('generate-success'));
 			} else {
 				error = result.error;
 				progress = {

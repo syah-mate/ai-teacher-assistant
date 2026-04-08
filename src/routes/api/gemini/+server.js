@@ -7,9 +7,9 @@
  * 3. Queue - antrian jika semua key penuh
  * 
  * Rate Limit: 2 generate per jam per user (persisten di MongoDB)
- * PENTING: Rate limit dihitung per ATTEMPT, bukan per SUCCESS
- *          Setiap kali user klik generate, hitungan berkurang
- *          Ini mencegah spam retry jika error
+ * PENTING: Rate limit INCREMENT dilakukan di /api/generate-session/start
+ *          Endpoint ini hanya CHECK rate limit untuk prevent access jika sudah limit
+ *          Ini mencegah multiple agent calls mengurangi limit berkali-kali
  */
 
 import { json } from '@sveltejs/kit';
@@ -34,7 +34,8 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const userId = locals.user.id || locals.user.userId || locals.user.username || 'anonymous';
+	// Use username for rate limit tracking (consistent with database schema)
+	const userId = locals.user.username;
 
 	try {
 		const body = await request.json();
@@ -44,7 +45,8 @@ export async function POST({ request, locals }) {
 			return json({ error: 'Prompt is required' }, { status: 400 });
 		}
 
-		// Check rate limit (persisten di MongoDB)
+		// Check rate limit (persisten di MongoDB) - hanya check, tidak increment
+		// Increment dilakukan di /api/generate-session/start oleh orchestrator
 		const rateLimitCheck = await checkUserRateLimit(userId);
 		if (!rateLimitCheck.allowed) {
 			const minutesRemaining = Math.ceil(rateLimitCheck.resetIn / 60);
@@ -60,22 +62,15 @@ export async function POST({ request, locals }) {
 			);
 		}
 
-		// INCREMENT RATE LIMIT DI AWAL - setiap attempt dihitung, bukan hanya sukses
-		// Ini mencegah user spam retry jika error
-		await incrementUserRateLimit(userId);
-		console.log(`[Gemini API] User ${userId} - Request attempt counted (${rateLimitCheck.remaining - 1} remaining)`);
-
 		// Path 1: Cek apakah user punya API key sendiri
 		const userKey = await getUserKey(userId);
 		if (userKey) {
 			console.log(`[Gemini API] User ${userId} using personal API key`);
 			try {
 				const result = await callGeminiDirect(userKey, prompt, GEMINI_MODEL);
-				// Rate limit already incremented at the beginning
 				return json({
 					...result,
-					keySource: 'user',
-					remaining: rateLimitCheck.remaining - 1
+					keySource: 'user'
 				});
 			} catch (error) {
 				// Jika user key error, return error langsung (tidak fallback ke system)
@@ -108,11 +103,9 @@ export async function POST({ request, locals }) {
 
 			try {
 				const result = await callGeminiDirect(availableKey.key, prompt, GEMINI_MODEL);
-				// Rate limit already incremented at the beginning
 				return json({
 					...result,
-					keySource: 'system',
-					remaining: rateLimitCheck.remaining - 1
+					keySource: 'system'
 				});
 			} catch (error) {
 				// Jika dapat 429, mark key dan fallthrough ke queue
@@ -137,11 +130,9 @@ export async function POST({ request, locals }) {
 		console.log(`[Gemini API] User ${userId} entering queue`);
 		try {
 			const result = await requestQueue.enqueue(userId, prompt, GEMINI_MODEL);
-			// Rate limit already incremented at the beginning
 			return json({
 				...result,
-				keySource: 'system_queued',
-				remaining: rateLimitCheck.remaining - 1
+				keySource: 'system_queued'
 			});
 		} catch (error) {
 			// Queue error (full, user limit, timeout)
@@ -300,47 +291,5 @@ async function checkUserRateLimit(userId) {
 		console.error('[Rate Limit] Error checking rate limit:', error);
 		// Jika error, allow request (fail-open)
 		return { allowed: true, remaining: USER_RATE_LIMIT };
-	}
-}
-
-/**
- * Helper: Increment user rate limit counter (persisten di MongoDB)
- */
-async function incrementUserRateLimit(userId) {
-	try {
-		const users = await getCollection('users');
-		const now = Date.now();
-		const resetAt = now + RATE_LIMIT_WINDOW_MS;
-
-		const user = await users.findOne({ username: userId });
-
-		// Jika tidak ada rate limit data atau sudah expired, reset
-		if (!user || !user.rate_limit_reset_at || user.rate_limit_reset_at < now) {
-			await users.updateOne(
-				{ username: userId },
-				{
-					$set: {
-						rate_limit_count: 1,
-						rate_limit_reset_at: resetAt,
-						rate_limit_last_request: now
-					}
-				}
-			);
-			console.log(`[Rate Limit] User ${userId} - 1/${USER_RATE_LIMIT} (window reset)`);
-		} else {
-			// Increment counter
-			await users.updateOne(
-				{ username: userId },
-				{
-					$inc: { rate_limit_count: 1 },
-					$set: { rate_limit_last_request: now }
-				}
-			);
-			const newCount = (user.rate_limit_count || 0) + 1;
-			console.log(`[Rate Limit] User ${userId} - ${newCount}/${USER_RATE_LIMIT}`);
-		}
-	} catch (error) {
-		console.error('[Rate Limit] Error incrementing rate limit:', error);
-		// Silent fail - tidak throw error agar tidak ganggu main flow
 	}
 }

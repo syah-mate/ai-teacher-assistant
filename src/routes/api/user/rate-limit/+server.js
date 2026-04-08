@@ -19,14 +19,20 @@ export async function GET({ locals }) {
 	}
 
 	try {
-		const userId = locals.user.id || locals.user.userId || locals.user.username;
+		// Use username for rate limit tracking (consistent with database schema)
+		const userId = locals.user.username;
+		console.log(`[Rate Limit Status] Checking for user: ${userId}`);
+		
 		const users = await getCollection('users');
 		const now = Date.now();
 
 		const user = await users.findOne({ username: userId });
+		
+		console.log(`[Rate Limit Status] User found: ${!!user}, Has limit: ${!!(user?.rate_limit_count)}`);
 
 		// Jika tidak ada rate limit data atau sudah expired
 		if (!user || !user.rate_limit_reset_at || user.rate_limit_reset_at < now) {
+			console.log(`[Rate Limit Status] No limit data or expired - returning full quota`);
 			return json({
 				limit: USER_RATE_LIMIT,
 				remaining: USER_RATE_LIMIT,
@@ -41,6 +47,8 @@ export async function GET({ locals }) {
 		const remaining = Math.max(0, USER_RATE_LIMIT - count);
 		const resetIn = Math.ceil((user.rate_limit_reset_at - now) / 1000);
 		const isLimited = count >= USER_RATE_LIMIT;
+
+		console.log(`[Rate Limit Status] Count: ${count}/${USER_RATE_LIMIT}, Remaining: ${remaining}, Reset in: ${resetIn}s`);
 
 		return json({
 			limit: USER_RATE_LIMIT,

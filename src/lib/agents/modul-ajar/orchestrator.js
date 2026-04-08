@@ -44,6 +44,21 @@ export class ModulAjarOrchestrator {
 		let currentStep = 0;
 
 		try {
+			// CRITICAL: Start generate session and check rate limit ONCE
+			// This ensures 1 user action = 1 quota usage (not per-agent)
+			const sessionResponse = await fetch('/api/generate-session/start', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			if (!sessionResponse.ok) {
+				const errorData = await sessionResponse.json().catch(() => ({}));
+				if (sessionResponse.status === 429) {
+					throw new Error(errorData.error || 'Batas generate tercapai. Silakan tunggu hingga kuota reset.');
+				}
+				throw new Error(errorData.error || 'Gagal memulai sesi generate');
+			}
+
 			this.log('🚀 Starting Modul Ajar generation with Agentic AI');
 
 			// Step 1: Informasi Umum
@@ -170,20 +185,38 @@ export class ModulAjarOrchestrator {
 				status: 'completed'
 			});
 
-			return {
-				success: true,
-				modulAjar: finalModul,
-				rawData: this.state,
-				metadata: {
-					generatedAt: new Date().toISOString(),
-					qualityScore: this.state.validation.qualityScore,
-					agentsUsed: Object.keys(this.agents),
-					executionLog: this.executionLog,
-					totalExecutionTime: this.getTotalExecutionTime()
-				}
-			};
+		// CRITICAL: Decrement quota HANYA setelah generate sukses
+		try {
+			const completeResponse = await fetch('/api/generate-session/complete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			
+			if (completeResponse.ok) {
+				const completeData = await completeResponse.json();
+				this.log(`✅ Generate counted. Remaining: ${completeData.remaining}/${completeData.limit}`);
+			} else {
+				this.log('⚠️ Failed to count generate, but result is still valid', 'warn');
+			}
+		} catch (completeError) {
+			// Non-critical error - generate sukses tapi counting gagal
+			this.log('⚠️ Failed to count generate (non-critical): ' + completeError.message, 'warn');
+		}
 
-		} catch (error) {
+		return {
+			success: true,
+			modulAjar: finalModul,
+			rawData: this.state,
+			metadata: {
+				generatedAt: new Date().toISOString(),
+				qualityScore: this.state.validation.qualityScore,
+				agentsUsed: Object.keys(this.agents),
+				executionLog: this.executionLog,
+				totalExecutionTime: this.getTotalExecutionTime()
+			}
+		};
+
+	} catch (error) {
 			this.log(`❌ Error: ${error.message}`, 'error');
 			
 			onProgress?.({

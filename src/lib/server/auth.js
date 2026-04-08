@@ -22,6 +22,7 @@ export const lucia = new Lucia(adapter, {
 	},
 	getUserAttributes: (dbUser) => {
 		return {
+			id: dbUser._id, // Add user ID
 			username: dbUser.username,
 			name: dbUser.name,
 			role: dbUser.role
