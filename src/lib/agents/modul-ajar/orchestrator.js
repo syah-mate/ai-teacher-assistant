@@ -26,7 +26,8 @@ export class ModulAjarOrchestrator {
 			capaianTujuan: null,
 			kegiatanPembelajaran: null,
 			asesmen: null,
-			validation: null
+			validation: null,
+			images: null
 		};
 
 		this.executionLog = [];
@@ -40,7 +41,7 @@ export class ModulAjarOrchestrator {
 	 * @returns {Promise<Object>} Result modul ajar
 	 */
 	async generateModulAjar(userInput, onProgress) {
-		const totalSteps = 6; // 5 agents + 1 compilation
+		const totalSteps = 7; // 5 agents + 1 image generation + 1 compilation
 		let currentStep = 0;
 
 		try {
@@ -138,7 +139,29 @@ export class ModulAjarOrchestrator {
 			this.state.asesmen = asesmenResult.data;
 			this.executionLog.push({ agent: 'Asesmen', success: true, time: asesmenResult.metadata.lastExecutionTime });
 
-			// Step 5: Validation
+		// Step 5: Generate Images with Cloudflare Workers AI
+		currentStep++;
+		onProgress?.({
+			step: currentStep,
+			total: totalSteps,
+			phase: 'image-generation',
+			message: '🎨 Membuat ilustrasi gambar AI...',
+			status: 'running'
+		});
+
+		const imagesResult = await this.generateIllustrationImages(userInput, this.state);
+		if (imagesResult.success && imagesResult.data && imagesResult.data.length > 0) {
+			this.state.images = imagesResult.data;
+			this.log(`✅ Successfully generated ${imagesResult.data.length} AI images`);
+			console.log('[Orchestrator] Images generated:', imagesResult.data.length);
+			this.executionLog.push({ agent: 'ImageGeneration', success: true, time: imagesResult.time });
+		} else {
+			// Images are optional - log but don't fail
+			this.log(`ℹ️ Image generation skipped: ${imagesResult.message || 'Not configured'}`, 'info');
+			this.state.images = [];
+		}
+
+		// Step 6: Validation
 			currentStep++;
 			onProgress?.({
 				step: currentStep,
@@ -163,7 +186,7 @@ export class ModulAjarOrchestrator {
 				};
 			}
 
-			// Step 6: Compile Final Modul Ajar
+// Step 7: Compile Final Modul Ajar
 			currentStep++;
 			onProgress?.({
 				step: currentStep,
@@ -237,10 +260,81 @@ export class ModulAjarOrchestrator {
 	}
 
 	/**
+	 * Generate illustration images for modul ajar using Gemini Interleaved API
+	 */
+	async generateIllustrationImages(userInput, state) {
+		const startTime = Date.now();
+
+		try {
+			// Call server-side API endpoint for image generation
+			const response = await fetch('/api/generate-modul-images', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userInput,
+					state
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+			console.warn('[Orchestrator] ⚠️ Image generation API error (non-critical):', errorData.error);
+			// Return empty images instead of throwing - this is non-critical
+			return {
+				success: true,
+				data: [],
+				time: Date.now() - startTime
+			};
+		}
+
+		const result = await response.json();
+
+		// Handle successful response with or without images
+		if (result.success) {
+			if (result.images && result.images.length > 0) {
+				this.log(`✅ Generated ${result.images.length} AI images successfully`);
+				return {
+					success: true,
+					data: result.images,
+					time: Date.now() - startTime
+				};
+			} else {
+				// API returned success but no images (e.g., not configured)
+				const message = result.message || 'Image generation skipped';
+				this.log(`ℹ️ ${message}`, 'info');
+				return {
+					success: true,
+					data: [],
+					message: message,
+					time: Date.now() - startTime
+				};
+			}
+		}
+
+		// API returned error
+		console.warn('[Orchestrator] ⚠️ Image generation failed (non-critical):', result.error);
+		return {
+			success: true,
+			data: [],
+			message: result.error || 'Image generation failed',
+			time: Date.now() - startTime
+		};
+	} catch (error) {
+		this.log(`⚠️ Image generation error (non-critical): ${error.message}`, 'warn');
+		// Return empty images instead of throwing - allow modul to be generated without images
+		return {
+			success: true,
+			data: [],
+			time: Date.now() - startTime
+		};
+	}
+	}
+
+	/**
 	 * Compile semua hasil agents menjadi dokumen Modul Ajar final
 	 */
 	compileModulAjar(userInput) {
-		const { informasiUmum, capaianTujuan, kegiatanPembelajaran, asesmen, validation } = this.state;
+		const { informasiUmum, capaianTujuan, kegiatanPembelajaran, asesmen, validation, images } = this.state;
 
 		// Format markdown untuk modul ajar
 		let modul = `
@@ -347,8 +441,25 @@ DIFERENSIASI PEMBELAJARAN:
 • Untuk Siswa Berkesulitan: ${pertemuan.diferensiasi?.untukSiswaBerkesulitan || '-'}
 • Untuk Siswa Advanced: ${pertemuan.diferensiasi?.untukSiswaAdvanced || '-'}
 • Gaya Belajar: ${pertemuan.diferensiasi?.gayaBelajar || '-'}
-
 `;
+
+			// Add images if available
+			if (images && images.length > 0) {
+				const pertemuanImages = images.filter(img => 
+					img.position === `pertemuan-${pertemuan.nomorPertemuan || idx + 1}`
+				);
+				
+				if (pertemuanImages.length > 0) {
+					modul += `\n\n📸 ILUSTRASI PEMBELAJARAN:\n`;
+					pertemuanImages.forEach(img => {
+						modul += `\n[Gambar: ${img.caption}]`;
+						modul += `\n${img.description}`;
+						modul += `\n[Image embedded - visible in .docx download]\n`;
+					});
+				}
+			}
+
+			modul += `\n`;
 		});
 
 		// D. ASESMEN

@@ -30,7 +30,7 @@
 	// Progress tracking for agentic mode
 	let progress = $state({
 		step: 0,
-		total: 6,
+		total: 7,
 		phase: '',
 		message: '',
 		status: 'idle' // idle, running, completed, error
@@ -38,6 +38,29 @@
 	
 	let qualityScore = $state(0);
 	let rawData = $state(null); // Store raw data for debugging
+	let isDownloading = $state(false);
+
+	/**
+	 * Render output with embedded images
+	 */
+	function renderOutputWithImages(textOutput, imagesData) {
+		if (!textOutput) return '';
+		if (!imagesData || imagesData.length === 0) return textOutput;
+
+		let result = textOutput;
+		
+		// Find and replace image placeholders with actual images
+		imagesData.forEach(img => {
+			const placeholder = `[Image embedded - visible in .docx download]`;
+			const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
+			
+			// Replace first occurrence of placeholder with actual image
+			result = result.replace(placeholder, imgTag);
+		});
+
+		return result;
+	}
+
 
 
 	const kelasList = [
@@ -141,7 +164,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		try {
 			progress = {
 				step: 0,
-				total: 6,
+				total: 7,
 				phase: 'starting',
 				message: '🚀 Memulai sistem Agentic AI...',
 				status: 'running'
@@ -171,11 +194,15 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				qualityScore = result.metadata.qualityScore;
 				rawData = result.rawData;
 				
-				progress = {
-					...progress,
-					status: 'completed',
-					message: `✅ Modul Ajar berhasil dibuat! (Quality Score: ${result.metadata.qualityScore}/100)`
-				};
+			console.log('[Modul Ajar] Generation complete - Images:', rawData?.images?.length || 0);
+			if (rawData?.images?.length > 0) {
+				console.log('[Modul Ajar] First image preview:', {
+					caption: rawData.images[0].caption,
+					dataLength: rawData.images[0].data?.length,
+					mimeType: rawData.images[0].mimeType
+				});
+			}
+			
 
 				// Dispatch event to update rate limit indicator
 				window.dispatchEvent(new Event('generate-success'));
@@ -237,6 +264,57 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
 	}
+
+	async function downloadDocx() {
+		if (!output) return;
+		
+		isDownloading = true;
+		try {
+			const modulData = {
+				judulModul: form.judulModul,
+				mapel: form.mapel,
+				kelas: form.kelas,
+				content: output,
+				modulAjar: output,
+				penulis: form.penulis || 'Guru Mata Pelajaran',
+				instansi: form.instansi || 'Sekolah',
+				images: rawData?.images || [] // Include images if available
+			};
+
+			console.log('[Download DOCX] Images count:', modulData.images?.length);
+			if (modulData.images?.length > 0) {
+				console.log('[Download DOCX] First image data length:', modulData.images[0]?.data?.length);
+			}
+
+			const response = await fetch('/api/export-modul-docx', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ modulData })
+			});
+
+			if (!response.ok) {
+				throw new Error('Gagal export dokumen');
+			}
+
+			// Download file
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `Modul_Ajar_${form.judulModul.replace(/[^a-z0-9]/gi, '_')}.docx`;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+		} catch (err) {
+			console.error('Download error:', err);
+			alert('Gagal download dokumen. Silakan coba lagi.');
+		} finally {
+			isDownloading = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -268,6 +346,23 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 			<p class="text-sm text-gray-500">
 				Buat Modul Ajar Kurikulum Merdeka sesuai Standar Nasional (multi pertemuan)
 			</p>
+		</div>
+	</div>
+
+	<!-- Feature Banner -->
+	<div class="mb-6 rounded-xl border-2 border-blue-200 bg-linear-to-r from-blue-50 to-indigo-50 p-4">
+		<div class="flex items-start gap-3">
+			<div class="shrink-0">
+				<svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+				</svg>
+			</div>
+			<div class="flex-1">
+				<h3 class="mb-1 font-semibold text-blue-900">✨ Fitur Baru: Export ke Word Document</h3>
+				<p class="text-sm text-blue-700">
+					Modul ajar yang dihasilkan sekarang dapat di-download sebagai file <strong>.docx</strong> dengan format dokumen yang rapi dan profesional. Siap untuk dicetak atau diserahkan!
+				</p>
+			</div>
 		</div>
 	</div>
 
@@ -531,27 +626,47 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
 				{#if output}
-					<button
-						onclick={copyOutput}
-						class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-					>
-						{#if copied}
-							<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-							</svg>
-							Tersalin!
-						{:else}
-							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-								/>
-							</svg>
-							Salin Teks
-						{/if}
-					</button>
+					<div class="flex items-center gap-2">
+						<button
+							onclick={downloadDocx}
+							disabled={isDownloading}
+							class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+						>
+							{#if isDownloading}
+								<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								Sedang Export...
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+								Download .docx
+							{/if}
+						</button>
+						<button
+							onclick={copyOutput}
+							class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+						>
+							{#if copied}
+								<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+								</svg>
+								Tersalin!
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+									/>
+								</svg>
+								Salin Teks
+							{/if}
+						</button>
+					</div>
 				{/if}
 			</div>
 			
@@ -632,8 +747,21 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					</button>
 				</div>
 			{:else if output}
-				<pre
-					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700">{output}</pre>
+				<!-- Document-style output -->
+				<div class="max-h-150 overflow-y-auto rounded-xl border border-gray-200 bg-white">
+					<!-- Document paper effect -->
+					<div class="mx-auto max-w-4xl bg-white p-8 shadow-sm" style="min-height: 400px;">
+					<pre class="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">{@html renderOutputWithImages(output, rawData?.images)}</pre>
+				</div>
+			</div>
+			
+			<!-- Download hint -->
+				<div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					<span>Klik <strong>Download .docx</strong> untuk mendapatkan dokumen Word dengan format yang lebih rapi</span>
+				</div>
 			{:else}
 				<div class="flex flex-col items-center justify-center py-20 text-gray-300">
 					<svg class="mb-3 h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

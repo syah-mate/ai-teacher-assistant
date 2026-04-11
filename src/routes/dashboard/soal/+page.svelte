@@ -20,7 +20,7 @@
 	// Progress tracking for agentic mode
 	let progress = $state({
 		step: 0,
-		total: 2,
+		total: 4,
 		agent: '',
 		status: ''
 	});
@@ -28,6 +28,7 @@
 	let qualityScore = $state(0);
 	let qualityIndicator = $state(null);
 	let validationReport = $state('');
+	let rawData = $state(null); // Store raw data including images
 
 	async function handleGenerate(e) {
 		e.preventDefault();
@@ -42,11 +43,12 @@
 		qualityScore = 0;
 		qualityIndicator = null;
 		validationReport = '';
+		rawData = null;
 
 		try {
 			progress = {
 				step: 0,
-				total: 2,
+				total: 4,
 				agent: 'Initializing',
 				status: '🚀 Memulai Agentic AI System...'
 			};
@@ -66,6 +68,16 @@
 				output = result.data.content;
 				qualityScore = result.data.metadata.validation.score;
 				qualityIndicator = result.data.qualityIndicator;
+				rawData = result.data; // Store the complete data including images
+
+				console.log('[Soal] Generation complete - Images:', rawData?.images?.length || 0);
+				if (rawData?.images?.length > 0) {
+					console.log('[Soal] First image preview:', {
+						caption: rawData.images[0].caption,
+						dataLength: rawData.images[0].data?.length,
+						mimeType: rawData.images[0].mimeType
+					});
+				}
 				validationReport = result.data.validationReport;
 
 				progress = {
@@ -98,6 +110,88 @@
 		await navigator.clipboard.writeText(output);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
+	}
+
+	/**
+	 * Render output with embedded images (replace placeholders with actual <img> tags)
+	 */
+	function renderOutputWithImages() {
+		if (!output || !rawData?.images || rawData.images.length === 0) {
+			return output;
+		}
+
+		let rendered = output;
+		const images = rawData.images;
+		let imageIndex = 0;
+
+		// Replace image placeholders with actual <img> tags
+		rendered = rendered.replace(/\[Image embedded - visible in \.docx download\]/g, () => {
+			if (imageIndex < images.length) {
+				const img = images[imageIndex];
+				const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption || 'Gambar soal'}" class="my-3 rounded-lg shadow-md" style="max-width: 100%; height: auto;" />`;
+				imageIndex++;
+				return imgTag;
+			}
+			return '';
+		});
+
+		return rendered;
+	}
+
+	let isDownloading = $state(false);
+
+	async function downloadDocx() {
+		if (!output) return;
+		
+		isDownloading = true;
+		try {
+			const soalData = {
+				judulSoal: `${form.topik || 'Soal'} - ${form.mapel || ''}`,
+				mapel: form.mapel,
+				kelas: form.kelas,
+				topik: form.topik,
+				jenis: form.jenis,
+				jumlah: form.jumlah,
+				tingkat: form.tingkat,
+				level: form.level,
+				content: output,
+				images: rawData?.images || []
+			};
+
+			console.log('[Download Soal DOCX] Images count:', soalData.images?.length);
+			if (soalData.images?.length > 0) {
+				console.log('[Download Soal DOCX] First image data length:', soalData.images[0]?.data?.length);
+			}
+
+			const response = await fetch('/api/export-soal-docx', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ soalData })
+			});
+
+			if (!response.ok) {
+				throw new Error('Gagal export dokumen');
+			}
+
+			// Download file
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			const filename = `Soal_${form.mapel}_${form.topik}`.replace(/[^a-z0-9]/gi, '_');
+			a.download = `${filename}.docx`;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+		} catch (err) {
+			console.error('Download error:', err);
+			alert('Gagal download dokumen. Silakan coba lagi.');
+		} finally {
+			isDownloading = false;
+		}
 	}
 </script>
 
@@ -377,6 +471,23 @@
 							</button>
 						{/if}
 						<button
+							onclick={downloadDocx}
+							disabled={isDownloading}
+							class="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:opacity-50"
+						>
+							{#if isDownloading}
+								<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+							{/if}
+							Download .docx
+						</button>
+						<button
 							onclick={copyOutput}
 							class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
 						>
@@ -416,8 +527,19 @@
 					<p class="mt-1 text-xs text-gray-400">AI sedang menyusun soal berkualitas...</p>
 				</div>
 			{:else if output}
-				<pre
-					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700">{output}</pre>
+				<div
+					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700">
+					{@html renderOutputWithImages()}
+				</div>
+				
+				<!-- Info box if images are embedded -->
+				{#if rawData?.images && rawData.images.length > 0}
+					<div class="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
+						<p class="text-xs text-violet-700">
+							✅ <strong>{rawData.images.length} gambar</strong> telah diintegrasikan dalam soal bergambar. Gambar akan otomatis muncul di dokumen .docx.
+						</p>
+					</div>
+				{/if}
 			{:else}
 				<div class="flex flex-col items-center justify-center py-20 text-gray-300">
 					<svg class="mb-3 h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

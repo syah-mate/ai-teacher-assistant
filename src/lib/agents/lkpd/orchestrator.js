@@ -33,7 +33,8 @@ export class LKPDOrchestrator {
 			materiPendukung: null,
 			langkahKerja: null,
 			evaluasiRefleksi: null,
-			validation: null
+			validation: null,
+			images: null
 		};
 
 		this.executionLog = [];
@@ -47,7 +48,7 @@ export class LKPDOrchestrator {
 	 * @returns {Promise<Object>} Result LKPD
 	 */
 	async generateLKPD(userInput, onProgress) {
-		const totalSteps = 8; // 7 agents + 1 compilation
+		const totalSteps = 9; // 7 agents + 1 image generation + 1 compilation
 		let currentStep = 0;
 
 		try {
@@ -187,7 +188,29 @@ export class LKPDOrchestrator {
 			this.state.evaluasiRefleksi = evaluasiResult.data;
 			this.executionLog.push({ agent: 'EvaluasiRefleksiAgent', success: true, time: evaluasiResult.metadata.lastExecutionTime });
 
-			// Step 7: Validation
+			// Step 7: Generate Images with Cloudflare Workers AI
+			currentStep++;
+			onProgress?.({
+				step: currentStep,
+				total: totalSteps,
+				phase: 'image-generation',
+				message: '🎨 Membuat ilustrasi gambar AI...',
+				status: 'running'
+			});
+
+			const imagesResult = await this.generateIllustrationImages(userInput, this.state);
+			if (imagesResult.success && imagesResult.data && imagesResult.data.length > 0) {
+				this.state.images = imagesResult.data;
+				this.log(`✅ Successfully generated ${imagesResult.data.length} AI images`);
+				console.log('[LKPD Orchestrator] Images generated:', imagesResult.data.length);
+				this.executionLog.push({ agent: 'ImageGeneration', success: true, time: imagesResult.time });
+			} else {
+				// Images are optional - log but don't fail
+				this.log(`ℹ️ Image generation skipped: ${imagesResult.message || 'Not configured'}`, 'info');
+				this.state.images = [];
+			}
+
+			// Step 8: Validation
 			currentStep++;
 			onProgress?.({
 				step: currentStep,
@@ -204,7 +227,7 @@ export class LKPDOrchestrator {
 			this.state.validation = validationResult.data;
 			this.executionLog.push({ agent: 'ValidatorAgent', success: true, time: validationResult.metadata.lastExecutionTime });
 
-			// Step 8: Compile Final LKPD
+			// Step 9: Compile Final LKPD
 			currentStep++;
 			onProgress?.({
 				step: currentStep,
@@ -276,6 +299,77 @@ export class LKPDOrchestrator {
 	}
 
 	/**
+	 * Generate illustration images for LKPD using Cloudflare Workers AI
+	 */
+	async generateIllustrationImages(userInput, state) {
+		const startTime = Date.now();
+
+		try {
+			// Call server-side API endpoint for image generation
+			const response = await fetch('/api/generate-lkpd-images', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userInput,
+					state
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				console.warn('[LKPD Orchestrator] ⚠️ Image generation API error (non-critical):', errorData.error);
+				// Return empty images instead of throwing - this is non-critical
+				return {
+					success: true,
+					data: [],
+					time: Date.now() - startTime
+				};
+			}
+
+			const result = await response.json();
+
+			// Handle successful response with or without images
+			if (result.success) {
+				if (result.images && result.images.length > 0) {
+					this.log(`✅ Generated ${result.images.length} AI images successfully`);
+					return {
+						success: true,
+						data: result.images,
+						time: Date.now() - startTime
+					};
+				} else {
+					// API returned success but no images (e.g., not configured)
+					const message = result.message || 'Image generation skipped';
+					this.log(`ℹ️ ${message}`, 'info');
+					return {
+						success: true,
+						data: [],
+						message: message,
+						time: Date.now() - startTime
+					};
+				}
+			}
+
+			// API returned error
+			console.warn('[LKPD Orchestrator] ⚠️ Image generation failed (non-critical):', result.error);
+			return {
+				success: true,
+				data: [],
+				message: result.error || 'Image generation failed',
+				time: Date.now() - startTime
+			};
+		} catch (error) {
+			this.log(`⚠️ Image generation error (non-critical): ${error.message}`, 'warn');
+			// Return empty images instead of throwing - allow LKPD to be generated without images
+			return {
+				success: true,
+				data: [],
+				time: Date.now() - startTime
+			};
+		}
+	}
+
+	/**
 	 * Compile semua komponen menjadi LKPD lengkap
 	 */
 	compileLKPD() {
@@ -309,6 +403,9 @@ export class LKPDOrchestrator {
 			refleksiDiri: this.state.evaluasiRefleksi?.refleksiDiri,
 			kesimpulan: this.state.evaluasiRefleksi?.kesimpulan,
 
+			// Images (AI-generated illustrations)
+			images: this.state.images || [],
+
 			// Validasi & Kualitas
 			validasi: {
 				kualitasKeseluruhan: this.state.validation?.qualityScore || 0,
@@ -331,7 +428,8 @@ export class LKPDOrchestrator {
 			materiPendukung: null,
 			langkahKerja: null,
 			evaluasiRefleksi: null,
-			validation: null
+			validation: null,
+			images: null
 		};
 		this.executionLog = [];
 	}

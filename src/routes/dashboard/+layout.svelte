@@ -33,14 +33,14 @@
 			dotColor: 'bg-violet-500'
 		},
 		{
+			href: '/dashboard/koreksi-ujian',
+			label: 'Koreksi Ujian AI',
+			dotColor: 'bg-purple-500'
+		},
+		{
 			href: '/dashboard/ice-breaking',
 			label: 'Ice Breaking Generator',
 			dotColor: 'bg-amber-500'
-		},
-		{
-			href: '/dashboard/jurnal',
-			label: 'Jurnal Mengajar',
-			dotColor: 'bg-rose-500'
 		},
 		{
 			href: '/dashboard/ppt',

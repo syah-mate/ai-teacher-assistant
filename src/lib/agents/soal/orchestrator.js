@@ -17,7 +17,8 @@ export class SoalOrchestrator {
 
 		this.state = {
 			soalGeneration: null,
-			validation: null
+			validation: null,
+			images: null
 		};
 
 		this.executionLog = [];
@@ -31,7 +32,7 @@ export class SoalOrchestrator {
 	 * @returns {Promise<Object>} Result soal
 	 */
 	async generateSoal(userInput, onProgress) {
-		const totalSteps = 2; // Generator + Validator
+		const totalSteps = 4; // Generator + Validator + Image Generation + Compilation
 		let currentStep = 0;
 
 		try {
@@ -109,8 +110,54 @@ export class SoalOrchestrator {
 				this.log(`✓ Validation completed: Score ${validatorResult.data.score}/100`);
 			}
 
-			// Final compilation
-			this.log('📦 Compiling final result...');
+			// Step 3: Generate Images with Cloudflare Workers AI (conditional)
+			currentStep++;
+			const hasImageRequirements = generatorResult.data.imageRequirements?.length > 0;
+			
+			if (hasImageRequirements) {
+				this.log(`[${currentStep}/${totalSteps}] Generating AI images for ${generatorResult.data.imageRequirements.length} soal bergambar...`);
+				if (onProgress) {
+					onProgress({
+						step: currentStep,
+						total: totalSteps,
+						agent: 'Image Generation',
+						status: '🎨 Membuat gambar untuk soal bergambar...'
+					});
+				}
+
+				const imagesResult = await this.generateIllustrationImages(userInput, this.state);
+				if (imagesResult.success && imagesResult.data && imagesResult.data.length > 0) {
+					this.state.images = imagesResult.data;
+					this.log(`✅ Successfully generated ${imagesResult.data.length} AI images`);
+				} else {
+					// Images generation failed but not critical
+					this.log(`⚠️ Image generation failed: ${imagesResult.message || 'Error'}`);
+					this.state.images = [];
+				}
+			} else {
+				this.log(`[${currentStep}/${totalSteps}] No image requirements detected - skipping image generation`);
+				if (onProgress) {
+					onProgress({
+						step: currentStep,
+						total: totalSteps,
+						agent: 'Image Generation',
+						status: '⏭️ Tidak ada soal bergambar - skip'
+					});
+				}
+				this.state.images = [];
+			}
+
+			// Step 4: Final compilation
+			currentStep++;
+			this.log(`[${currentStep}/${totalSteps}] Compiling final result...`);
+			if (onProgress) {
+				onProgress({
+					step: currentStep,
+					total: totalSteps,
+					agent: 'Compilation',
+					status: '📦 Menyusun hasil akhir...'
+				});
+			}
 			const finalResult = this.compileFinalResult();
 
 			this.log('✅ Soal generation process completed successfully!');
@@ -147,15 +194,104 @@ export class SoalOrchestrator {
 	}
 
 	/**
+	 * Generate illustration images for Soal using Cloudflare Workers AI
+	 */
+	async generateIllustrationImages(userInput, state) {
+		const startTime = Date.now();
+
+		try {
+			// Call server-side API endpoint for image generation
+			const response = await fetch('/api/generate-soal-images', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userInput,
+					state
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				console.warn('[Soal Orchestrator] ⚠️ Image generation API error (non-critical):', errorData.error);
+				// Return empty images instead of throwing - this is non-critical
+				return {
+					success: true,
+					data: [],
+					time: Date.now() - startTime
+				};
+			}
+
+			const result = await response.json();
+
+			// Handle successful response with or without images
+			if (result.success) {
+				if (result.images && result.images.length > 0) {
+					this.log(`✅ Generated ${result.images.length} AI images successfully`);
+					return {
+						success: true,
+						data: result.images,
+						time: Date.now() - startTime
+					};
+				} else {
+					// API returned success but no images (e.g., not configured)
+					const message = result.message || 'Image generation skipped';
+					this.log(`ℹ️ ${message}`);
+					return {
+						success: true,
+						data: [],
+						message: message,
+						time: Date.now() - startTime
+					};
+				}
+			}
+
+			// API returned error
+			console.warn('[Soal Orchestrator] ⚠️ Image generation failed (non-critical):', result.error);
+			return {
+				success: true,
+				data: [],
+				message: result.error || 'Image generation failed',
+				time: Date.now() - startTime
+			};
+		} catch (error) {
+			this.log(`⚠️ Image generation error (non-critical): ${error.message}`);
+			// Return empty images instead of throwing - allow Soal to be generated without images
+			return {
+				success: true,
+				data: [],
+				time: Date.now() - startTime
+			};
+		}
+	}
+
+	/**
 	 * Compile final result
 	 */
 	compileFinalResult() {
-		const { soalGeneration, validation } = this.state;
+		const { soalGeneration, validation, images } = this.state;
+
+		// Replace image markers with placeholders for display/download
+		let formattedContent = soalGeneration.fullOutput;
+		const imageRequirements = soalGeneration.imageRequirements || [];
+		
+		if (images && images.length > 0) {
+			// Replace each marker with image placeholder
+			imageRequirements.forEach((req, index) => {
+				if (index < images.length) {
+					const placeholder = `\n\n📸 [Gambar: ${images[index].caption || req.description}]\n[Image embedded - visible in .docx download]\n`;
+					formattedContent = formattedContent.replace(req.marker, placeholder);
+				}
+			});
+		}
 
 		return {
-			// Main soal content
-			content: soalGeneration.fullOutput,
+			// Main soal content (with image placeholders)
+			content: formattedContent,
 			rawContent: soalGeneration.rawContent,
+
+			// Images (AI-generated for soal bergambar)
+			images: images || [],
+			imageRequirements: imageRequirements,
 
 			// Metadata
 			metadata: {
@@ -165,7 +301,8 @@ export class SoalOrchestrator {
 					status: validation.status,
 					passed: validation.passed,
 					needsImprovement: validation.needsImprovement
-				}
+				},
+				imageCount: images?.length || 0
 			},
 
 			// Validation report (optional, bisa ditampilkan atau disembunyikan)

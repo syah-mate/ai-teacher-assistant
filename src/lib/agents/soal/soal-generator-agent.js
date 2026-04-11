@@ -227,6 +227,19 @@ Format harus PERSIS seperti contoh di atas.
 
 		const { mapel, kelas, topik, kurikulum, jenis, jumlah, tingkat, level } = input;
 
+		// Detect image requirements from [GAMBAR_SOAL: ...] markers
+		const imageMarkerRegex = /\[GAMBAR_SOAL:\s*([^\]]+)\]/g;
+		const imageRequirements = [];
+		let match;
+		
+		while ((match = imageMarkerRegex.exec(response)) !== null) {
+			imageRequirements.push({
+				description: match[1].trim(),
+				position: match.index,
+				marker: match[0]
+			});
+		}
+
 		const header = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   BANK SOAL DAN UJIAN — ${kurikulum.toUpperCase()}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -256,6 +269,7 @@ Format harus PERSIS seperti contoh di atas.
 		return {
 			fullOutput: header + response + footer,
 			rawContent: response,
+			imageRequirements: imageRequirements,
 			metadata: {
 				mapel,
 				kelas,
@@ -265,6 +279,8 @@ Format harus PERSIS seperti contoh di atas.
 				jumlah,
 				tingkat,
 				level,
+				hasImages: imageRequirements.length > 0,
+				imageCount: imageRequirements.length,
 				generatedAt: new Date().toISOString()
 			}
 		};

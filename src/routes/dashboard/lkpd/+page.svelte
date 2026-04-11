@@ -35,6 +35,28 @@
 	
 	let qualityScore = $state(0);
 	let rawData = $state(null);
+	let isDownloading = $state(false);
+
+	/**
+	 * Render output with embedded images
+	 */
+	function renderOutputWithImages(textOutput, imagesData) {
+		if (!textOutput) return '';
+		if (!imagesData || imagesData.length === 0) return textOutput;
+
+		let result = textOutput;
+		
+		// Find and replace image placeholders with actual images
+		imagesData.forEach(img => {
+			const placeholder = `[Image embedded - visible in .docx download]`;
+			const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
+			
+			// Replace first occurrence of placeholder with actual image
+			result = result.replace(placeholder, imgTag);
+		});
+
+		return result;
+	}
 
 	function buildLKPDPrompt() {
 		const { sekolah, mapel, kelas, topik, tujuan, model, waktu, semester } = form;
@@ -149,6 +171,15 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 				output = formatLKPDOutput(result.data);
 				qualityScore = result.metadata.qualityScore;
 				rawData = result.data;
+				
+				console.log('[LKPD] Generation complete - Images:', rawData?.images?.length || 0);
+				if (rawData?.images?.length > 0) {
+					console.log('[LKPD] First image preview:', {
+						caption: rawData.images[0].caption,
+						dataLength: rawData.images[0].data?.length,
+						mimeType: rawData.images[0].mimeType
+					});
+				}
 				
 				progress = {
 					...progress,
@@ -277,6 +308,13 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 			output += `📚 C. MATERI PENDUKUNG\n`;
 			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 			
+			// Add first image if available (main topic)
+			if (data.images && data.images.length > 0 && data.images[0].position === 'main') {
+				output += `\n📸 [Gambar: ${data.images[0].caption}]\n`;
+				output += `${data.images[0].description}\n`;
+				output += `[Image embedded - visible in .docx download]\n\n`;
+			}
+			
 			const rm = data.materiPendukung.ringkasanMateri;
 			if (rm?.konsepKunci) {
 				output += `🔑 KONSEP KUNCI:\n\n`;
@@ -285,6 +323,16 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					output += `   ${kk.definisi}\n`;
 					if (kk.penjelasan) output += `   ${kk.penjelasan}\n`;
 					output += `\n`;
+					
+					// Add concept image if available
+					if (i === 0 && data.images) {
+						const conceptImg = data.images.find(img => img.position === 'concept');
+						if (conceptImg) {
+							output += `\n📸 [Gambar: ${conceptImg.caption}]\n`;
+							output += `${conceptImg.description}\n`;
+							output += `[Image embedded - visible in .docx download]\n\n`;
+						}
+					}
 				});
 			}
 			
@@ -302,6 +350,16 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 			output += `✏️ D. LANGKAH KERJA & TUGAS\n`;
 			output += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+			
+			// Add activity image if available
+			if (data.images) {
+				const activityImg = data.images.find(img => img.position === 'activity');
+				if (activityImg) {
+					output += `\n📸 [Gambar: ${activityImg.caption}]\n`;
+					output += `${activityImg.description}\n`;
+					output += `[Image embedded - visible in .docx download]\n\n`;
+				}
+			}
 			
 			data.langkahKerja.bagianUtama.forEach((bagian, idx) => {
 				output += `${bagian.bagian}\n`;
@@ -322,6 +380,17 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					output += `   ${'_'.repeat(70)}\n`;
 					output += `   ${'_'.repeat(70)}\n\n`;
 				});
+				
+				// Add worksheet image after first section if available
+				if (idx === 0 && data.images) {
+					const worksheetImg = data.images.find(img => img.position === 'worksheet');
+					if (worksheetImg) {
+						output += `\n📸 [Gambar: ${worksheetImg.caption}]\n`;
+						output += `${worksheetImg.description}\n`;
+						output += `[Image embedded - visible in .docx download]\n\n`;
+					}
+				}
+				
 				output += `\n`;
 			});
 		}
@@ -400,6 +469,59 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 		await navigator.clipboard.writeText(output);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
+	}
+
+	async function downloadDocx() {
+		if (!output) return;
+		
+		isDownloading = true;
+		try {
+			const lkpdData = {
+				judulModul: form.topik || 'LKPD',
+				mapel: form.mapel,
+				kelas: form.kelas,
+				semester: form.semester,
+				content: output,
+				modulAjar: output,
+				penulis: form.penulis || 'Guru Mata Pelajaran',
+				instansi: form.instansi || form.sekolah || 'Sekolah',
+				images: rawData?.images || [] // Include images if available
+			};
+
+			console.log('[Download LKPD DOCX] Images count:', lkpdData.images?.length);
+			if (lkpdData.images?.length > 0) {
+				console.log('[Download LKPD DOCX] First image data length:', lkpdData.images[0]?.data?.length);
+			}
+
+			const response = await fetch('/api/export-lkpd-docx', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ lkpdData })
+			});
+
+			if (!response.ok) {
+				throw new Error('Gagal export dokumen');
+			}
+
+			// Download file
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			const filename = `LKPD_${form.mapel}_${form.topik}`.replace(/[^a-z0-9]/gi, '_');
+			a.download = `${filename}.docx`;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+		} catch (err) {
+			console.error('Download error:', err);
+			alert('Gagal download dokumen. Silakan coba lagi.');
+		} finally {
+			isDownloading = false;
+		}
 	}
 </script>
 
@@ -613,6 +735,8 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 								✏️ Merancang aktivitas dan tugas...
 							{:else if progress.phase === 'evaluasi-refleksi'}
 								📊 Membuat evaluasi dan refleksi...
+							{:else if progress.phase === 'image-generation'}
+								🎨 Membuat ilustrasi gambar AI...
 							{:else if progress.phase === 'validation'}
 								✅ Memvalidasi kualitas LKPD...
 							{:else if progress.phase === 'compilation'}
@@ -636,27 +760,46 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					{/if}
 				</div>
 				{#if output}
-					<button
-						onclick={copyOutput}
-						class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-					>
-						{#if copied}
-							<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-							</svg>
-							Tersalin!
-						{:else}
-							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-								/>
-							</svg>
-							Salin Teks
-						{/if}
-					</button>
+					<div class="flex items-center gap-2">
+						<button
+							onclick={copyOutput}
+							class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+						>
+							{#if copied}
+								<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+								</svg>
+								Tersalin!
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+									/>
+								</svg>
+								Salin Teks
+							{/if}
+						</button>
+						<button
+							onclick={downloadDocx}
+							disabled={isDownloading}
+							class="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:bg-emerald-400"
+						>
+							{#if isDownloading}
+								<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+							{/if}
+							Download .docx
+						</button>
+					</div>
 				{/if}
 			</div>
 
@@ -694,8 +837,38 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					</button>
 				</div>
 			{:else if output}
-				<pre
-					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700">{output}</pre>
+				<div
+					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700"
+				>{@html renderOutputWithImages(output, rawData?.images)}</div>
+				
+				<!-- Display Generated Images -->
+				{#if rawData?.images && rawData.images.length > 0}
+					<div class="mt-6">
+						<h3 class="mb-3 text-sm font-semibold text-gray-700">
+							🎨 Ilustrasi AI Generated ({rawData.images.length} gambar)
+						</h3>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							{#each rawData.images as image, idx}
+								<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+									<img 
+										src="data:{image.mimeType};base64,{image.data}" 
+										alt={image.caption || `Ilustrasi ${idx + 1}`}
+										class="h-48 w-full object-cover"
+									/>
+									<div class="p-3">
+										<p class="text-xs font-medium text-gray-700">{image.caption || image.description}</p>
+										{#if image.description && image.description !== image.caption}
+											<p class="mt-1 text-xs text-gray-500">{image.description}</p>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+						<p class="mt-3 text-xs text-gray-500">
+							💡 Gambar-gambar ini akan disertakan saat download sebagai .docx
+						</p>
+					</div>
+				{/if}
 			{:else}
 				<div class="flex flex-col items-center justify-center py-20 text-gray-300">
 					<svg class="mb-3 h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
