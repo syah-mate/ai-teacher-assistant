@@ -1,5 +1,6 @@
 <script>
 	import { SoalOrchestrator } from '$lib/agents/soal/index.js';
+	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
 
 	let form = $state({
 		mapel: '',
@@ -113,29 +114,10 @@
 	}
 
 	/**
-	 * Render output with embedded images (replace placeholders with actual <img> tags)
+	 * Render output with embedded images + markdown parsing
 	 */
 	function renderOutputWithImages() {
-		if (!output || !rawData?.images || rawData.images.length === 0) {
-			return output;
-		}
-
-		let rendered = output;
-		const images = rawData.images;
-		let imageIndex = 0;
-
-		// Replace image placeholders with actual <img> tags
-		rendered = rendered.replace(/\[Image embedded - visible in \.docx download\]/g, () => {
-			if (imageIndex < images.length) {
-				const img = images[imageIndex];
-				const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption || 'Gambar soal'}" class="my-3 rounded-lg shadow-md" style="max-width: 100%; height: auto;" />`;
-				imageIndex++;
-				return imgTag;
-			}
-			return '';
-		});
-
-		return rendered;
+		return renderMarkdownWithImages(output, rawData?.images);
 	}
 
 	let isDownloading = $state(false);
@@ -528,7 +510,7 @@
 				</div>
 			{:else if output}
 				<div
-					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700">
+					class="max-h-150 overflow-y-auto rounded-xl bg-white p-5 text-sm leading-relaxed text-gray-800">
 					{@html renderOutputWithImages()}
 				</div>
 				

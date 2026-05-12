@@ -24,7 +24,6 @@
 	let generationMode = $state('agentic'); // 'agentic' or 'single'
 	let isGenerating = $state(false);
 	let output = $state('');
-	let copied = $state(false);
 	let error = $state('');
 	
 	// Progress tracking for agentic mode
@@ -37,29 +36,7 @@
 	});
 	
 	let qualityScore = $state(0);
-	let rawData = $state(null); // Store raw data for debugging
-	let isDownloading = $state(false);
-
-	/**
-	 * Render output with embedded images
-	 */
-	function renderOutputWithImages(textOutput, imagesData) {
-		if (!textOutput) return '';
-		if (!imagesData || imagesData.length === 0) return textOutput;
-
-		let result = textOutput;
-		
-		// Find and replace image placeholders with actual images
-		imagesData.forEach(img => {
-			const placeholder = `[Image embedded - visible in .docx download]`;
-			const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
-			
-			// Replace first occurrence of placeholder with actual image
-			result = result.replace(placeholder, imgTag);
-		});
-
-		return result;
-	}
+	let rawData = $state(null);
 
 
 
@@ -193,16 +170,19 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				output = result.modulAjar;
 				qualityScore = result.metadata.qualityScore;
 				rawData = result.rawData;
-				
-			console.log('[Modul Ajar] Generation complete - Images:', rawData?.images?.length || 0);
-			if (rawData?.images?.length > 0) {
-				console.log('[Modul Ajar] First image preview:', {
-					caption: rawData.images[0].caption,
-					dataLength: rawData.images[0].data?.length,
-					mimeType: rawData.images[0].mimeType
-				});
-			}
-			
+
+				// Save to localStorage so the new tab can read it
+				localStorage.setItem('modulAjarHasil', JSON.stringify({
+					output: result.modulAjar,
+					images: rawData?.images || [],
+					judulModul: form.judulModul,
+					mapel: form.mapel,
+					kelas: form.kelas,
+					penulis: form.penulis || 'Guru Mata Pelajaran',
+					instansi: form.instansi || 'Sekolah',
+					qualityScore: result.metadata.qualityScore
+				}));
+				window.open('/dashboard/modul-ajar/hasil', '_blank');
 
 				// Dispatch event to update rate limit indicator
 				window.dispatchEvent(new Event('generate-success'));
@@ -240,6 +220,17 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 			
 			if (result.success) {
 				output = result.data;
+				localStorage.setItem('modulAjarHasil', JSON.stringify({
+					output: result.data,
+					images: [],
+					judulModul: form.judulModul,
+					mapel: form.mapel,
+					kelas: form.kelas,
+					penulis: form.penulis || 'Guru Mata Pelajaran',
+					instansi: form.instansi || 'Sekolah',
+					qualityScore: 0
+				}));
+				window.open('/dashboard/modul-ajar/hasil', '_blank');
 			} else {
 				error = result.error;
 			}
@@ -257,63 +248,6 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		if (num <= 6) return 'SD';
 		if (num <= 9) return 'SMP';
 		return 'SMA';
-	}
-
-	async function copyOutput() {
-		await navigator.clipboard.writeText(output);
-		copied = true;
-		setTimeout(() => (copied = false), 2000);
-	}
-
-	async function downloadDocx() {
-		if (!output) return;
-		
-		isDownloading = true;
-		try {
-			const modulData = {
-				judulModul: form.judulModul,
-				mapel: form.mapel,
-				kelas: form.kelas,
-				content: output,
-				modulAjar: output,
-				penulis: form.penulis || 'Guru Mata Pelajaran',
-				instansi: form.instansi || 'Sekolah',
-				images: rawData?.images || [] // Include images if available
-			};
-
-			console.log('[Download DOCX] Images count:', modulData.images?.length);
-			if (modulData.images?.length > 0) {
-				console.log('[Download DOCX] First image data length:', modulData.images[0]?.data?.length);
-			}
-
-			const response = await fetch('/api/export-modul-docx', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ modulData })
-			});
-
-			if (!response.ok) {
-				throw new Error('Gagal export dokumen');
-			}
-
-			// Download file
-			const blob = await response.blob();
-			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `Modul_Ajar_${form.judulModul.replace(/[^a-z0-9]/gi, '_')}.docx`;
-			document.body.appendChild(a);
-			a.click();
-			window.URL.revokeObjectURL(url);
-			document.body.removeChild(a);
-		} catch (err) {
-			console.error('Download error:', err);
-			alert('Gagal download dokumen. Silakan coba lagi.');
-		} finally {
-			isDownloading = false;
-		}
 	}
 </script>
 
@@ -366,7 +300,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		</div>
 	</div>
 
-	<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+	<div class="mx-auto max-w-3xl">
 		<!-- Form -->
 		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
 			<h2 class="mb-5 text-base font-semibold text-gray-700">Data Modul Ajar</h2>
@@ -619,161 +553,42 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					{/if}
 				</button>
 			</form>
-		</div>
 
-		<!-- Output -->
-		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-			<div class="mb-4 flex items-center justify-between">
-				<h2 class="text-base font-semibold text-gray-700">Hasil Generate</h2>
-				{#if output}
-					<div class="flex items-center gap-2">
-						<button
-							onclick={downloadDocx}
-							disabled={isDownloading}
-							class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
-						>
-							{#if isDownloading}
-								<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
-								Sedang Export...
-							{:else}
-								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-								</svg>
-								Download .docx
-							{/if}
-						</button>
-						<button
-							onclick={copyOutput}
-							class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
-						>
-							{#if copied}
-								<svg class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-								</svg>
-								Tersalin!
-							{:else}
-								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-									/>
-								</svg>
-								Salin Teks
-							{/if}
-						</button>
+			<!-- Error alert -->
+			{#if error}
+				<div class="mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+					<svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+					</svg>
+					<div class="flex-1">
+						<p class="font-medium text-red-800">Gagal Generate</p>
+						<p class="mt-0.5 text-sm text-red-600">{error}</p>
 					</div>
-				{/if}
-			</div>
-			
-			<!-- Quality Score Indicator (Agentic Mode) -->
-			{#if qualityScore > 0 && generationMode === 'agentic'}
-				<div class="mb-4 rounded-lg border-2 {qualityScore >= 80 ? 'border-green-200 bg-green-50' : qualityScore >= 60 ? 'border-yellow-200 bg-yellow-50' : 'border-orange-200 bg-orange-50'} p-4">
-					<div class="mb-2 flex items-center justify-between">
-						<span class="text-sm font-bold {qualityScore >= 80 ? 'text-green-900' : qualityScore >= 60 ? 'text-yellow-900' : 'text-orange-900'}">
-							Quality Score
-						</span>
-						<span class="text-2xl font-bold {qualityScore >= 80 ? 'text-green-600' : qualityScore >= 60 ? 'text-yellow-600' : 'text-orange-600'}">
-							{qualityScore}/100
-						</span>
-					</div>
-					
-					<div class="h-2 w-full overflow-hidden rounded-full {qualityScore >= 80 ? 'bg-green-200' : qualityScore >= 60 ? 'bg-yellow-200' : 'bg-orange-200'}">
-						<div 
-							class="h-full {qualityScore >= 80 ? 'bg-green-600' : qualityScore >= 60 ? 'bg-yellow-600' : 'bg-orange-600'} transition-all duration-1000"
-							style="width: {qualityScore}%"
-						></div>
-					</div>
-					
-					<div class="mt-2 text-xs {qualityScore >= 80 ? 'text-green-700' : qualityScore >= 60 ? 'text-yellow-700' : 'text-orange-700'}">
-						{#if qualityScore >= 80}
-							✅ Modul ajar berkualitas tinggi dan lengkap!
-						{:else if qualityScore >= 60}
-							⚠️ Modul ajar cukup baik, beberapa bagian bisa diperkaya.
-						{:else}
-							⚠️ Modul ajar perlu review dan perbaikan.
-						{/if}
-					</div>
+					<!-- svelte-ignore a11y_consider_explicit_label -->
+					<button onclick={() => (error = '')} class="text-red-400 hover:text-red-600">
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
 				</div>
 			{/if}
 
-			{#if isGenerating}
-				<div class="flex flex-col items-center justify-center py-20 text-gray-400">
-					<svg class="mb-3 h-8 w-8 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-						></circle>
-						<path
-							class="opacity-75"
-							fill="currentColor"
-							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-						></path>
+			<!-- Success notification -->
+			{#if output && !isGenerating}
+				<div class="mt-4 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
+					<svg class="h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
-					<p class="text-sm">
-						{#if generationMode === 'agentic'}
-							🤖 Agentic AI sedang bekerja...
-						{:else}
-							AI sedang menyusun Modul Ajar...
-						{/if}
-					</p>
-					<p class="mt-1 text-xs text-gray-400">
-						{#if generationMode === 'agentic'}
-							Estimasi 2-3 menit (multi-step AI)
-						{:else}
-							Mohon tunggu 30-60 detik
-						{/if}
-					</p>
-				</div>
-			{:else if error}
-				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
-					<svg class="mb-3 h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-						/>
-					</svg>
-					<p class="mb-2 font-medium text-red-800">Gagal Generate Modul Ajar</p>
-					<p class="text-sm text-red-600">{error}</p>
+					<div class="flex-1">
+						<p class="font-medium text-green-800">Modul ajar berhasil dibuat!</p>
+						<p class="mt-0.5 text-sm text-green-600">Dokumen sudah terbuka di tab baru. Jika belum terbuka, klik tombol di bawah.</p>
+					</div>
 					<button
-						onclick={() => { error = ''; handleGenerate(new Event('submit')); }}
-						class="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
+						onclick={() => window.open('/dashboard/modul-ajar/hasil', '_blank')}
+						class="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
 					>
-						Coba Lagi
+						Buka Hasil
 					</button>
-				</div>
-			{:else if output}
-				<!-- Document-style output -->
-				<div class="max-h-150 overflow-y-auto rounded-xl border border-gray-200 bg-white">
-					<!-- Document paper effect -->
-					<div class="mx-auto max-w-4xl bg-white p-8 shadow-sm" style="min-height: 400px;">
-					<pre class="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">{@html renderOutputWithImages(output, rawData?.images)}</pre>
-				</div>
-			</div>
-			
-			<!-- Download hint -->
-				<div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
-					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<span>Klik <strong>Download .docx</strong> untuk mendapatkan dokumen Word dengan format yang lebih rapi</span>
-				</div>
-			{:else}
-				<div class="flex flex-col items-center justify-center py-20 text-gray-300">
-					<svg class="mb-3 h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="1.5"
-							d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-						/>
-					</svg>
-					<p class="text-sm">Hasil Modul Ajar akan muncul di sini</p>
-					<p class="mt-1 text-xs">Isi form dan klik Generate</p>
 				</div>
 			{/if}
 		</div>

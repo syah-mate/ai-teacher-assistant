@@ -36,7 +36,7 @@ export async function generateImageCloudflare(prompt, apiUrl, apiKey) {
 				'Authorization': `Bearer ${apiKey}`,
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ prompt: prompt.trim() })
+			body: JSON.stringify({ prompt: prompt.trim(), width: 600, height: 300 })
 		});
 
 		if (!response.ok) {

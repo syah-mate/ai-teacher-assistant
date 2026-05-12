@@ -2,6 +2,7 @@
 	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
 	import { LKPDOrchestrator } from '$lib/agents/lkpd/index.js';
+	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
 
 	let form = $state({
 		sekolah: '',
@@ -38,24 +39,10 @@
 	let isDownloading = $state(false);
 
 	/**
-	 * Render output with embedded images
+	 * Render output with embedded images + markdown parsing
 	 */
 	function renderOutputWithImages(textOutput, imagesData) {
-		if (!textOutput) return '';
-		if (!imagesData || imagesData.length === 0) return textOutput;
-
-		let result = textOutput;
-		
-		// Find and replace image placeholders with actual images
-		imagesData.forEach(img => {
-			const placeholder = `[Image embedded - visible in .docx download]`;
-			const imgTag = `<img src="data:${img.mimeType};base64,${img.data}" alt="${img.caption}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
-			
-			// Replace first occurrence of placeholder with actual image
-			result = result.replace(placeholder, imgTag);
-		});
-
-		return result;
+		return renderMarkdownWithImages(textOutput, imagesData);
 	}
 
 	function buildLKPDPrompt() {
@@ -838,7 +825,7 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 				</div>
 			{:else if output}
 				<div
-					class="max-h-150 overflow-y-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-5 font-mono text-xs leading-relaxed text-gray-700"
+					class="max-h-150 overflow-y-auto rounded-xl bg-white p-5 text-sm leading-relaxed text-gray-800"
 				>{@html renderOutputWithImages(output, rawData?.images)}</div>
 				
 				<!-- Display Generated Images -->

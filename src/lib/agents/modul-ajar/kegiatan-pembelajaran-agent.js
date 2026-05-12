@@ -184,7 +184,21 @@ OUTPUT harus dalam format JSON yang valid.
 			}
 
 			const parsedData = this.parseJSON(result.data);
-			const validation = this.validate(parsedData);
+
+			// Handle parse failure
+			if (parsedData?.parseError) {
+				this.log('JSON parse failed, raw response returned', 'warn');
+				return {
+					success: false,
+					error: 'Gagal memparse respons AI. Silakan coba lagi.',
+					agentName: this.name
+				};
+			}
+
+			// Normalize: AI sometimes wraps pertemuan in a parent key
+			const normalized = this.normalizeData(parsedData);
+
+			const validation = this.validate(normalized);
 
 			if (!validation.isValid) {
 				this.log(`Validation failed: ${validation.errors.join(', ')}`, 'warn');
@@ -199,7 +213,7 @@ OUTPUT harus dalam format JSON yang valid.
 
 			return {
 				success: true,
-				data: parsedData,
+				data: normalized,
 				agentName: this.name,
 				metadata: this.getMetadata()
 			};
@@ -212,6 +226,26 @@ OUTPUT harus dalam format JSON yang valid.
 				agentName: this.name
 			};
 		}
+	}
+
+	/**
+	 * Normalize parsed data — handle cases where AI wraps pertemuan inside a parent key
+	 */
+	normalizeData(data) {
+		if (!data) return data;
+		// Already correct shape
+		if (Array.isArray(data.pertemuan)) return data;
+		// AI returned just an array at root
+		if (Array.isArray(data)) return { pertemuan: data };
+		// Nested one level: { kegiatanPembelajaran: { pertemuan: [] } } or similar
+		for (const key of Object.keys(data)) {
+			const val = data[key];
+			if (val && Array.isArray(val.pertemuan)) return val;
+			if (Array.isArray(val) && val.length > 0 && val[0]?.nomorPertemuan !== undefined) {
+				return { pertemuan: val };
+			}
+		}
+		return data;
 	}
 
 	/**
