@@ -121,7 +121,8 @@ export function buildEducationalPrompt({ judulModul, mapel, kelas, topik, style 
 	const selectedStyle = styleGuide[style] || styleGuide['educational'];
 
 	// Construct prompt optimized for Stable Diffusion
-	const prompt = `${topic}, ${selectedStyle}, for ${mapel} subject, Indonesian grade ${kelas}, bright lighting, professional quality, no text, clean background`;
+	// Emphasize wide/landscape composition so the model natively generates 2:1 ratio content
+	const prompt = `${topic}, ${selectedStyle}, for ${mapel} subject, Indonesian grade ${kelas}, wide landscape format, panoramic horizontal composition, 2:1 aspect ratio, wide shot, full scene, bright lighting, professional quality, no text, clean background`;
 
 	console.log('[Cloudflare Image] Generated prompt:', prompt);
 
@@ -140,8 +141,9 @@ export function buildEducationalPrompt({ judulModul, mapel, kelas, topik, style 
  */
 export async function generateModulImages(userInput, state, apiUrl, apiKey, imageCount = 2) {
 	const images = [];
-	const { judulModul, mapel, kelas } = userInput;
-	const pertemuan = state.kegiatanPembelajaran?.pertemuan || [];
+	const judulModul = userInput.judul || userInput.judulModul;
+	const { mapel, kelas } = userInput;
+	const pertemuan = (state.kegiatan || state.kegiatanPembelajaran)?.pertemuan || [];
 
 	// Generate prompts for different sections
 	const prompts = [];
@@ -220,7 +222,8 @@ export async function generateModulImages(userInput, state, apiUrl, apiKey, imag
  */
 export async function generateLKPDImages(userInput, state, apiUrl, apiKey, imageCount = 2) {
 	const images = [];
-	const { judulLKPD, topikMateri, mapel, kelas, jenisKegiatan } = userInput;
+	const judulLKPD = userInput.judul || userInput.judulLKPD;
+	const { topikMateri, mapel, kelas, jenisKegiatan } = userInput;
 	
 	// Ensure imageCount is between 1 and 5
 	const count = Math.max(1, Math.min(5, imageCount));
@@ -249,8 +252,9 @@ export async function generateLKPDImages(userInput, state, apiUrl, apiKey, image
 	}
 	
 	// Image 3: Concept illustration (if material exists)
-	if (count > 2 && state.materiPendukung?.ringkasanMateri?.konsepKunci) {
-		const konsep = state.materiPendukung.ringkasanMateri.konsepKunci[0];
+	const materiPendukung = state.lkpdContent?.materiPendukung || state.materiPendukung;
+	if (count > 2 && materiPendukung?.ringkasanMateri?.konsepKunci) {
+		const konsep = materiPendukung.ringkasanMateri.konsepKunci[0];
 		if (konsep) {
 			prompts.push({
 				prompt: buildEducationalPrompt({ judulModul: konsep.nama, mapel, kelas, topik: konsep.nama, style: 'diagram' }),

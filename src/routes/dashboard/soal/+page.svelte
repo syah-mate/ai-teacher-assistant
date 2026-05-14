@@ -1,5 +1,5 @@
 <script>
-	import { SoalOrchestrator } from '$lib/agents/soal/index.js';
+	import { Orchestrator } from '$lib/agents/orchestrator.js';
 	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
 
 	let form = $state({
@@ -54,22 +54,28 @@
 				status: '🚀 Memulai Agentic AI System...'
 			};
 
-			const orchestrator = new SoalOrchestrator();
+			const orchestrator = new Orchestrator();
 
 			const userInput = {
-				...form,
-				userId: 'user' // This will be replaced by actual user ID from session
+				jenis: 'soal',
+				judul: form.topik,
+				mapel: form.mapel,
+				kelas: form.kelas,
+				jenisSoal: form.jenis,
+				jumlahSoal: form.jumlah,
+				tingkat: form.tingkat,
+				levelBloom: form.level
 			};
 
-			const result = await orchestrator.generateSoal(userInput, (progressData) => {
+			const result = await orchestrator.generate(userInput, (progressData) => {
 				progress = progressData;
 			});
 
 			if (result.success) {
-				output = result.data.content;
-				qualityScore = result.data.metadata.validation.score;
-				qualityIndicator = result.data.qualityIndicator;
-				rawData = result.data; // Store the complete data including images
+				output = result.dokumen.content;
+				qualityScore = result.dokumen.metadata.validation.score;
+				qualityIndicator = result.dokumen.qualityIndicator;
+				rawData = result.dokumen; // Store the complete data including images
 
 				console.log('[Soal] Generation complete - Images:', rawData?.images?.length || 0);
 				if (rawData?.images?.length > 0) {
@@ -79,7 +85,7 @@
 						mimeType: rawData.images[0].mimeType
 					});
 				}
-				validationReport = result.data.validationReport;
+				validationReport = result.dokumen.validationReport;
 
 				progress = {
 					...progress,

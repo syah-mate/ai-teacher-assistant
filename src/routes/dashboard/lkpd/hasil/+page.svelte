@@ -2,43 +2,44 @@
 	import { onMount } from 'svelte';
 	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
 
-	let modulData = $state(null);
+	let lkpdData = $state(null);
 	let renderedHtml = $state('');
 	let isDownloadingDocx = $state(false);
 	let isPrinting = $state(false);
 	let notFound = $state(false);
 
 	onMount(() => {
-		const data = window.opener?.__modulAjarHasil;
+		const data = window.opener?.__lkpdHasil;
 		if (!data) {
 			notFound = true;
 			return;
 		}
 		try {
-			modulData = data;
-			renderedHtml = renderMarkdownWithImages(modulData.output, modulData.images);
+			lkpdData = data;
+			renderedHtml = renderMarkdownWithImages(lkpdData.output, lkpdData.images);
 		} catch {
 			notFound = true;
 		}
 	});
 
 	async function downloadDocx() {
-		if (!modulData) return;
+		if (!lkpdData) return;
 		isDownloadingDocx = true;
 		try {
-			const response = await fetch('/api/export-modul-docx', {
+			const response = await fetch('/api/export-lkpd-docx', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					modulData: {
-						judulModul: modulData.judulModul,
-						mapel: modulData.mapel,
-						kelas: modulData.kelas,
-						content: modulData.output,
-						modulAjar: modulData.output,
-						penulis: modulData.penulis || 'Guru Mata Pelajaran',
-						instansi: modulData.instansi || 'Sekolah',
-						images: modulData.images || []
+					lkpdData: {
+						judulModul: lkpdData.topik,
+						mapel: lkpdData.mapel,
+						kelas: lkpdData.kelas,
+						semester: lkpdData.semester,
+						content: lkpdData.output,
+						modulAjar: lkpdData.output,
+						penulis: lkpdData.penulis || 'Guru Mata Pelajaran',
+						instansi: lkpdData.instansi || lkpdData.sekolah || 'Sekolah',
+						images: lkpdData.images || []
 					}
 				})
 			});
@@ -47,7 +48,7 @@
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `Modul_Ajar_${(modulData.judulModul || 'output').replace(/[^a-z0-9]/gi, '_')}.docx`;
+			a.download = `LKPD_${(lkpdData.mapel || '')}_${(lkpdData.topik || 'output').replace(/[^a-z0-9]/gi, '_')}.docx`;
 			document.body.appendChild(a);
 			a.click();
 			URL.revokeObjectURL(url);
@@ -61,7 +62,6 @@
 
 	function downloadPdf() {
 		isPrinting = true;
-		// Beri sedikit jeda agar state isPrinting tidak ikut terprint
 		setTimeout(() => {
 			window.print();
 			isPrinting = false;
@@ -70,23 +70,23 @@
 </script>
 
 <svelte:head>
-	<title>{modulData?.judulModul ?? 'Modul Ajar'} — Asisten Guru AI</title>
+	<title>{lkpdData?.topik ?? 'LKPD'} — Asisten Guru AI</title>
 </svelte:head>
 
 {#if notFound}
 	<div class="flex min-h-screen items-center justify-center bg-gray-50">
 		<div class="text-center">
-			<p class="mb-2 text-lg font-semibold text-gray-700">Tidak ada data modul ajar.</p>
+			<p class="mb-2 text-lg font-semibold text-gray-700">Tidak ada data LKPD.</p>
 			<p class="mb-6 text-sm text-gray-400">Silakan generate ulang dari halaman generator.</p>
 			<a
-				href="/dashboard/modul-ajar"
-				class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+				href="/dashboard/lkpd"
+				class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
 			>
 				Kembali ke Generator
 			</a>
 		</div>
 	</div>
-{:else if !modulData}
+{:else if !lkpdData}
 	<div class="flex min-h-screen items-center justify-center bg-gray-50">
 		<div class="flex items-center gap-3 text-gray-500">
 			<svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -102,7 +102,7 @@
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
 			<div class="flex items-center gap-3">
 				<a
-					href="/dashboard/modul-ajar"
+					href="/dashboard/lkpd"
 					class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
 				>
 					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,23 +112,23 @@
 				</a>
 				<div class="h-5 w-px bg-gray-200"></div>
 				<div>
-					<p class="text-sm font-semibold text-gray-800">{modulData.judulModul}</p>
-					<p class="text-xs text-gray-400">{modulData.mapel} · Kelas {modulData.kelas}</p>
+					<p class="text-sm font-semibold text-gray-800">{lkpdData.topik}</p>
+					<p class="text-xs text-gray-400">{lkpdData.mapel} · Kelas {lkpdData.kelas}</p>
 				</div>
 			</div>
 
 			<div class="flex items-center gap-2">
 				<!-- Quality badge -->
-				{#if modulData.qualityScore > 0}
+				{#if lkpdData.qualityScore > 0}
 					<span
 						class="rounded-full px-3 py-1 text-xs font-semibold
-						{modulData.qualityScore >= 80
-							? 'bg-green-100 text-green-700'
-							: modulData.qualityScore >= 60
+						{lkpdData.qualityScore >= 80
+							? 'bg-emerald-100 text-emerald-700'
+							: lkpdData.qualityScore >= 60
 								? 'bg-yellow-100 text-yellow-700'
 								: 'bg-orange-100 text-orange-700'}"
 					>
-						Kualitas {modulData.qualityScore}/100
+						Kualitas {lkpdData.qualityScore}/100
 					</span>
 				{/if}
 
@@ -147,7 +147,7 @@
 				<button
 					onclick={downloadDocx}
 					disabled={isDownloadingDocx}
-					class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+					class="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
 				>
 					{#if isDownloadingDocx}
 						<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -170,40 +170,47 @@
 	<div class="min-h-screen bg-gray-100 py-10 print:bg-white print:py-0">
 		<div class="document-paper mx-auto max-w-4xl bg-white shadow-lg print:shadow-none">
 			<!-- Document header / cover info -->
-			<div class="border-b-4 border-blue-600 px-12 pb-6 pt-10">
-				<div class="mb-1 text-xs font-semibold uppercase tracking-widest text-blue-500">
-					Modul Ajar · Kurikulum Merdeka
+			<div class="border-b-4 border-emerald-600 px-12 pb-6 pt-10">
+				<div class="mb-1 text-xs font-semibold uppercase tracking-widest text-emerald-500">
+					LKPD · Kurikulum Merdeka
 				</div>
-				<h1 class="text-3xl font-bold leading-tight text-gray-900">{modulData.judulModul}</h1>
+				<h1 class="text-3xl font-bold leading-tight text-gray-900">{lkpdData.topik}</h1>
 				<div class="mt-3 flex flex-wrap gap-4 text-sm text-gray-600">
 					<span class="flex items-center gap-1">
-						<svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" />
 						</svg>
-						{modulData.mapel}
+						{lkpdData.mapel}
 					</span>
 					<span class="flex items-center gap-1">
-						<svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
 						</svg>
-						Kelas {modulData.kelas}
+						Kelas {lkpdData.kelas} / Semester {lkpdData.semester}
 					</span>
-					{#if modulData.penulis}
+					{#if lkpdData.penulis}
 						<span class="flex items-center gap-1">
-							<svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 							</svg>
-							{modulData.penulis}
+							{lkpdData.penulis}
 						</span>
 					{/if}
-					{#if modulData.instansi}
+					{#if lkpdData.sekolah || lkpdData.instansi}
 						<span class="flex items-center gap-1">
-							<svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
 							</svg>
-							{modulData.instansi}
+							{lkpdData.instansi || lkpdData.sekolah}
 						</span>
 					{/if}
+				</div>
+
+				<!-- Nama / No / Tanggal siswa -->
+				<div class="mt-5 grid grid-cols-3 gap-4 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-gray-700">
+					<div>Nama&nbsp;: <span class="ml-1 inline-block w-32 border-b border-gray-400">&nbsp;</span></div>
+					<div>No&nbsp;&nbsp;&nbsp;: <span class="ml-1 inline-block w-16 border-b border-gray-400">&nbsp;</span></div>
+					<div>Tanggal: <span class="ml-1 inline-block w-24 border-b border-gray-400">&nbsp;</span></div>
 				</div>
 			</div>
 
@@ -223,20 +230,20 @@
 <style>
 	/* ===================== Document typography ===================== */
 	.document-content :global(h1) {
-		font-size: 1.6rem;
+		font-size: 1.5rem;
 		font-weight: 800;
-		color: #1e3a8a;
+		color: #064e3b;
 		margin-top: 2.5rem;
 		margin-bottom: 0.75rem;
 		padding-bottom: 0.4rem;
-		border-bottom: 2px solid #dbeafe;
+		border-bottom: 2px solid #d1fae5;
 		line-height: 1.3;
 	}
 
 	.document-content :global(h2) {
-		font-size: 1.25rem;
+		font-size: 1.2rem;
 		font-weight: 700;
-		color: #1d4ed8;
+		color: #047857;
 		margin-top: 2rem;
 		margin-bottom: 0.6rem;
 		line-height: 1.35;
@@ -249,7 +256,7 @@
 		margin-top: 1.5rem;
 		margin-bottom: 0.5rem;
 		padding-left: 0.75rem;
-		border-left: 3px solid #3b82f6;
+		border-left: 3px solid #10b981;
 	}
 
 	.document-content :global(h4) {
@@ -290,11 +297,10 @@
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
-		background: #2563eb;
+		background: #10b981;
 		flex-shrink: 0;
 	}
 
-	/* Nested ul */
 	.document-content :global(ul ul) {
 		margin-top: 0.35rem;
 		margin-bottom: 0.35rem;
@@ -304,7 +310,7 @@
 	.document-content :global(ul ul li::before) {
 		width: 5px;
 		height: 5px;
-		background: #93c5fd;
+		background: #6ee7b7;
 		top: 0.65em;
 	}
 
@@ -329,7 +335,7 @@
 		content: counter(ol-counter) '.';
 		position: absolute;
 		left: 0;
-		color: #2563eb;
+		color: #10b981;
 		font-weight: 700;
 		min-width: 1.5rem;
 	}
@@ -345,44 +351,27 @@
 	}
 
 	.document-content :global(blockquote) {
-		border-left: 4px solid #3b82f6;
-		background: #eff6ff;
+		border-left: 4px solid #10b981;
+		background: #ecfdf5;
 		padding: 0.75rem 1rem;
 		margin: 1.25rem 0;
 		border-radius: 0 8px 8px 0;
 		font-style: italic;
-		color: #1e40af;
+		color: #065f46;
 	}
 
 	.document-content :global(blockquote p) {
 		margin-bottom: 0;
-		color: #1e40af;
+		color: #065f46;
 	}
 
 	.document-content :global(code) {
-		background: #f1f5f9;
+		background: #f0fdf4;
 		padding: 0.15rem 0.4rem;
 		border-radius: 4px;
 		font-size: 0.85em;
 		font-family: 'Courier New', monospace;
-		color: #0f172a;
-	}
-
-	.document-content :global(pre) {
-		background: #0f172a;
-		color: #e2e8f0;
-		padding: 1rem 1.25rem;
-		border-radius: 8px;
-		overflow-x: auto;
-		margin-bottom: 1rem;
-		font-size: 0.85rem;
-	}
-
-	.document-content :global(pre code) {
-		background: none;
-		padding: 0;
-		color: inherit;
-		font-size: inherit;
+		color: #064e3b;
 	}
 
 	.document-content :global(table) {
@@ -396,7 +385,7 @@
 	}
 
 	.document-content :global(thead tr) {
-		background: #1d4ed8;
+		background: #047857;
 		color: white;
 	}
 
@@ -410,11 +399,11 @@
 	}
 
 	.document-content :global(tbody tr:nth-child(even)) {
-		background: #f8faff;
+		background: #f0fdf4;
 	}
 
 	.document-content :global(tbody tr:hover) {
-		background: #eff6ff;
+		background: #ecfdf5;
 	}
 
 	.document-content :global(td) {
@@ -427,7 +416,7 @@
 	.document-content :global(hr) {
 		border: none;
 		height: 3px;
-		background: linear-gradient(to right, #1d4ed8, #3b82f6 40%, #93c5fd 70%, transparent);
+		background: linear-gradient(to right, #047857, #10b981 40%, #6ee7b7 70%, transparent);
 		margin: 2rem 0;
 		border-radius: 2px;
 	}
@@ -450,6 +439,11 @@
 		font-style: italic;
 	}
 
+	/* Jawaban lines (underscores rendered as text) */
+	.document-content :global(p):has(+ p) {
+		margin-bottom: 0.5rem;
+	}
+
 	/* ===================== Print styles ===================== */
 	@media print {
 		:global(.no-print) {
@@ -465,10 +459,7 @@
 			max-width: 100% !important;
 		}
 
-		.document-content :global(h1) {
-			page-break-after: avoid;
-		}
-
+		.document-content :global(h1),
 		.document-content :global(h2),
 		.document-content :global(h3) {
 			page-break-after: avoid;

@@ -53,7 +53,7 @@ export async function POST({ request, locals }) {
 		}
 
 		console.log('[Generate Modul Images] Generating images with Cloudflare Workers AI...');
-		console.log('[Generate Modul Images] Topic:', userInput.judulModul);
+		console.log('[Generate Modul Images] Topic:', userInput.judul || userInput.judulModul);
 
 		// Generate images (2 images by default)
 		const images = await generateModulImages(

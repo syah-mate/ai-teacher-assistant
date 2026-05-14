@@ -1,7 +1,7 @@
 <script>
 	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
-	import { ModulAjarOrchestrator } from '$lib/agents/modul-ajar/index.js';
+	import { Orchestrator } from '$lib/agents/orchestrator.js';
 
 	let form = $state({
 		judulModul: '',
@@ -146,11 +146,12 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				message: '🚀 Memulai sistem Agentic AI...',
 				status: 'running'
 			};
-			
-			const orchestrator = new ModulAjarOrchestrator();
-			
+
+			const orchestrator = new Orchestrator();
+
 			const userInput = {
-				judulModul: form.judulModul,
+				jenis: 'modul_ajar',
+				judul: form.judulModul,
 				mapel: form.mapel,
 				kelas: form.kelas,
 				jenjang: getJenjangFromKelas(form.kelas),
@@ -161,27 +162,27 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				penulis: form.penulis || 'Guru Mata Pelajaran',
 				instansi: form.instansi || 'Sekolah'
 			};
-			
-			const result = await orchestrator.generateModulAjar(userInput, (progressData) => {
+
+			const result = await orchestrator.generate(userInput, (progressData) => {
 				progress = progressData;
 			});
-			
-			if (result.success) {
-				output = result.modulAjar;
-				qualityScore = result.metadata.qualityScore;
-				rawData = result.rawData;
 
-				// Save to localStorage so the new tab can read it
-				localStorage.setItem('modulAjarHasil', JSON.stringify({
-					output: result.modulAjar,
-					images: rawData?.images || [],
+			if (result.success) {
+				output = result.dokumen.modulAjar;
+				qualityScore = result.metadata.qualityScore;
+				rawData = result.dokumen.rawData;
+
+				// Store in-memory on window to avoid localStorage quota limits
+				window.__modulAjarHasil = {
+					output: result.dokumen.modulAjar,
+					images: result.dokumen.images || [],
 					judulModul: form.judulModul,
 					mapel: form.mapel,
 					kelas: form.kelas,
 					penulis: form.penulis || 'Guru Mata Pelajaran',
 					instansi: form.instansi || 'Sekolah',
 					qualityScore: result.metadata.qualityScore
-				}));
+				};
 				window.open('/dashboard/modul-ajar/hasil', '_blank');
 
 				// Dispatch event to update rate limit indicator
@@ -220,7 +221,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 			
 			if (result.success) {
 				output = result.data;
-				localStorage.setItem('modulAjarHasil', JSON.stringify({
+				window.__modulAjarHasil = {
 					output: result.data,
 					images: [],
 					judulModul: form.judulModul,
@@ -229,7 +230,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					penulis: form.penulis || 'Guru Mata Pelajaran',
 					instansi: form.instansi || 'Sekolah',
 					qualityScore: 0
-				}));
+				};
 				window.open('/dashboard/modul-ajar/hasil', '_blank');
 			} else {
 				error = result.error;
