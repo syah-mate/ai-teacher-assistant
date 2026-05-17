@@ -3,6 +3,8 @@
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
 	import { Orchestrator } from '$lib/agents/orchestrator.js';
 	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
+	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
+	import AgentConsole from '$lib/components/AgentConsole.svelte';
 
 	let form = $state({
 		sekolah: '',
@@ -37,6 +39,7 @@
 	let qualityScore = $state(0);
 	let rawData = $state(null);
 	let isDownloading = $state(false);
+	let agentLogs = $state([]);
 
 	/**
 	 * Render output with embedded images + markdown parsing
@@ -110,6 +113,7 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 		error = '';
 		qualityScore = 0;
 		rawData = null;
+		agentLogs = [];
 		
 		if (generationMode === 'agentic') {
 			await generateWithAgenticAI();
@@ -151,18 +155,28 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 			};
 
 			const result = await orchestrator.generate(userInput, (progressData) => {
-				progress = progressData;
+				// Update legacy progress bar
+				progress = {
+					...progress,
+					phase: progressData.phase || progressData.action || '',
+					message: progressData.message || '',
+					status: progressData.action === 'completed' ? 'completed' : 'running'
+				};
+				// Append to console log
+				agentLogs = [...agentLogs, { ...progressData, timestamp: new Date() }];
 			});
 
 			if (result.success) {
-				output = formatLKPDOutput(result.dokumen);
-				qualityScore = result.metadata.qualityScore;
-				rawData = result.dokumen;
+				const formattedOutput = formatSchemaToText('lkpd', result.schema);
+				output = formattedOutput;
+				qualityScore = result.qualityScore || 0;
+				rawData = result.schema;
 
 				// Store in-memory on window to avoid localStorage quota limits
 				window.__lkpdHasil = {
-					output: formatLKPDOutput(result.dokumen),
-					images: result.dokumen.images || [],
+					output: formattedOutput,
+					schema: result.schema,
+					images: result.schema?.image ? [{ url: result.schema.image }] : [],
 					topik: form.topik,
 					mapel: form.mapel,
 					kelas: form.kelas,
@@ -170,7 +184,7 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 					sekolah: form.sekolah,
 					penulis: form.penulis || 'Guru Mata Pelajaran',
 					instansi: form.instansi || form.sekolah || 'Sekolah',
-					qualityScore: result.metadata.qualityScore
+					qualityScore: result.qualityScore || 0
 				};
 				window.open('/dashboard/lkpd/hasil', '_blank');
 
@@ -825,4 +839,7 @@ Konten spesifik ${topik}, praktis, mendorong berpikir kritis.`;
 			{/if}
 		</div>
 	</div>
+
+	<!-- Agent Console Monitor -->
+	<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
 </div>

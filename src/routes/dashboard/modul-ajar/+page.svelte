@@ -2,6 +2,8 @@
 	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
 	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
 	import { Orchestrator } from '$lib/agents/orchestrator.js';
+	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
+	import AgentConsole from '$lib/components/AgentConsole.svelte';
 
 	let form = $state({
 		judulModul: '',
@@ -37,6 +39,7 @@
 	
 	let qualityScore = $state(0);
 	let rawData = $state(null);
+	let agentLogs = $state([]);
 
 
 
@@ -126,6 +129,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		error = '';
 		qualityScore = 0;
 		rawData = null;
+		agentLogs = [];
 		
 		if (generationMode === 'agentic') {
 			await generateWithAgenticAI();
@@ -164,24 +168,34 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 			};
 
 			const result = await orchestrator.generate(userInput, (progressData) => {
-				progress = progressData;
+				// Update legacy progress bar
+				progress = {
+					...progress,
+					phase: progressData.phase || progressData.action || '',
+					message: progressData.message || '',
+					status: progressData.action === 'completed' ? 'completed' : 'running'
+				};
+				// Append to console log
+				agentLogs = [...agentLogs, { ...progressData, timestamp: new Date() }];
 			});
 
-			if (result.success) {
-				output = result.dokumen.modulAjar;
-				qualityScore = result.metadata.qualityScore;
-				rawData = result.dokumen.rawData;
+				if (result.success) {
+				const formattedOutput = formatSchemaToText('modul_ajar', result.schema);
+				output = formattedOutput;
+				qualityScore = result.qualityScore || 0;
+				rawData = result.schema;
 
 				// Store in-memory on window to avoid localStorage quota limits
 				window.__modulAjarHasil = {
-					output: result.dokumen.modulAjar,
-					images: result.dokumen.images || [],
+					output: formattedOutput,
+					schema: result.schema,
+					images: result.schema?.image ? [{ url: result.schema.image }] : [],
 					judulModul: form.judulModul,
 					mapel: form.mapel,
 					kelas: form.kelas,
 					penulis: form.penulis || 'Guru Mata Pelajaran',
 					instansi: form.instansi || 'Sekolah',
-					qualityScore: result.metadata.qualityScore
+					qualityScore: result.qualityScore || 0
 				};
 				window.open('/dashboard/modul-ajar/hasil', '_blank');
 
@@ -593,5 +607,8 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				</div>
 			{/if}
 		</div>
+
+		<!-- Agent Console Monitor -->
+		<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
 	</div>
 </div>

@@ -257,38 +257,40 @@ function parseModulContent(content) {
 
 	for (const line of lines) {
 		const trimmed = line.trim();
+		// Strip leading markdown heading markers (##, ###, etc.) for matching
+		const stripped = trimmed.replace(/^#+\s*/, '');
 		
 		// Detect section headers
-		if (trimmed.match(/^[A-Z]\.\s*INFORMASI\s*UMUM/i)) {
+		if (stripped.match(/^[A-Z]\.\s*INFORMASI\s*UMUM/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'informasiUmum';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*CAPAIAN\s*(&|DAN)?\s*TUJUAN\s*PEMBELAJARAN/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*CAPAIAN\s*(&|DAN)?\s*TUJUAN\s*PEMBELAJARAN/i)) {
 			// Combined section "B. CAPAIAN & TUJUAN PEMBELAJARAN"
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'capaianTujuan';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*CAPAIAN\s*PEMBELAJARAN/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*CAPAIAN\s*PEMBELAJARAN/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'capaianPembelajaran';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*TUJUAN\s*PEMBELAJARAN/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*TUJUAN\s*PEMBELAJARAN/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'tujuanPembelajaran';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*PROFIL\s*PELAJAR\s*PANCASILA/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*PROFIL\s*PELAJAR\s*PANCASILA/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'profilPelajarPancasila';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*DETAIL\s*KEGIATAN\s*PEMBELAJARAN/i) || trimmed.match(/^[A-Z]\.\s*KEGIATAN\s*PEMBELAJARAN/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*DETAIL\s*KEGIATAN\s*PEMBELAJARAN/i) || stripped.match(/^[A-Z]\.\s*KEGIATAN\s*PEMBELAJARAN/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'kegiatanPembelajaran';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*RENCANA\s*ASESMEN/i) || trimmed.match(/^[A-Z]\.\s*ASESMEN/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*RENCANA\s*ASESMEN/i) || stripped.match(/^[A-Z]\.\s*ASESMEN/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'asesmen';
 			currentContent = [];
-		} else if (trimmed.match(/^[A-Z]\.\s*MEDIA\s*(DAN|&)?\s*SUMBER\s*BELAJAR/i)) {
+		} else if (stripped.match(/^[A-Z]\.\s*MEDIA\s*(DAN|&)?\s*SUMBER\s*BELAJAR/i)) {
 			if (currentSection) sections[currentSection] = currentContent.join('\n');
 			currentSection = 'mediaSumberBelajar';
 			currentContent = [];
