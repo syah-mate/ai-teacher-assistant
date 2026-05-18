@@ -96,6 +96,12 @@ export class LKPDAgent extends BaseAgent {
 
 		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'completed', message: 'LKPDAgent → selesai, mengembalikan hasil ke Orchestrator ✓' });
 
+		const tokenUsage = {
+			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0) + (batch3.tokenUsage?.input || 0),
+			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0) + (batch3.tokenUsage?.cached || 0),
+			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0) + (batch3.tokenUsage?.output || 0)
+		};
+
 		return {
 			success: true,
 			schema: fullSchema,
@@ -103,6 +109,7 @@ export class LKPDAgent extends BaseAgent {
 			fileBuffer: docxResult.buffer,
 			fileName: `LKPD_${userInput.judul}.docx`,
 			qualityScore: fullSchema.validator?.qualityScore ?? null,
+			tokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

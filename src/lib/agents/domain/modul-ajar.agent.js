@@ -103,6 +103,12 @@ export class ModulAjarAgent extends BaseAgent {
 
 		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'completed', message: 'ModulAjarAgent → selesai, mengembalikan hasil ke Orchestrator ✓' });
 
+		const tokenUsage = {
+			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0) + (batch3.tokenUsage?.input || 0),
+			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0) + (batch3.tokenUsage?.cached || 0),
+			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0) + (batch3.tokenUsage?.output || 0)
+		};
+
 		return {
 			success: true,
 			schema: fullSchema,
@@ -110,6 +116,7 @@ export class ModulAjarAgent extends BaseAgent {
 			fileBuffer: docxResult.buffer,
 			fileName: `Modul_Ajar_${userInput.judul}.docx`,
 			qualityScore: fullSchema.validator?.qualityScore ?? null,
+			tokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

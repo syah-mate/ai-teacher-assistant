@@ -137,6 +137,7 @@ function formatLKPD(schema) {
 	text += `## C. LANGKAH KERJA\n\n`;
 	(langkah.langkahKerja || []).forEach((bag) => {
 		text += `### ${bag.bagian}\n*${bag.tujuanBagian || ''}*\n\n`;
+		text += `[Image embedded - visible in .docx download]\n\n`;
 		(bag.langkah || []).forEach((l) => {
 			text += `**${l.nomor}.** ${l.instruksi}`;
 			if (l.estimasiWaktu) text += ` *(${l.estimasiWaktu})*`;

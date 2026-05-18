@@ -1,6 +1,4 @@
 <script>
-	import { getKurikulumMerdekaContext, getModelPembelajaran } from '$lib/prompts/kurikulum-merdeka-base.js';
-	import { callGeminiAPI, buildPrompt } from '$lib/utils/gemini-client.js';
 	import { Orchestrator } from '$lib/agents/orchestrator.js';
 	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
 	import AgentConsole from '$lib/components/AgentConsole.svelte';
@@ -23,10 +21,10 @@
 		instansi: 'Sekolah'
 	});
 
-	let generationMode = $state('agentic'); // 'agentic' or 'single'
 	let isGenerating = $state(false);
 	let output = $state('');
 	let error = $state('');
+	let tokenUsage = $state(null);
 	
 	// Progress tracking for agentic mode
 	let progress = $state({
@@ -64,62 +62,6 @@
 		if (found) form.fase = found.fase;
 	}
 
-	function buildModulAjarPrompt() {
-		const { mapel, kelas, topik, waktu, metode, tujuan } = form;
-		
-		// Convert Roman numeral to number for fase mapping
-		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
-		const kelasNumber = kelasMap[kelas];
-		
-		// Get curriculum context
-		const systemContext = getKurikulumMerdekaContext(kelasNumber, mapel);
-		
-		// Get model pembelajaran details
-		const modelKey = metode.includes('PBL') ? 'pbl' : 
-		                 metode.includes('Discovery') ? 'discoveryLearning' :
-		                 metode.includes('Project') ? 'projectBased' : 'pbl';
-		const modelDetail = getModelPembelajaran(modelKey);
-		
-		const outputFormat = `
-FORMAT:
-
-━━ MODUL AJAR ${mapel} - ${topik} ━━
-
-A. IDENTITAS
-Mapel: ${mapel} | Kelas: ${kelas} (${form.fase}) | Waktu: ${waktu}
-
-B. CP & TUJUAN
-${tujuan || '• Buat 4 tujuan spesifik (C1-C6) untuk ' + topik}
-
-C. PPP
-• 2-3 dimensi yang dikembangkan
-
-D. PEMANTIK
-• 3 pertanyaan menarik
-
-E. PEMBELAJARAN (${metode})
-${modelDetail.sintak.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-Detail per fase untuk ${topik}
-
-F. ASESMEN
-• Diagnostik, Formatif, Sumatif + rubrik
-
-G. MEDIA & PENGAYAAN
-
-Konten spesifik ${topik}, praktis, siap pakai.`;
-
-		const userInput = {
-			mataPelajaran: mapel,
-			kelas: `${kelas} (${form.fase})`,
-			topik: topik,
-			alokasiWaktu: waktu,
-			metodePembelajaran: `${metode} (${modelDetail.deskripsi})`,
-			tujuanKhusus: tujuan || 'Buat tujuan pembelajaran yang sesuai'
-		};
-
-		return buildPrompt(systemContext, userInput, outputFormat);
-	}
-
 	async function handleGenerate(e) {
 		e.preventDefault();
 		if (!form.mapel || !form.judulModul) return;
@@ -131,11 +73,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 		rawData = null;
 		agentLogs = [];
 		
-		if (generationMode === 'agentic') {
-			await generateWithAgenticAI();
-		} else {
-			await generateWithSinglePrompt();
-		}
+		await generateWithAgenticAI();
 	}
 	
 	/**
@@ -184,6 +122,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				output = formattedOutput;
 				qualityScore = result.qualityScore || 0;
 				rawData = result.schema;
+				tokenUsage = result.tokenUsage || null;
 
 				// Store in-memory on window to avoid localStorage quota limits
 				window.__modulAjarHasil = {
@@ -217,41 +156,6 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				status: 'error',
 				message: '❌ ' + err.message
 			};
-		} finally {
-			isGenerating = false;
-		}
-	}
-	
-	/**
-	 * Generate using Single Prompt (traditional method)
-	 */
-	async function generateWithSinglePrompt() {
-		try {
-			const prompt = buildModulAjarPrompt();
-			const result = await callGeminiAPI(prompt, {
-				maxRetries: 3,
-				timeout: 60000
-			});
-			
-			if (result.success) {
-				output = result.data;
-				window.__modulAjarHasil = {
-					output: result.data,
-					images: [],
-					judulModul: form.judulModul,
-					mapel: form.mapel,
-					kelas: form.kelas,
-					penulis: form.penulis || 'Guru Mata Pelajaran',
-					instansi: form.instansi || 'Sekolah',
-					qualityScore: 0
-				};
-				window.open('/dashboard/modul-ajar/hasil', '_blank');
-			} else {
-				error = result.error;
-			}
-		} catch (err) {
-			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
-			console.error('Generate error:', err);
 		} finally {
 			isGenerating = false;
 		}
@@ -472,48 +376,10 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 						></textarea>
 					</div>
 					
-					<!-- Mode Selection -->
-					<div class="col-span-2 rounded-lg border-2 border-purple-200 bg-purple-50 p-4">
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-2 block text-sm font-bold text-purple-900">🤖 Mode Generasi AI</label>
-						<div class="space-y-2">
-							<label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-purple-300 bg-white p-3 transition hover:border-purple-500">
-								<input
-									type="radio"
-									name="mode"
-									value="agentic"
-									bind:group={generationMode}
-									class="mt-1"
-								/>
-								<div class="flex-1">
-									<div class="font-semibold text-purple-900">Agentic AI (Recommended) ⭐</div>
-									<div class="text-xs text-gray-600">
-										Multi-step AI dengan specialized agents. Lebih lengkap, terstruktur, dan berkualitas tinggi. Proses lebih lama (~2-3 menit).
-									</div>
-								</div>
-							</label>
-							
-							<label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-gray-200 bg-white p-3 transition hover:border-gray-400">
-								<input
-									type="radio"
-									name="mode"
-									value="single"
-									bind:group={generationMode}
-									class="mt-1"
-								/>
-								<div class="flex-1">
-									<div class="font-semibold text-gray-900">Single Prompt (Classic)</div>
-									<div class="text-xs text-gray-600">
-										Satu kali panggilan AI. Lebih cepat (~30 detik) tapi hasil mungkin kurang detail.
-									</div>
-								</div>
-							</label>
-						</div>
-					</div>
-				</div>
+</div>
 				
-				<!-- Progress Indicator (Agentic Mode) -->
-				{#if isGenerating && generationMode === 'agentic' && progress.status === 'running'}
+			<!-- Progress Indicator -->
+			{#if isGenerating && progress.status === 'running'}
 					<div class="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
 						<div class="mb-2 flex items-center justify-between text-sm">
 							<span class="font-semibold text-blue-900">{progress.message}</span>
@@ -596,7 +462,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 					</svg>
 					<div class="flex-1">
 						<p class="font-medium text-green-800">Modul ajar berhasil dibuat!</p>
-						<p class="mt-0.5 text-sm text-green-600">Dokumen sudah terbuka di tab baru. Jika belum terbuka, klik tombol di bawah.</p>
+						<p class="mt-0.5 text-sm text-green-600">Dokumen sudah terbuka di tab baru. Jika belum terbuka, klik tombol di samping.</p>
 					</div>
 					<button
 						onclick={() => window.open('/dashboard/modul-ajar/hasil', '_blank')}
@@ -605,6 +471,30 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 						Buka Hasil
 					</button>
 				</div>
+
+				{#if tokenUsage}
+					<div class="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+						<p class="mb-2 text-xs font-semibold text-blue-700">Statistik Token</p>
+						<div class="grid grid-cols-4 gap-2 text-center">
+							<div>
+								<p class="text-[10px] text-blue-400">Input</p>
+								<p class="font-mono text-sm font-bold text-blue-800">{tokenUsage.input.toLocaleString()}</p>
+							</div>
+							<div>
+								<p class="text-[10px] text-blue-400">Cached</p>
+								<p class="font-mono text-sm font-bold text-blue-800">{tokenUsage.cached.toLocaleString()}</p>
+							</div>
+							<div>
+								<p class="text-[10px] text-blue-400">Output</p>
+								<p class="font-mono text-sm font-bold text-blue-800">{tokenUsage.output.toLocaleString()}</p>
+							</div>
+							<div>
+								<p class="text-[10px] text-blue-400">Est. Cost</p>
+								<p class="font-mono text-sm font-bold text-green-700">${((tokenUsage.input * 0.1 + tokenUsage.cached * 0.025 + tokenUsage.output * 0.4) / 1_000_000).toFixed(4)}</p>
+							</div>
+						</div>
+					</div>
+				{/if}
 			{/if}
 		</div>
 

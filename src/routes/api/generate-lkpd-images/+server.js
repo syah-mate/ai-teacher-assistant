@@ -55,8 +55,9 @@ export async function POST({ request, locals }) {
 		console.log('[Generate LKPD Images] Generating images with Cloudflare Workers AI...');
 		console.log('[Generate LKPD Images] Topic:', userInput.topikMateri || userInput.judulLKPD);
 
-		// Generate 2-3 images by default (randomize for variety)
-		const imageCount = Math.floor(Math.random() * 2) + 2; // 2 or 3 images
+		// Use imageCount from request body (1 image per activity)
+		const imageCount = Math.max(1, Math.min(8, body.imageCount || 2));
+		console.log('[Generate LKPD Images] Requested image count:', imageCount);
 		
 		const images = await generateLKPDImages(
 			userInput,

@@ -214,64 +214,36 @@ export async function generateLKPDImages(userInput, state, apiUrl, apiKey, image
 	const images = [];
 	const judulLKPD = userInput.judul || userInput.judulLKPD;
 	const { topikMateri, mapel, kelas, jenisKegiatan } = userInput;
-	
-	// Ensure imageCount is between 1 and 5
-	const count = Math.max(1, Math.min(5, imageCount));
-
-	// Generate prompts for different sections
-	const prompts = [];
-	
-	// Image 1: Main topic illustration
 	const mainTopic = topikMateri || judulLKPD;
-	prompts.push({
-		prompt: buildEducationalPrompt({ judulModul: mainTopic, mapel, kelas, topik: mainTopic, style: 'educational' }),
-		caption: `Ilustrasi ${mainTopic}`,
-		position: 'main',
-		description: `Ilustrasi utama untuk topik ${mainTopic}`
-	});
-	
-	// Image 2: Activity-based illustration
-	if (count > 1) {
-		const activityPrompt = buildActivityPrompt({ topik: mainTopic, mapel, kelas, jenisKegiatan });
-		prompts.push({
-			prompt: activityPrompt,
-			caption: `Kegiatan ${jenisKegiatan || 'pembelajaran'}`,
-			position: 'activity',
-			description: `Ilustrasi kegiatan ${jenisKegiatan || 'pembelajaran'}`
-		});
-	}
-	
-	// Image 3: Concept illustration (if material exists)
-	const materiPendukung = state.lkpdContent?.materiPendukung || state.materiPendukung;
-	if (count > 2 && materiPendukung?.ringkasanMateri?.konsepKunci) {
-		const konsep = materiPendukung.ringkasanMateri.konsepKunci[0];
-		if (konsep) {
+
+	// Get activities from schema — 1 image per aktivitas (bagian)
+	const aktivitas = state.langkah?.langkahKerja || [];
+
+	// Ensure imageCount is between 1 and 8
+	const count = Math.max(1, Math.min(8, imageCount));
+
+	const prompts = [];
+
+	if (aktivitas.length > 0) {
+		// One image per activity, capped at requested count
+		for (let i = 0; i < Math.min(aktivitas.length, count); i++) {
+			const bag = aktivitas[i];
+			const topikAktivitas = bag.bagian || mainTopic;
+			const tujuan = bag.tujuanBagian || '';
 			prompts.push({
-				prompt: buildEducationalPrompt({ judulModul: konsep.nama, mapel, kelas, topik: konsep.nama, style: 'diagram' }),
-				caption: konsep.nama,
-				position: 'concept',
-				description: `Ilustrasi konsep: ${konsep.nama}`
+				prompt: buildActivityPrompt({ topik: `${topikAktivitas}${tujuan ? ': ' + tujuan : ''}`, mapel, kelas, jenisKegiatan }),
+				caption: topikAktivitas,
+				position: `aktivitas-${i + 1}`,
+				description: tujuan || topikAktivitas
 			});
 		}
-	}
-	
-	// Image 4: Worksheet activity
-	if (count > 3) {
+	} else {
+		// Fallback: generic activity image
 		prompts.push({
-			prompt: buildEducationalPrompt({ judulModul: `${mainTopic} worksheet`, mapel, kelas, topik: `${mainTopic} hands-on activity`, style: 'illustration' }),
-			caption: 'Aktivitas Belajar',
-			position: 'worksheet',
-			description: 'Ilustrasi aktivitas worksheet'
-		});
-	}
-	
-	// Image 5: Evaluation/reflection
-	if (count > 4) {
-		prompts.push({
-			prompt: buildEducationalPrompt({ judulModul: `${mainTopic} evaluation`, mapel, kelas, topik: `students evaluating ${mainTopic}`, style: 'realistic' }),
-			caption: 'Evaluasi Pembelajaran',
-			position: 'evaluation',
-			description: 'Ilustrasi evaluasi pembelajaran'
+			prompt: buildActivityPrompt({ topik: mainTopic, mapel, kelas, jenisKegiatan }),
+			caption: `Kegiatan ${jenisKegiatan || 'pembelajaran'}`,
+			position: 'aktivitas-1',
+			description: `Ilustrasi kegiatan ${mainTopic}`
 		});
 	}
 

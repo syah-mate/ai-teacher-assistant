@@ -120,7 +120,8 @@ export async function callGeminiAPI(prompt, options = {}) {
 
 			return {
 				success: true,
-				data: data.text || data.content || ''
+				data: data.text || data.content || '',
+				usage: data.usage || null
 			};
 		} catch (error) {
 			lastError = error;

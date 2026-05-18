@@ -9,7 +9,9 @@
  */
 export async function generateImage({ jenis = 'modul_ajar', userInput, schema }) {
 	const endpoint = jenis === 'lkpd' ? '/api/generate-lkpd-images' : '/api/generate-modul-images';
-	const imageCount = schema?.kegiatan?.pertemuan?.length || 2;
+	const imageCount = jenis === 'lkpd'
+		? (schema?.langkah?.langkahKerja?.length || 2)
+		: (schema?.kegiatan?.pertemuan?.length || 2);
 	try {
 		const res = await fetch(endpoint, {
 			method: 'POST',

@@ -69,12 +69,19 @@ export class SoalAgent extends BaseAgent {
 
 		onProgress?.({ type: 'agent', name: 'SoalAgent', action: 'completed', message: 'SoalAgent → selesai, mengembalikan hasil ke Orchestrator ✓' });
 
+		const tokenUsage = {
+			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0),
+			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0),
+			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0)
+		};
+
 		return {
 			success: true,
 			schema: fullSchema,
 			fileBuffer: docxResult.buffer,
 			fileName: `Soal_${userInput.judul}.docx`,
 			qualityScore: fullSchema.validator?.qualityScore ?? null,
+			tokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

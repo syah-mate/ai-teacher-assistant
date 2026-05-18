@@ -18,6 +18,7 @@ export class BaseAgent {
 		this.expertise = expertise;
 		this.executionCount = 0;
 		this.lastExecutionTime = null;
+		this.totalTokens = { input: 0, cached: 0, output: 0 };
 	}
 
 	/**
@@ -89,6 +90,12 @@ OUTPUT REQUIREMENTS:
 
 			this.executionCount++;
 			this.lastExecutionTime = Date.now() - startTime;
+
+			if (result.success && result.usage) {
+				this.totalTokens.input += result.usage.promptTokenCount || 0;
+				this.totalTokens.cached += result.usage.cachedContentTokenCount || 0;
+				this.totalTokens.output += result.usage.candidatesTokenCount || 0;
+			}
 
 			return result;
 		} catch (error) {
@@ -163,6 +170,10 @@ OUTPUT REQUIREMENTS:
 			executionCount: this.executionCount,
 			lastExecutionTime: this.lastExecutionTime
 		};
+	}
+
+	getTokenUsage() {
+		return { ...this.totalTokens };
 	}
 
 	/**

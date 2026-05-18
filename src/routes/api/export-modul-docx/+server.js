@@ -956,8 +956,8 @@ async function buildModulAjarFromSchema(schema, modulData, imagesData = []) {
 		// Header line: "Bentuk (Bobot: X%)"
 		const sumatifHeader = [
 			mkRun('Asesmen Sumatif: ', { bold: true }),
-			mkRun(sumatif.bentuk, { bold: true, color: C.blue }),
-			...(sumatif.bobot ? [mkRun(` (Bobot: ${sumatif.bobot})`, { color: C.blue })] : [])
+			mkRun(sumatif.bentuk),
+			...(sumatif.bobot ? [mkRun(` (Bobot: ${sumatif.bobot})`)] : [])
 		];
 		children.push(mkPara(sumatifHeader, { spacing: { after: 120 } }));
 		if (sumatif.instrumen) {

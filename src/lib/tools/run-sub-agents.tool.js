@@ -80,13 +80,15 @@ export async function runSubAgents({ agents, input, context = {}, critical, onPr
 			} else {
 				onProgress?.({ type: 'sub-agent', name, action: 'error', message: `${name} → gagal: ${result.error}` });
 			}
-			return { name, result };
+			const tokenUsage = agent.getTokenUsage ? agent.getTokenUsage() : null;
+			return { name, result, tokenUsage };
 		})
 	);
 
 	const schemas = {};
 	const errors = {};
 	const failed = [];
+	const tokenUsage = { input: 0, cached: 0, output: 0 };
 
 	for (const settled of results) {
 		if (settled.status === 'rejected') {
@@ -96,7 +98,13 @@ export async function runSubAgents({ agents, input, context = {}, critical, onPr
 			continue;
 		}
 
-		const { name, result } = settled.value;
+		const { name, result, tokenUsage: agentTokens } = settled.value;
+
+		if (agentTokens) {
+			tokenUsage.input += agentTokens.input || 0;
+			tokenUsage.cached += agentTokens.cached || 0;
+			tokenUsage.output += agentTokens.output || 0;
+		}
 
 		if (result.success) {
 			schemas[name] = result.schema;
@@ -114,6 +122,7 @@ export async function runSubAgents({ agents, input, context = {}, critical, onPr
 		schemas,
 		errors,
 		failed,
-		merged: schemas
+		merged: schemas,
+		tokenUsage
 	};
 }

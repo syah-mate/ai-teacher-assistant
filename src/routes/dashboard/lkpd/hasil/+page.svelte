@@ -35,10 +35,12 @@
 						mapel: lkpdData.mapel,
 						kelas: lkpdData.kelas,
 						semester: lkpdData.semester,
-						content: lkpdData.output,
-						modulAjar: lkpdData.output,
+						sekolah: lkpdData.sekolah,
 						penulis: lkpdData.penulis || 'Guru Mata Pelajaran',
 						instansi: lkpdData.instansi || lkpdData.sekolah || 'Sekolah',
+						content: lkpdData.output,
+						modulAjar: lkpdData.output,
+						schema: lkpdData.schema || null,
 						images: lkpdData.images || []
 					}
 				})
