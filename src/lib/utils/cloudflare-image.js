@@ -149,24 +149,14 @@ export async function generateModulImages(userInput, state, apiUrl, apiKey, imag
 	const prompts = [];
 	
 	if (pertemuan.length > 0) {
-		// First image: from first meeting
-		const topik1 = pertemuan[0].judulPertemuan || judulModul;
-		prompts.push({
-			prompt: buildEducationalPrompt({ judulModul, mapel, kelas, topik: topik1, style: 'educational' }),
-			caption: topik1,
-			position: 'pertemuan-1',
-			description: `Ilustrasi pembelajaran untuk ${topik1}`
-		});
-
-		// Second image: from middle/last meeting (if exists)
-		if (pertemuan.length > 1 && imageCount > 1) {
-			const midIdx = Math.floor(pertemuan.length / 2);
-			const topik2 = pertemuan[midIdx].judulPertemuan || judulModul;
+		// One image per pertemuan (uses tujuanPertemuan from new architecture)
+		for (const p of pertemuan) {
+			const topik = p.tujuanPertemuan || p.judulPertemuan || judulModul;
 			prompts.push({
-				prompt: buildEducationalPrompt({ judulModul, mapel, kelas, topik: topik2, style: 'realistic' }),
-				caption: topik2,
-				position: `pertemuan-${midIdx + 1}`,
-				description: `Ilustrasi pembelajaran untuk ${topik2}`
+				prompt: buildEducationalPrompt({ judulModul, mapel, kelas, topik, style: 'educational' }),
+				caption: `Pertemuan ${p.ke}: ${topik}`,
+				position: `pertemuan-${p.ke}`,
+				description: `Ilustrasi pembelajaran untuk pertemuan ${p.ke}: ${topik}`
 			});
 		}
 	} else {

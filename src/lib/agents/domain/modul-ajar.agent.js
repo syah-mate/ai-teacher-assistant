@@ -67,28 +67,29 @@ export class ModulAjarAgent extends BaseAgent {
 		}
 		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_done', batch: 3, message: 'Batch 3 selesai ✓ → validasi kualitas selesai' });
 
-		// ── Tools: Image & DOCX PARALEL ──
-		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi pembelajaran...' });
+		// ── Tool 1: Generate Images (satu per pertemuan) ──
+		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi per pertemuan...' });
+		const imageResult = await generateImage({ jenis: 'modul_ajar', userInput, schema: fullSchema });
+		const images = imageResult.success ? imageResult.images : [];
+		onProgress?.({
+			type: 'tool', name: 'generate-image',
+			action: images.length > 0 ? 'done' : 'warn',
+			message: images.length > 0
+				? `generate-image → ${images.length} ilustrasi selesai ✓`
+				: 'generate-image → dilewati (Cloudflare belum dikonfigurasi)'
+		});
+
+		// ── Tool 2: Generate DOCX (dengan images) ──
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx modul ajar...' });
+		const docxResult = await generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput, images });
 
-		const [imageResult, docxResult] = await Promise.allSettled([
-			generateImage({ prompt: `Ilustrasi pembelajaran ${userInput.mapel}: ${userInput.judul}` }),
-			generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput })
-		]);
-
-		const imageUrl =
-			imageResult.status === 'fulfilled' && imageResult.value.success
-				? imageResult.value.url
-				: null;
-		onProgress?.({ type: 'tool', name: 'generate-image', action: imageUrl ? 'done' : 'warn', message: imageUrl ? 'generate-image → selesai ✓' : 'generate-image → dilewati (tidak tersedia)' });
-
-		if (docxResult.status !== 'fulfilled' || !docxResult.value.success) {
+		if (!docxResult.success) {
 			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error', message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done', message: 'generate-docx → selesai ✓' });
 
-		fullSchema.image = imageUrl;
+		fullSchema.image = images[0] ?? null;
 
 		// Simpan ke DB (fire-and-forget)
 		onProgress?.({ type: 'tool', name: 'write-db', action: 'start', message: 'write-db → menyimpan ke database...' });
@@ -105,7 +106,8 @@ export class ModulAjarAgent extends BaseAgent {
 		return {
 			success: true,
 			schema: fullSchema,
-			fileBuffer: docxResult.value.buffer,
+			images,
+			fileBuffer: docxResult.buffer,
 			fileName: `Modul_Ajar_${userInput.judul}.docx`,
 			qualityScore: fullSchema.validator?.qualityScore ?? null,
 			metadata: this.getMetadata()

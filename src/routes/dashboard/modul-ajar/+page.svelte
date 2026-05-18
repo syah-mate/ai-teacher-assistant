@@ -189,7 +189,7 @@ Konten spesifik ${topik}, praktis, siap pakai.`;
 				window.__modulAjarHasil = {
 					output: formattedOutput,
 					schema: result.schema,
-					images: result.schema?.image ? [{ url: result.schema.image }] : [],
+					images: result.images || [],
 					judulModul: form.judulModul,
 					mapel: form.mapel,
 					kelas: form.kelas,

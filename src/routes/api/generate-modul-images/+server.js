@@ -24,7 +24,7 @@ export async function POST({ request, locals }) {
 
 	try {
 		const body = await request.json();
-		const { userInput, state } = body;
+		const { userInput, state, imageCount } = body;
 
 		if (!userInput || !state) {
 			return json({ error: 'Data tidak lengkap' }, { status: 400 });
@@ -55,13 +55,14 @@ export async function POST({ request, locals }) {
 		console.log('[Generate Modul Images] Generating images with Cloudflare Workers AI...');
 		console.log('[Generate Modul Images] Topic:', userInput.judul || userInput.judulModul);
 
-		// Generate images (2 images by default)
+		// Generate images: one per pertemuan (or requested count)
+		const count = imageCount || state?.kegiatan?.pertemuan?.length || 2;
 		const images = await generateModulImages(
 			userInput,
 			state,
 			CLOUDFLARE_IMAGE_API,
 			CLOUDFLARE_IMAGE_API_KEY,
-			2 // Generate 2 images
+			count
 		);
 
 		console.log('[Generate Modul Images] Successfully generated', images.length, 'images');

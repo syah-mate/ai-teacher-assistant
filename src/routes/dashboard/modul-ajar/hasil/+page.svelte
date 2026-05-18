@@ -38,6 +38,7 @@
 						modulAjar: modulData.output,
 						penulis: modulData.penulis || 'Guru Mata Pelajaran',
 						instansi: modulData.instansi || 'Sekolah',
+						schema: modulData.schema || null,
 						images: modulData.images || []
 					}
 				})

@@ -449,3 +449,4 @@
 
 	<!-- Agent Console Monitor -->
 	<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
+</div>

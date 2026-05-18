@@ -49,6 +49,7 @@ function formatModulAjarSchema(schema, input) {
 	text += `─────────────────────────\n`;
 	(kegiatan.pertemuan || []).forEach((p) => {
 		text += `\nPertemuan ke-${p.ke}: ${p.tujuanPertemuan || ''}\n`;
+		text += `[Image embedded - visible in .docx download]\n`;
 		text += `Pertanyaan Pemantik:\n`;
 		(p.pertanyaanPemantik || []).forEach((q) => {
 			text += `• ${q}\n`;
@@ -228,7 +229,7 @@ function formatSoalSchema(schema) {
  * @param {{ jenis: string, schema: Object, input: Object }} params
  * @returns {Promise<{ success: boolean, buffer?: ArrayBuffer, error?: string }>}
  */
-export async function generateDocx({ jenis, schema, input = {} }) {
+export async function generateDocx({ jenis, schema, input = {}, images = [] }) {
 	try {
 		if (jenis === 'modul_ajar') {
 			const content = formatModulAjarSchema(schema, input);
@@ -245,7 +246,8 @@ export async function generateDocx({ jenis, schema, input = {} }) {
 						instansi: id.instansi || input.instansi || '',
 						content,
 						modulAjar: content,
-						images: []
+						schema,
+						images
 					}
 				})
 			});
@@ -269,7 +271,7 @@ export async function generateDocx({ jenis, schema, input = {} }) {
 						instansi: id.instansi || input.instansi || '',
 						content,
 						modulAjar: content,
-						images: []
+						images
 					}
 				})
 			});

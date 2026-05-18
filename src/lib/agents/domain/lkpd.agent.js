@@ -58,22 +58,27 @@ export class LKPDAgent extends BaseAgent {
 		if (batch3.schemas.validator) fullSchema.validator = batch3.schemas.validator;
 		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_done', batch: 3, message: 'Batch 3 selesai ✓ → validasi kualitas selesai' });
 
-		// ── Tools PARALEL ──
+		// ── Tool 1: Generate Images ──
 		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi LKPD...' });
-		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx LKPD...' });
+		const imageResult = await generateImage({ jenis: 'lkpd', userInput, schema: fullSchema });
+		const images = imageResult.success ? imageResult.images : [];
+		onProgress?.({
+			type: 'tool', name: 'generate-image',
+			action: images.length > 0 ? 'done' : 'warn',
+			message: images.length > 0
+				? `generate-image → ${images.length} ilustrasi selesai ✓`
+				: 'generate-image → dilewati (Cloudflare belum dikonfigurasi)'
+		});
 
-		const [imageResult, docxResult] = await Promise.allSettled([
-			generateImage({ prompt: `LKPD ${userInput.mapel}: ${userInput.judul}` }),
-			generateDocx({ jenis: 'lkpd', schema: fullSchema, input: userInput })
-		]);
+		// ── Tool 2: Generate DOCX (dengan images) ──
+		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx LKPD...' });
+		const docxResult = await generateDocx({ jenis: 'lkpd', schema: fullSchema, input: userInput, images });
 
 		const imageUrl =
-			imageResult.status === 'fulfilled' && imageResult.value.success
-				? imageResult.value.url
-				: null;
+			images.length > 0 ? images[0].data : null;
 		onProgress?.({ type: 'tool', name: 'generate-image', action: imageUrl ? 'done' : 'warn', message: imageUrl ? 'generate-image → selesai ✓' : 'generate-image → dilewati (tidak tersedia)' });
 
-		if (docxResult.status !== 'fulfilled' || !docxResult.value.success) {
+		if (!docxResult.success) {
 			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error', message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
@@ -94,7 +99,8 @@ export class LKPDAgent extends BaseAgent {
 		return {
 			success: true,
 			schema: fullSchema,
-			fileBuffer: docxResult.value.buffer,
+			images,
+			fileBuffer: docxResult.buffer,
 			fileName: `LKPD_${userInput.judul}.docx`,
 			qualityScore: fullSchema.validator?.qualityScore ?? null,
 			metadata: this.getMetadata()

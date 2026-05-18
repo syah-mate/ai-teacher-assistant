@@ -5,7 +5,7 @@
  */
 
 import { json } from '@sveltejs/kit';
-import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, convertInchesToTwip, ImageRun } from 'docx';
+import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, convertInchesToTwip, ImageRun, ShadingType } from 'docx';
 import { Packer } from 'docx';
 
 /**
@@ -69,6 +69,13 @@ export async function POST({ request, locals }) {
  * Build complete Word document for Modul Ajar
  */
 async function buildModulAjarDocument(modulData, imagesData = []) {
+	// Use structured schema builder when available — produces much richer output
+	if (modulData.schema) {
+		console.log('[Export DOCX] Using schema-based builder');
+		return buildModulAjarFromSchema(modulData.schema, modulData, imagesData);
+	}
+
+	console.log('[Export DOCX] Falling back to text-based builder (no schema)');
 	const sections = [];
 
 	// Title Page
@@ -554,6 +561,442 @@ function formatContentWithInlineImages(content, imagesData = []) {
 
 	console.log('[Export DOCX] Formatted content with', imageIndex, 'images embedded inline');
 	return paragraphs;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCHEMA-BASED DOCUMENT BUILDER (beautiful, structured output)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const C = {
+	blue: '1D4ED8',
+	blueDark: '1E3A8A',
+	blueLight: 'DBEAFE',
+	bluePale: 'EFF6FF',
+	green: '16A34A',
+	greenLight: 'D1FAE5',
+	amber: 'D97706',
+	amberLight: 'FEF3C7',
+	red: 'DC2626',
+	redLight: 'FEE2E2',
+	border: 'CBD5E1',
+	altRow: 'F1F5F9',
+	white: 'FFFFFF',
+	text: '1E293B',
+	subtext: '475569'
+};
+
+// ShadingType.CLEAR = background fill only (no pattern overlay — prevents black rendering)
+const CLEAR = ShadingType.CLEAR;
+
+function noBorders() {
+	const s = { style: BorderStyle.NONE, size: 0, color: 'auto' };
+	return { top: s, bottom: s, left: s, right: s, insideH: s, insideV: s };
+}
+
+function subtleBorders(color = C.border) {
+	const s = { style: BorderStyle.SINGLE, size: 4, color };
+	return { top: s, bottom: s, left: s, right: s };
+}
+
+function mkPara(runs, opts = {}) {
+	return new Paragraph({ children: Array.isArray(runs) ? runs : [runs], spacing: { after: 100 }, ...opts });
+}
+
+function mkRun(text, opts = {}) {
+	return new TextRun({ text: String(text ?? ''), font: 'Calibri', size: 24, color: C.text, ...opts });
+}
+
+function sectionHeading(text) {
+	return new Paragraph({
+		children: [new TextRun({ text, bold: true, size: 28, color: C.blueDark, font: 'Calibri' })],
+		// shading: { type: CLEAR, fill: C.blueDark, color: 'auto' },
+		spacing: { before: 480, after: 0 },
+		indent: { left: 200, right: 200 }
+	});
+}
+
+function subHeading(text, color = C.blue) {
+	return new Paragraph({
+		children: [new TextRun({ text, bold: true, size: 24, color, font: 'Calibri' })],
+		border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C.blueLight } },
+		spacing: { before: 280, after: 120 }
+	});
+}
+
+// Phase heading for PEMBUKA / INTI / PENUTUP
+function phaseHeading(text, color) {
+	return new Paragraph({
+		children: [new TextRun({ text, bold: true, size: 22, color, font: 'Calibri' })],
+		spacing: { before: 200, after: 80 }
+	});
+}
+
+function hCell(text, fill, widthPct = 50) {
+	return new TableCell({
+		shading: { type: CLEAR, fill, color: 'auto' },
+		borders: subtleBorders(fill),
+		width: { size: widthPct, type: WidthType.PERCENTAGE },
+		margins: { top: 120, bottom: 120, left: 160, right: 160 },
+		children: [new Paragraph({
+			children: [new TextRun({ text, bold: true, size: 22, color: C.white, font: 'Calibri' })],
+			alignment: AlignmentType.CENTER
+		})]
+	});
+}
+
+function infoRow(label, value, labelFill = C.bluePale, valueFill = C.white) {
+	return new TableRow({ children: [
+		new TableCell({
+			shading: { type: CLEAR, fill: labelFill, color: 'auto' },
+			borders: subtleBorders(C.border),
+			width: { size: 35, type: WidthType.PERCENTAGE },
+			margins: { top: 100, bottom: 100, left: 160, right: 160 },
+			children: [mkPara(mkRun(label, { bold: true, color: C.blue, size: 22 }), { spacing: { after: 0 } })]
+		}),
+		new TableCell({
+			shading: { type: CLEAR, fill: valueFill, color: 'auto' },
+			borders: subtleBorders(C.border),
+			width: { size: 65, type: WidthType.PERCENTAGE },
+			margins: { top: 100, bottom: 100, left: 160, right: 160 },
+			children: [mkPara(mkRun(value, { size: 22 }), { spacing: { after: 0 } })]
+		})
+	]});
+}
+
+function rubricCell(text, fill) {
+	return new TableCell({
+		shading: { type: CLEAR, fill, color: 'auto' },
+		borders: subtleBorders(C.border),
+		margins: { top: 80, bottom: 80, left: 120, right: 120 },
+		children: [mkPara(mkRun(text ?? '', { size: 21 }), { spacing: { after: 0 } })]
+	});
+}
+
+function spacer(size = 200) {
+	return new Paragraph({ children: [new TextRun('')], spacing: { after: size } });
+}
+
+async function buildModulAjarFromSchema(schema, modulData, imagesData = []) {
+	const identitas = schema.identitas || {};
+	const id = identitas.identitas || {};
+	const capaian = schema.capaian || {};
+	const kegiatan = schema.kegiatan || {};
+	const asesmen = schema.asesmen || {};
+
+	const children = [];
+
+	// ── COVER ────────────────────────────────────────────────────────────────
+	children.push(
+		new Paragraph({
+			children: [new TextRun({ text: 'MODUL AJAR', bold: true, size: 64, color: C.blueDark, font: 'Calibri' })],
+			alignment: AlignmentType.CENTER,
+			spacing: { before: 800, after: 160 }
+		}),
+		new Paragraph({
+			children: [new TextRun({ text: 'KURIKULUM MERDEKA', size: 28, color: C.subtext, font: 'Calibri' })],
+			alignment: AlignmentType.CENTER,
+			spacing: { after: 600 }
+		})
+	);
+
+	// Title box
+	children.push(new Table({
+		width: { size: 100, type: WidthType.PERCENTAGE },
+		rows: [new TableRow({ children: [new TableCell({
+			shading: { type: CLEAR, fill: C.blueDark, color: 'auto' },
+			borders: noBorders(),
+			margins: { top: 240, bottom: 240, left: 360, right: 360 },
+			children: [new Paragraph({
+				children: [new TextRun({ text: identitas.judul || modulData.judulModul || 'MODUL AJAR', bold: true, size: 40, color: C.white, font: 'Calibri' })],
+				alignment: AlignmentType.CENTER
+			})]
+		})]})],
+	}));
+
+	children.push(spacer(400));
+
+	// Cover info mini-table
+	children.push(new Table({
+		width: { size: 70, type: WidthType.PERCENTAGE },
+		alignment: AlignmentType.CENTER,
+		rows: [
+			infoRow('Mata Pelajaran', id.mataPelajaran || modulData.mapel || '', C.bluePale, C.white),
+			infoRow('Kelas / Fase', `${id.kelas || modulData.kelas || ''} / ${id.fase || ''}`, C.altRow, C.white),
+			infoRow('Penulis', id.penulis || modulData.penulis || '', C.bluePale, C.white),
+			infoRow('Instansi', id.instansi || modulData.instansi || '', C.altRow, C.white),
+		]
+	}));
+
+	// Page break
+	children.push(new Paragraph({ children: [new TextRun({ break: 1 })], pageBreakBefore: true }));
+
+	// ── A. INFORMASI UMUM ────────────────────────────────────────────────────
+	children.push(sectionHeading('A.  INFORMASI UMUM'));
+	children.push(spacer(120));
+
+	children.push(new Table({
+		width: { size: 100, type: WidthType.PERCENTAGE },
+		rows: [
+			new TableRow({ tableHeader: true, children: [hCell('IDENTITAS', C.blue, 35), hCell('KETERANGAN', C.blue, 65)] }),
+			infoRow('Satuan Pendidikan', id.satuan || '',              C.bluePale, C.white),
+			infoRow('Mata Pelajaran',    id.mataPelajaran || '',        C.altRow,   C.white),
+			infoRow('Fase',             id.fase || '',                 C.bluePale, C.white),
+			infoRow('Kelas',            id.kelas || '',                C.altRow,   C.white),
+			infoRow('Penulis',          id.penulis || '',              C.bluePale, C.white),
+			infoRow('Instansi',         id.instansi || '',             C.altRow,   C.white),
+			infoRow('Durasi Total',     identitas.durasiTotal || '',   C.bluePale, C.white),
+			infoRow('Alokasi Waktu',    identitas.alokasiWaktu || '',  C.altRow,   C.white),
+		]
+	}));
+
+	if (identitas.deskripsiUmum) {
+		children.push(spacer(160));
+		children.push(subHeading('Deskripsi Umum'));
+		children.push(mkPara(mkRun(identitas.deskripsiUmum)));
+	}
+
+	// ── B. CAPAIAN & TUJUAN ──────────────────────────────────────────────────
+	children.push(spacer(200));
+	children.push(sectionHeading('B.  CAPAIAN & TUJUAN PEMBELAJARAN'));
+	children.push(spacer(120));
+
+	if (capaian.capaianPembelajaran) {
+		children.push(subHeading('Capaian Pembelajaran'));
+		children.push(mkPara(mkRun(capaian.capaianPembelajaran)));
+	}
+
+	if ((capaian.tujuanPembelajaran || []).length > 0) {
+		children.push(subHeading('Tujuan Pembelajaran'));
+		capaian.tujuanPembelajaran.forEach(t => {
+			children.push(new Paragraph({
+				children: [
+					mkRun(`${t.nomor}. `, { bold: true, color: C.blue }),
+					mkRun(t.tujuan),
+					...(t.levelBloom ? [mkRun(` (${t.levelBloom})`, { italics: true, color: C.subtext, size: 22 })] : [])
+				],
+				spacing: { after: 100 }
+			}));
+		});
+	}
+
+	// Profil Pelajar Pancasila — bullet list (matches HTML)
+	if ((capaian.profilPelajarPancasila || []).length > 0) {
+		children.push(subHeading('Profil Pelajar Pancasila'));
+		capaian.profilPelajarPancasila.forEach(p => {
+			children.push(new Paragraph({
+				children: [
+					mkRun(`${p.dimensi || ''}`, { bold: true, color: C.green }),
+					mkRun(p.implementasi ? `: ${p.implementasi}` : '')
+				],
+				bullet: { level: 0 },
+				spacing: { after: 100 }
+			}));
+		});
+		children.push(spacer(80));
+	}
+
+	// ── C. KEGIATAN PEMBELAJARAN ─────────────────────────────────────────────
+	children.push(spacer(200));
+	children.push(sectionHeading('C.  KEGIATAN PEMBELAJARAN'));
+
+	const pertemuan = kegiatan.pertemuan || [];
+	pertemuan.forEach((p, idx) => {
+		children.push(spacer(240));
+
+		// Pertemuan header box
+		children.push(new Table({
+			width: { size: 100, type: WidthType.PERCENTAGE },
+			rows: [new TableRow({ children: [new TableCell({
+				// shading: { type: CLEAR, fill: C.blue, color: 'auto' },
+				borders: noBorders(),
+				margins: { top: 160, bottom: 160, left: 200, right: 200 },
+				children: [new Paragraph({
+					children: [new TextRun({ text: `Pertemuan ke-${p.ke}:  ${p.tujuanPertemuan || ''}`, bold: true, size: 26, color: C.black, font: 'Calibri' })]
+				})]
+			})]})],
+		}));
+
+		// Image
+		const img = imagesData[idx];
+		if (img?.data) {
+			try {
+				const buf = Buffer.from(img.data, 'base64');
+				children.push(new Paragraph({
+					children: [new ImageRun({ data: buf, transformation: { width: 500, height: 250 }, type: img.mimeType === 'image/png' ? 'png' : 'jpg' })],
+					alignment: AlignmentType.CENTER,
+					spacing: { before: 200, after: 80 }
+				}));
+				if (img.caption) {
+					children.push(new Paragraph({
+						children: [mkRun(img.caption, { italics: true, size: 20, color: C.subtext })],
+						alignment: AlignmentType.CENTER,
+						spacing: { after: 160 }
+					}));
+				}
+			} catch (e) {
+				console.warn('[Export DOCX] Failed to embed image:', e.message);
+			}
+		}
+
+		// Pertanyaan pemantik — bullet list
+		if ((p.pertanyaanPemantik || []).length > 0) {
+			children.push(subHeading('Pertanyaan Pemantik'));
+			p.pertanyaanPemantik.forEach(q => {
+				children.push(new Paragraph({
+					children: [mkRun(q, { italics: true, color: C.subtext })],
+					bullet: { level: 0 },
+					spacing: { after: 80 }
+				}));
+			});
+		}
+
+		// Langkah Pembelajaran — 3 sections with bullet lists (matches HTML)
+		const lp = p.langkahPembelajaran || {};
+		const pembuka = lp.pembuka || [];
+		const inti = lp.inti || [];
+		const penutup = lp.penutup || [];
+		if (pembuka.length || inti.length || penutup.length) {
+			children.push(subHeading('Langkah Pembelajaran'));
+
+			if (pembuka.length > 0) {
+				children.push(phaseHeading('PEMBUKA', C.green));
+				pembuka.forEach(l => {
+					children.push(new Paragraph({
+						children: [
+							mkRun(l.aktivitas || '', { size: 23 }),
+							...(l.durasi ? [mkRun(` (${l.durasi})`, { size: 21, italics: true, color: C.subtext })] : [])
+						],
+						bullet: { level: 0 },
+						spacing: { after: 80 }
+					}));
+				});
+			}
+
+			if (inti.length > 0) {
+				children.push(phaseHeading('INTI', C.blue));
+				inti.forEach(l => {
+					children.push(new Paragraph({
+						children: [
+							mkRun(l.aktivitas || '', { size: 23 }),
+							...(l.durasi ? [mkRun(` (${l.durasi})`, { size: 21, italics: true, color: C.subtext })] : [])
+						],
+						bullet: { level: 0 },
+						spacing: { after: 80 }
+					}));
+				});
+			}
+
+			if (penutup.length > 0) {
+				children.push(phaseHeading('PENUTUP', C.amber));
+				penutup.forEach(l => {
+					children.push(new Paragraph({
+						children: [
+							mkRun(l.aktivitas || '', { size: 23 }),
+							...(l.durasi ? [mkRun(` (${l.durasi})`, { size: 21, italics: true, color: C.subtext })] : [])
+						],
+						bullet: { level: 0 },
+						spacing: { after: 80 }
+					}));
+				});
+			}
+		}
+
+		// Diferensiasi — bullet list (matches HTML)
+		const dif = p.diferensiasi || {};
+		if (dif.konten || dif.proses || dif.produk) {
+			children.push(subHeading('Diferensiasi'));
+			[['Konten', dif.konten], ['Proses', dif.proses], ['Produk', dif.produk]].forEach(([label, val]) => {
+				if (!val) return;
+				children.push(new Paragraph({
+					children: [mkRun(`${label}: `, { bold: true, color: C.blue }), mkRun(val)],
+					bullet: { level: 0 },
+					spacing: { after: 80 }
+				}));
+			});
+		}
+	});
+
+	// ── D. ASESMEN ───────────────────────────────────────────────────────────
+	children.push(spacer(200));
+	children.push(sectionHeading('D. ASESMEN'));
+	children.push(spacer(120));
+
+	const diagn = asesmen.asesmenDiagnostik || {};
+	if (diagn.tujuan) {
+		children.push(subHeading('Asesmen Diagnostik'));
+		children.push(mkPara([mkRun(diagn.tujuan)]));
+		if ((diagn.instrumen || []).length > 0) {
+			children.push(mkPara([mkRun('Instrumen: ', { bold: true, color: C.blue }), mkRun(diagn.instrumen.join(', '))]));
+		}
+	}
+
+	if ((asesmen.asesmenFormatif || []).length > 0) {
+		children.push(subHeading('Asesmen Formatif'));
+		asesmen.asesmenFormatif.forEach(a => {
+			// Build bullet text: "Pertemuan 1: Teknik — Instrumen"
+			const parts = [];
+			if (a.teknik) parts.push(a.teknik);
+			if (a.instrumen) parts.push(a.instrumen);
+			const detail = parts.join(' — ');
+			children.push(new Paragraph({
+				children: [
+					mkRun(`Pertemuan ${a.pertemuan}: `, { bold: true }),
+					mkRun(detail)
+				],
+				bullet: { level: 0 },
+				spacing: { after: 100 }
+			}));
+		});
+		children.push(spacer(160));
+	}
+
+	const sumatif = asesmen.asesmenSumatif || {};
+	if (sumatif.bentuk) {
+		children.push(subHeading('Asesmen Sumatif'));
+		// Header line: "Bentuk (Bobot: X%)"
+		const sumatifHeader = [
+			mkRun('Asesmen Sumatif: ', { bold: true }),
+			mkRun(sumatif.bentuk, { bold: true, color: C.blue }),
+			...(sumatif.bobot ? [mkRun(` (Bobot: ${sumatif.bobot})`, { color: C.blue })] : [])
+		];
+		children.push(mkPara(sumatifHeader, { spacing: { after: 120 } }));
+		if (sumatif.instrumen) {
+			children.push(mkPara(mkRun(sumatif.instrumen), { spacing: { after: 80 } }));
+		}
+		children.push(spacer(160));
+	}
+
+	if ((asesmen.rubrikPenilaian || []).length > 0) {
+		children.push(subHeading('Rubrik Penilaian'));
+		asesmen.rubrikPenilaian.forEach(r => {
+			children.push(mkPara(mkRun(`Aspek: ${r.aspek}`, { bold: true, color: C.blue }), { spacing: { before: 160, after: 80 } }));
+			const k = r.kriteria || {};
+			children.push(new Table({
+				width: { size: 100, type: WidthType.PERCENTAGE },
+				rows: [
+					new TableRow({ tableHeader: true, children: [hCell('Sangat Baik (4)', C.green, 25), hCell('Baik (3)', C.blue, 25), hCell('Cukup (2)', C.amber, 25), hCell('Perlu Bimbingan (1)', C.red, 25)] }),
+					new TableRow({ children: [rubricCell(k.sangat_baik, C.greenLight), rubricCell(k.baik, C.blueLight), rubricCell(k.cukup, C.amberLight), rubricCell(k.perlu_bimbingan, C.redLight)] })
+				]
+			}));
+			children.push(spacer(120));
+		});
+	}
+
+	if ((asesmen.refleksiGuru || []).length > 0) {
+		children.push(subHeading('Refleksi Guru'));
+		asesmen.refleksiGuru.forEach(r => {
+			children.push(new Paragraph({ children: [mkRun(r)], bullet: { level: 0 }, spacing: { after: 80 } }));
+		});
+	}
+
+	return new Document({
+		styles: {
+			default: {
+				document: { run: { font: 'Calibri', size: 24, color: C.text } }
+			}
+		},
+		sections: [{ properties: {}, children }]
+	});
 }
 
 /**
