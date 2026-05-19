@@ -29,6 +29,7 @@
 	let qualityScore = $state(0);
 	let qualityIndicator = $state(null);
 	let validationReport = $state('');
+	let tokenUsage = $state(null);
 	let agentLogs = $state([]);
 
 	async function handleGenerate(e) {
@@ -44,16 +45,14 @@
 		qualityScore = 0;
 		qualityIndicator = null;
 		validationReport = '';
+		tokenUsage = null;
 		agentLogs = [];
+		progress = {
+			agent: 'Initializing',
+			status: '🚀 Memulai Agentic AI System...'
+		};
 
 		try {
-			progress = {
-				step: 0,
-				total: 4,
-				agent: 'Initializing',
-				status: '🚀 Memulai Agentic AI System...'
-			};
-
 			const orchestrator = new Orchestrator();
 
 			const userInput = {
@@ -84,8 +83,7 @@
 				qualityScore = result.qualityScore || 0;
 				qualityIndicator = null;
 				validationReport = '';
-
-				// Store result in-memory on window to avoid localStorage quota limits
+				tokenUsage = result.tokenUsage || null;
 				window.__soalHasil = {
 					output: formattedOutput,
 					schema: result.schema,
@@ -160,9 +158,7 @@
 		</div>
 	</div>
 
-	<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-		<!-- Form -->
-		<div class="space-y-4">
+	<div class="mx-auto max-w-3xl space-y-4">
 			<!-- Info Card -->
 			<div class="rounded-xl border border-violet-100 bg-violet-50 p-4">
 				<div class="mb-2 flex items-center gap-2">
@@ -355,98 +351,86 @@
 
 				<!-- Error message -->
 				{#if error}
-					<div class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
-						<p class="text-sm text-red-700">❌ {error}</p>
+					<div class="mt-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
+						<p class="flex-1 text-sm text-red-700">❌ {error}</p>
+						<button onclick={() => { error = ''; }} class="shrink-0 rounded p-1 text-red-400 hover:bg-red-100">✕</button>
 					</div>
 				{/if}
 			</form>
 		</div>
-	</div>
 
-		<!-- Status Panel -->
-		<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-			<h2 class="mb-5 text-base font-semibold text-gray-700">Status Generate</h2>
-
-			{#if isGenerating}
-				<!-- Generating -->
-				<div class="flex flex-col items-center justify-center py-16 text-center">
-					<svg class="mb-4 h-10 w-10 animate-spin text-violet-500" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+	<!-- Success notification -->
+	{#if output && !isGenerating}
+		<div class="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+			<div class="flex items-center gap-4">
+				<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-100">
+					<svg class="h-6 w-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 					</svg>
-					<p class="text-sm font-medium text-gray-700">{progress.status || 'AI sedang menyusun soal...'}</p>
-					<p class="mt-1 text-xs text-gray-400">Mohon tunggu 20-40 detik</p>
-					{#if progress.total > 0}
-						<div class="mt-6 w-full max-w-xs">
-							<div class="mb-1 flex justify-between text-xs text-gray-500">
-								<span>{progress.agent}</span>
-								<span>{progress.step}/{progress.total}</span>
-							</div>
-							<div class="h-2 overflow-hidden rounded-full bg-gray-100">
-								<div
-									class="h-full bg-violet-500 transition-all duration-500"
-									style="width: {(progress.step / progress.total) * 100}%"
-								></div>
-							</div>
-						</div>
-					{/if}
 				</div>
-
-			{:else if error}
-				<!-- Error -->
-				<div class="flex flex-col items-center justify-center rounded-xl bg-red-50 px-6 py-16 text-center">
-					<svg class="mb-3 h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+				<div class="flex-1">
+					<p class="font-semibold text-violet-900">Soal berhasil dibuat!</p>
+					<p class="mt-0.5 text-sm text-violet-700">
+						{form.jumlah} soal {form.jenis} untuk {form.mapel} Kelas {form.kelas} telah selesai digenerate.
+						{#if qualityScore > 0}
+							<span class="ml-2 rounded-full px-2 py-0.5 text-xs font-semibold {qualityScore >= 80 ? 'bg-violet-200 text-violet-800' : qualityScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}">
+								Kualitas {qualityScore}/100
+							</span>
+						{/if}
+					</p>
+				</div>
+				<button
+					onclick={() => window.open('/dashboard/soal/hasil', '_blank')}
+					class="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+				>
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
 					</svg>
-					<p class="mb-2 font-medium text-red-800">Gagal Generate Soal</p>
-					<p class="text-sm text-red-600">{error}</p>
-					<button
-						onclick={() => { error = ''; }}
-						class="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
-					>
-						Tutup
-					</button>
-				</div>
-
-			{:else if output}
-				<!-- Completed -->
-				<div class="flex flex-col items-center justify-center py-16 text-center">
-					<div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-violet-100">
-						<svg class="h-8 w-8 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-						</svg>
-					</div>
-					<p class="text-base font-semibold text-gray-800">Soal Berhasil Dibuat!</p>
-					{#if qualityScore > 0}
-						<span class="mt-2 rounded-full px-3 py-1 text-xs font-semibold {qualityScore >= 80 ? 'bg-violet-100 text-violet-700' : qualityScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}">
-							Kualitas {qualityScore}/100
-						</span>
-					{/if}
-					<p class="mt-3 text-sm text-gray-500">Hasil telah dibuka di tab baru.</p>
-					<button
-						onclick={() => window.open('/dashboard/soal/hasil', '_blank')}
-						class="mt-5 flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
-					>
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-						</svg>
-						Buka Hasil
-					</button>
-				</div>
-
-			{:else}
-				<!-- Idle -->
-				<div class="flex flex-col items-center justify-center py-20 text-gray-300">
-					<svg class="mb-3 h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<p class="text-sm">Isi form dan klik Generate</p>
-					<p class="mt-1 text-xs">Hasil akan dibuka di tab baru</p>
-				</div>
-			{/if}
+					Buka Hasil
+				</button>
+			</div>
 		</div>
-	</div>
+	{/if}
+
+	<!-- Token usage stats -->
+	{#if tokenUsage}
+		<div class="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
+			<h3 class="mb-3 text-sm font-semibold text-gray-600">Statistik Token</h3>
+			<div class="grid grid-cols-3 gap-3">
+				<div class="rounded-lg bg-violet-50 p-3 text-center">
+					<p class="text-sm text-violet-500">Input</p>
+					<p class="mt-0.5 text-xl font-bold text-violet-700">{(tokenUsage.input || 0).toLocaleString()}</p>
+				</div>
+				<div class="rounded-lg bg-teal-50 p-3 text-center">
+					<p class="text-sm text-teal-500">Cached</p>
+					<p class="mt-0.5 text-xl font-bold text-teal-700">{(tokenUsage.cached || 0).toLocaleString()}</p>
+				</div>
+				<div class="rounded-lg bg-blue-50 p-3 text-center">
+					<p class="text-sm text-blue-500">Output</p>
+					<p class="mt-0.5 text-xl font-bold text-blue-700">{(tokenUsage.output || 0).toLocaleString()}</p>
+				</div>
+			</div>
+			<div class="mt-2 grid grid-cols-3 gap-3">
+				<div class="rounded-lg bg-gray-50 p-3 text-center">
+					<p class="text-sm font-medium text-gray-500">Gemini 3.1 Pro</p>
+					<p class="mt-0.5 text-xs text-gray-400">$2/M in · $12/M out</p>
+					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 2 + (tokenUsage.output || 0) * 12) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
+				</div>
+				<div class="rounded-lg bg-gray-50 p-3 text-center">
+					<p class="text-sm font-medium text-gray-500">Grok 4.3</p>
+					<p class="mt-0.5 text-xs text-gray-400">$1.25/M in · $2.5/M out</p>
+					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 1.25 + (tokenUsage.output || 0) * 2.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
+				</div>
+				<div class="rounded-lg bg-gray-50 p-3 text-center">
+					<p class="text-sm font-medium text-gray-500">GPT-5.4 mini</p>
+					<p class="mt-0.5 text-xs text-gray-400">$0.75/M in · $4.5/M out</p>
+					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 0.75 + (tokenUsage.output || 0) * 4.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Agent Console Monitor -->
 	<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
+</div>
 </div>

@@ -40,6 +40,7 @@
 						tingkat: soalData.tingkat,
 						level: soalData.level,
 						content: soalData.output,
+						schema: soalData.schema || null,
 						images: soalData.images || []
 					}
 				})
