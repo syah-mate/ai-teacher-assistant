@@ -24,7 +24,6 @@
 	let isGenerating = $state(false);
 	let output = $state('');
 	let error = $state('');
-	let tokenUsage = $state(null);
 	
 	// Progress tracking for agentic mode
 	let progress = $state({
@@ -122,7 +121,6 @@
 				output = formattedOutput;
 				qualityScore = result.qualityScore || 0;
 				rawData = result.schema;
-				tokenUsage = result.tokenUsage || null;
 
 				// Store in-memory on window to avoid localStorage quota limits
 				window.__modulAjarHasil = {
@@ -472,42 +470,6 @@
 					</button>
 				</div>
 
-				{#if tokenUsage}
-					<div class="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-						<p class="mb-2 text-xs font-semibold text-blue-700">Statistik Token</p>
-					<div class="grid grid-cols-3 gap-2 text-center">
-						<div>
-							<p class="text-xs text-blue-400">Input</p>
-							<p class="font-mono text-lg font-bold text-blue-800">{tokenUsage.input.toLocaleString()}</p>
-						</div>
-						<div>
-							<p class="text-xs text-blue-400">Cached</p>
-							<p class="font-mono text-lg font-bold text-blue-800">{tokenUsage.cached.toLocaleString()}</p>
-						</div>
-						<div>
-							<p class="text-xs text-blue-400">Output</p>
-							<p class="font-mono text-lg font-bold text-blue-800">{tokenUsage.output.toLocaleString()}</p>
-						</div>
-					</div>
-					<div class="mt-2 grid grid-cols-3 gap-2 text-center">
-						<div>
-							<p class="text-xs font-medium text-blue-500">Gemini 3.1 Pro</p>
-							<p class="text-[10px] text-blue-300">$2/M in · $12/M out</p>
-							<p class="font-mono text-base font-bold text-green-700">Rp {Math.round((tokenUsage.input * 2 + tokenUsage.output * 12) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-						</div>
-						<div>
-							<p class="text-xs font-medium text-blue-500">Grok 4.3</p>
-							<p class="text-[10px] text-blue-300">$1.25/M in · $2.5/M out</p>
-							<p class="font-mono text-base font-bold text-green-700">Rp {Math.round((tokenUsage.input * 1.25 + tokenUsage.output * 2.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-						</div>
-						<div>
-							<p class="text-xs font-medium text-blue-500">GPT-5.4 mini</p>
-							<p class="text-[10px] text-blue-300">$0.75/M in · $4.5/M out</p>
-							<p class="font-mono text-base font-bold text-green-700">Rp {Math.round((tokenUsage.input * 0.75 + tokenUsage.output * 4.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-							</div>
-						</div>
-					</div>
-				{/if}
 			{/if}
 		</div>
 

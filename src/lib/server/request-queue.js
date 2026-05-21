@@ -148,26 +148,27 @@ class RequestQueue {
 	}
 
 	/**
-	 * Internal: Call Gemini API
+	 * Internal: Call OpenRouter API
 	 */
 	async _callGemini(apiKey, prompt, model) {
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 detik timeout per request
+		const timeoutId = setTimeout(() => controller.abort(), 30000);
 
 		try {
-			const response = await fetch(
-				`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-				{
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						contents: [{ parts: [{ text: prompt }] }]
-					}),
-					signal: controller.signal
-				}
-			);
+			const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${apiKey}`,
+					'HTTP-Referer': 'https://asisten-guru-ai.app',
+					'X-Title': 'Asisten Guru AI'
+				},
+				body: JSON.stringify({
+					model,
+					messages: [{ role: 'user', content: prompt }]
+				}),
+				signal: controller.signal
+			});
 
 			clearTimeout(timeoutId);
 
@@ -180,20 +181,22 @@ class RequestQueue {
 
 				throw {
 					status: response.status,
-					message: error.error?.message || 'Gemini API error'
+					message: error.error?.message || 'OpenRouter API error'
 				};
 			}
 
 			const data = await response.json();
-
-			// Extract text dari response
-			const text =
-				data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || 'No response generated';
+			const text = data.choices?.[0]?.message?.content || 'No response generated';
 
 			return {
 				text,
 				model,
-				usage: data.usageMetadata || null
+				usage: data.usage
+					? {
+							promptTokenCount: data.usage.prompt_tokens,
+							candidatesTokenCount: data.usage.completion_tokens
+						}
+					: null
 			};
 		} catch (error) {
 			clearTimeout(timeoutId);

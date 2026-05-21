@@ -1,18 +1,20 @@
 /**
- * Generate Stream API — SSE endpoint untuk streaming interleaved text+image sections
+ * Generate Stream API — SSE endpoint voor streaming interleaved text+image sections
  *
  * Flow:
  * 1. Terima prompt dari client
- * 2. Panggil Gemini (via key pool, sama seperti /api/gemini)
+ * 2. Panggil OpenRouter AI
  * 3. Parse response sebagai JSON array sections
  * 4. Stream setiap section via SSE — text langsung, image via generate-image endpoint
  */
 
 import { env } from '$env/dynamic/private';
-import { keyPool } from '$lib/server/key-pool.js';
 import { parseInterleavedResponse } from '$lib/utils/parseInterleavedResponse.js';
 
-const GEMINI_MODEL = env.GEMINI_MODEL || 'gemini-2.0-flash';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+const ALLOWED_MODELS = ['google/gemini-3.5-flash', 'x-ai/grok-4.3', 'openai/gpt-5.5'];
+const DEFAULT_MODEL = ALLOWED_MODELS[0];
 
 /** @param {import('@sveltejs/kit').RequestEvent} event */
 export async function POST({ request, locals, fetch: kitFetch }) {
@@ -20,11 +22,13 @@ export async function POST({ request, locals, fetch: kitFetch }) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
 	}
 
-	const { prompt, context = '' } = await request.json();
+	const { prompt, context = '', model: requestedModel } = await request.json();
 
 	if (!prompt || typeof prompt !== 'string') {
 		return new Response(JSON.stringify({ error: 'Prompt is required' }), { status: 400 });
 	}
+
+	const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : DEFAULT_MODEL;
 
 	const stream = new ReadableStream({
 		async start(controller) {
@@ -38,46 +42,39 @@ export async function POST({ request, locals, fetch: kitFetch }) {
 			try {
 				sendEvent({ type: 'status', message: 'Membuat konten...' });
 
-				// Dapatkan API key
-				let apiKey = locals.user.geminiApiKey;
-				let poolKeyObj = null;
-
+				const apiKey = env.OPENROUTER_API_KEY;
 				if (!apiKey) {
-					poolKeyObj = keyPool.getAvailableKey();
-					if (!poolKeyObj) {
-						sendEvent({ type: 'error', message: 'Semua API key sedang penuh. Coba lagi nanti.' });
-						controller.close();
-						return;
-					}
-					apiKey = poolKeyObj.key;
-					keyPool.markUsed(poolKeyObj);
+					sendEvent({ type: 'error', message: 'OpenRouter API key belum dikonfigurasi.' });
+					controller.close();
+					return;
 				}
 
 				// Bangun full prompt dengan context
 				const fullPrompt = context ? `${context}\n\n${prompt}` : prompt;
 
-				// Panggil Gemini
-				const geminiRes = await fetch(
-					`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-					{
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							contents: [{ parts: [{ text: fullPrompt }] }]
-						})
-					}
-				);
+				// Panggil OpenRouter
+				const aiRes = await fetch(OPENROUTER_BASE_URL, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${apiKey}`,
+						'HTTP-Referer': 'https://asisten-guru-ai.app',
+						'X-Title': 'Asisten Guru AI'
+					},
+					body: JSON.stringify({
+						model,
+						messages: [{ role: 'user', content: fullPrompt }]
+					})
+				});
 
-				if (!geminiRes.ok) {
-					if (poolKeyObj) keyPool.markError(poolKeyObj);
-					sendEvent({ type: 'error', message: `Gemini error: ${geminiRes.status}` });
+				if (!aiRes.ok) {
+					sendEvent({ type: 'error', message: `AI error: ${aiRes.status}` });
 					controller.close();
 					return;
 				}
 
-				const geminiData = await geminiRes.json();
-				const rawText =
-					geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+				const aiData = await aiRes.json();
+				const rawText = aiData?.choices?.[0]?.message?.content ?? '';
 
 				// Parse sections
 				const sections = parseInterleavedResponse(rawText);
@@ -87,10 +84,8 @@ export async function POST({ request, locals, fetch: kitFetch }) {
 					if (section.type === 'text') {
 						sendEvent({ type: 'section', section });
 					} else if (section.type === 'image') {
-						// Kirim placeholder dulu
 						sendEvent({ type: 'section', section: { ...section, imageUrl: null } });
 
-						// Generate gambar via internal endpoint
 						try {
 							const imgRes = await kitFetch('/api/generate-image', {
 								method: 'POST',

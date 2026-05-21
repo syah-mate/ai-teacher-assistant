@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import RateLimitIndicator from '$lib/components/RateLimitIndicator.svelte';
 	import { goto } from '$app/navigation';
+	import { selectedModel, AI_MODELS } from '$lib/stores/modelStore.js';
 
 	let { children, data } = $props();
 	let sidebarOpen = $state(false);
@@ -223,6 +224,23 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-3">
+				<!-- Model Selector -->
+				<div class="relative hidden sm:block">
+					<select
+						value={$selectedModel}
+						onchange={(e) => selectedModel.select(e.target.value)}
+						class="h-8 appearance-none rounded-lg border border-gray-200 bg-white pl-3 pr-8 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none cursor-pointer"
+						title="Pilih Model AI"
+					>
+						{#each AI_MODELS as model}
+							<option value={model.id}>{model.label} ({model.provider})</option>
+						{/each}
+					</select>
+					<svg class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</div>
+
 				<!-- Rate Limit Indicator -->
 				<RateLimitIndicator bind:this={rateLimitIndicator} />
 

@@ -29,7 +29,6 @@
 	let qualityScore = $state(0);
 	let qualityIndicator = $state(null);
 	let validationReport = $state('');
-	let tokenUsage = $state(null);
 	let agentLogs = $state([]);
 
 	async function handleGenerate(e) {
@@ -45,7 +44,6 @@
 		qualityScore = 0;
 		qualityIndicator = null;
 		validationReport = '';
-		tokenUsage = null;
 		agentLogs = [];
 		progress = {
 			agent: 'Initializing',
@@ -83,7 +81,6 @@
 				qualityScore = result.qualityScore || 0;
 				qualityIndicator = null;
 				validationReport = '';
-				tokenUsage = result.tokenUsage || null;
 				window.__soalHasil = {
 					output: formattedOutput,
 					schema: result.schema,
@@ -388,44 +385,6 @@
 					</svg>
 					Buka Hasil
 				</button>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Token usage stats -->
-	{#if tokenUsage}
-		<div class="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
-			<h3 class="mb-3 text-sm font-semibold text-gray-600">Statistik Token</h3>
-			<div class="grid grid-cols-3 gap-3">
-				<div class="rounded-lg bg-violet-50 p-3 text-center">
-					<p class="text-sm text-violet-500">Input</p>
-					<p class="mt-0.5 text-xl font-bold text-violet-700">{(tokenUsage.input || 0).toLocaleString()}</p>
-				</div>
-				<div class="rounded-lg bg-teal-50 p-3 text-center">
-					<p class="text-sm text-teal-500">Cached</p>
-					<p class="mt-0.5 text-xl font-bold text-teal-700">{(tokenUsage.cached || 0).toLocaleString()}</p>
-				</div>
-				<div class="rounded-lg bg-blue-50 p-3 text-center">
-					<p class="text-sm text-blue-500">Output</p>
-					<p class="mt-0.5 text-xl font-bold text-blue-700">{(tokenUsage.output || 0).toLocaleString()}</p>
-				</div>
-			</div>
-			<div class="mt-2 grid grid-cols-3 gap-3">
-				<div class="rounded-lg bg-gray-50 p-3 text-center">
-					<p class="text-sm font-medium text-gray-500">Gemini 3.1 Pro</p>
-					<p class="mt-0.5 text-xs text-gray-400">$2/M in · $12/M out</p>
-					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 2 + (tokenUsage.output || 0) * 12) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-				</div>
-				<div class="rounded-lg bg-gray-50 p-3 text-center">
-					<p class="text-sm font-medium text-gray-500">Grok 4.3</p>
-					<p class="mt-0.5 text-xs text-gray-400">$1.25/M in · $2.5/M out</p>
-					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 1.25 + (tokenUsage.output || 0) * 2.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-				</div>
-				<div class="rounded-lg bg-gray-50 p-3 text-center">
-					<p class="text-sm font-medium text-gray-500">GPT-5.4 mini</p>
-					<p class="mt-0.5 text-xs text-gray-400">$0.75/M in · $4.5/M out</p>
-					<p class="mt-0.5 text-base font-bold text-gray-700">Rp {Math.round(((tokenUsage.input || 0) * 0.75 + (tokenUsage.output || 0) * 4.5) / 1_000_000 * 18000).toLocaleString('id-ID')}</p>
-				</div>
 			</div>
 		</div>
 	{/if}
