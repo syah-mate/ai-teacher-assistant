@@ -1,6 +1,7 @@
 <script>
 	import { page } from '$app/stores';
 	import RateLimitIndicator from '$lib/components/RateLimitIndicator.svelte';
+	import ThinkingSelector from '$lib/components/ThinkingSelector.svelte';
 	import { goto } from '$app/navigation';
 	import { selectedModel, AI_MODELS } from '$lib/stores/modelStore.js';
 
@@ -240,6 +241,12 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
 					</svg>
 				</div>
+
+				<!-- Thinking Effort Selector -->
+				<ThinkingSelector />
+
+				<!-- Divider -->
+				<div class="hidden h-5 w-px bg-gray-200 sm:block"></div>
 
 				<!-- Rate Limit Indicator -->
 				<RateLimitIndicator bind:this={rateLimitIndicator} />

@@ -22,10 +22,13 @@ export const lucia = new Lucia(adapter, {
 	},
 	getUserAttributes: (dbUser) => {
 		return {
-			id: dbUser._id, // Add user ID
-			username: dbUser.username,
+			id: dbUser._id,
+			username: dbUser.username ?? dbUser.email ?? 'google-user',
 			name: dbUser.name,
-			role: dbUser.role
+			role: dbUser.role ?? 'guru',
+			email: dbUser.email ?? null,
+			picture: dbUser.picture ?? null,
+			provider: dbUser.google_id ? 'google' : 'credentials'
 		};
 	}
 });

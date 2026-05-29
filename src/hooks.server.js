@@ -44,7 +44,7 @@ export async function handle({ event, resolve }) {
 	response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
 	response.headers.set(
 		'Content-Security-Policy',
-		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://lh3.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://openidconnect.googleapis.com;"
 	);
 
 	return response;

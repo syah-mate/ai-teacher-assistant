@@ -15,8 +15,17 @@ const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ALLOWED_MODELS = [
 	'google/gemini-3.5-flash',
 	'x-ai/grok-4.3',
-	'openai/gpt-5.5'
+	'openai/gpt-5.5',
+	'openai/gpt-5.4-nano'
 ];
+
+const MODELS_SUPPORTING_REASONING = new Set([
+	'google/gemini-3.5-flash',
+	'x-ai/grok-4.3',
+	'openai/gpt-5.4-nano'
+]);
+
+const ALLOWED_THINKING_EFFORTS = new Set(['low', 'medium', 'high']);
 
 const DEFAULT_MODEL = ALLOWED_MODELS[0];
 
@@ -35,7 +44,7 @@ export async function POST({ request, locals }) {
 
 	try {
 		const body = await request.json();
-		const { prompt, model: requestedModel } = body;
+		const { prompt, model: requestedModel, thinkingEffort: requestedEffort } = body;
 
 		if (!prompt || typeof prompt !== 'string') {
 			return json({ error: 'Prompt is required' }, { status: 400 });
@@ -43,6 +52,12 @@ export async function POST({ request, locals }) {
 
 		// Validate model — fall back to default if not in allowed list
 		const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : DEFAULT_MODEL;
+
+		// Validate thinking effort — only for models that support reasoning
+		const thinkingEffort =
+			ALLOWED_THINKING_EFFORTS.has(requestedEffort) && MODELS_SUPPORTING_REASONING.has(model)
+				? requestedEffort
+				: null;
 
 		// Check rate limit
 		const rateLimitCheck = await checkUserRateLimit(userId);
@@ -71,7 +86,7 @@ export async function POST({ request, locals }) {
 		}
 
 		console.log(`[AI API] User ${userId} calling model: ${model}`);
-		const result = await callOpenRouter(apiKey, prompt, model);
+		const result = await callOpenRouter(apiKey, prompt, model, thinkingEffort);
 
 		return json(result);
 	} catch (error) {
@@ -89,9 +104,13 @@ export async function POST({ request, locals }) {
 /**
  * Call OpenRouter API
  */
-async function callOpenRouter(apiKey, prompt, model) {
+async function callOpenRouter(apiKey, prompt, model, thinkingEffort = null) {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+	const reasoningParam = thinkingEffort
+		? { reasoning: { effort: thinkingEffort } }
+		: {};
 
 	try {
 		const response = await fetch(OPENROUTER_BASE_URL, {
@@ -104,7 +123,8 @@ async function callOpenRouter(apiKey, prompt, model) {
 			},
 			body: JSON.stringify({
 				model,
-				messages: [{ role: 'user', content: prompt }]
+				messages: [{ role: 'user', content: prompt }],
+				...reasoningParam
 			}),
 			signal: controller.signal
 		});
@@ -176,48 +196,6 @@ async function checkUserRateLimit(userId) {
 		return { allowed: true, remaining: USER_RATE_LIMIT - count };
 	} catch (error) {
 		console.error('[Rate Limit] Error checking rate limit:', error);
-		return { allowed: true, remaining: USER_RATE_LIMIT };
-	}
-}
-
-
-/**
- * Helper: Check user rate limit (persisten di MongoDB)
- * Returns: { allowed: boolean, remaining: number, resetIn?: number (seconds) }
- */
-async function checkUserRateLimit(userId) {
-	try {
-		const users = await getCollection('users');
-		const now = Date.now();
-
-		const user = await users.findOne({ username: userId });
-		if (!user) {
-			return { allowed: true, remaining: USER_RATE_LIMIT };
-		}
-
-		// Jika tidak ada rate limit data atau sudah expired, allow
-		if (!user.rate_limit_reset_at || user.rate_limit_reset_at < now) {
-			return { allowed: true, remaining: USER_RATE_LIMIT };
-		}
-
-		// Cek apakah sudah mencapai limit
-		const count = user.rate_limit_count || 0;
-		if (count >= USER_RATE_LIMIT) {
-			const resetIn = Math.ceil((user.rate_limit_reset_at - now) / 1000);
-			return {
-				allowed: false,
-				remaining: 0,
-				resetIn
-			};
-		}
-
-		return {
-			allowed: true,
-			remaining: USER_RATE_LIMIT - count
-		};
-	} catch (error) {
-		console.error('[Rate Limit] Error checking rate limit:', error);
-		// Jika error, allow request (fail-open)
 		return { allowed: true, remaining: USER_RATE_LIMIT };
 	}
 }

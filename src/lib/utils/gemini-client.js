@@ -9,7 +9,7 @@
  */
 
 import { get } from 'svelte/store';
-import { selectedModel } from '$lib/stores/modelStore.js';
+import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
 
 /**
  * Call AI API melalui endpoint internal
@@ -24,6 +24,7 @@ import { selectedModel } from '$lib/stores/modelStore.js';
 export async function callGeminiAPI(prompt, options = {}) {
 	const { maxRetries = 3, timeout = 120000 } = options;
 	const model = get(selectedModel);
+	const thinkingEffort = get(selectedThinking);
 
 	let lastError = null;
 
@@ -35,7 +36,7 @@ export async function callGeminiAPI(prompt, options = {}) {
 			const response = await fetch('/api/gemini', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ prompt, model }),
+				body: JSON.stringify({ prompt, model, thinkingEffort }),
 				signal: controller.signal
 			});
 
