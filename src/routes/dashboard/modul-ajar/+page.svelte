@@ -1,7 +1,6 @@
 <script>
 	import { Orchestrator } from '$lib/agents/orchestrator.js';
 	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
-	import AgentConsole from '$lib/components/AgentConsole.svelte';
 
 	let form = $state({
 		judulModul: '',
@@ -28,7 +27,7 @@
 	// Progress tracking for agentic mode
 	let progress = $state({
 		step: 0,
-		total: 7,
+		total: 6,
 		phase: '',
 		message: '',
 		status: 'idle' // idle, running, completed, error
@@ -36,7 +35,6 @@
 	
 	let qualityScore = $state(0);
 	let rawData = $state(null);
-	let agentLogs = $state([]);
 
 
 
@@ -70,7 +68,6 @@
 		error = '';
 		qualityScore = 0;
 		rawData = null;
-		agentLogs = [];
 		
 		await generateWithAgenticAI();
 	}
@@ -82,7 +79,7 @@
 		try {
 			progress = {
 				step: 0,
-				total: 7,
+				total: 6,
 				phase: 'starting',
 				message: '🚀 Memulai sistem Agentic AI...',
 				status: 'running'
@@ -105,15 +102,14 @@
 			};
 
 			const result = await orchestrator.generate(userInput, (progressData) => {
-				// Update legacy progress bar
+				const isDone = progressData.action === 'done' || progressData.action === 'warn';
 				progress = {
 					...progress,
-					phase: progressData.phase || progressData.action || '',
+					step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
+					phase: progressData.name || '',
 					message: progressData.message || '',
 					status: progressData.action === 'completed' ? 'completed' : 'running'
 				};
-				// Append to console log
-				agentLogs = [...agentLogs, { ...progressData, timestamp: new Date() }];
 			});
 
 				if (result.success) {
@@ -473,7 +469,5 @@
 			{/if}
 		</div>
 
-		<!-- Agent Console Monitor -->
-		<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
 	</div>
 </div>

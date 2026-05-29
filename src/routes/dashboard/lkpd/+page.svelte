@@ -1,7 +1,6 @@
 ﻿<script>
 import { Orchestrator } from '$lib/agents/orchestrator.js';
 import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
-import AgentConsole from '$lib/components/AgentConsole.svelte';
 
 let form = $state({
 sekolah: '',
@@ -33,7 +32,6 @@ status: 'idle' // idle, running, completed, error
 
 let qualityScore = $state(0);
 let rawData = $state(null);
-let agentLogs = $state([]);
 
 const kelasList = [
 { val: 'I', fase: 'Fase A' },
@@ -59,7 +57,6 @@ output = '';
 error = '';
 qualityScore = 0;
 rawData = null;
-agentLogs = [];
 
 await generateWithAgenticAI();
 }
@@ -68,7 +65,7 @@ async function generateWithAgenticAI() {
 try {
 progress = {
 step: 0,
-total: 6,
+total: 8,
 phase: 'starting',
 message: 'Memulai sistem Agentic AI untuk LKPD...',
 status: 'running'
@@ -94,13 +91,14 @@ metode: form.model
 };
 
 const result = await orchestrator.generate(userInput, (progressData) => {
+const isDone = progressData.action === 'done' || progressData.action === 'warn';
 progress = {
 ...progress,
-phase: progressData.phase || progressData.action || '',
+step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
+phase: progressData.name || '',
 message: progressData.message || '',
 status: progressData.action === 'completed' ? 'completed' : 'running'
 };
-agentLogs = [...agentLogs, { ...progressData, timestamp: new Date() }];
 });
 
 if (result.success) {
@@ -371,7 +369,7 @@ style="width: {(progress.step / progress.total) * 100}%"
 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 </svg>
-<span>Phase: {progress.phase || 'processing'}</span>
+<span>Agent aktif: <strong>{progress.phase || 'memproses...'}</strong></span>
 </div>
 </div>
 {/if}
@@ -436,7 +434,6 @@ Buka Hasil
 {/if}
 </div>
 
-<!-- Agent Console Monitor -->
-<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
+
 </div>
 </div>

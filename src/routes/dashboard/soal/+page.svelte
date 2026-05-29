@@ -1,7 +1,6 @@
 <script>
 	import { Orchestrator } from '$lib/agents/orchestrator.js';
 	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
-	import AgentConsole from '$lib/components/AgentConsole.svelte';
 
 	let form = $state({
 		mapel: '',
@@ -21,7 +20,7 @@
 	// Progress tracking for agentic mode
 	let progress = $state({
 		step: 0,
-		total: 4,
+		total: 3,
 		agent: '',
 		status: ''
 	});
@@ -29,7 +28,6 @@
 	let qualityScore = $state(0);
 	let qualityIndicator = $state(null);
 	let validationReport = $state('');
-	let agentLogs = $state([]);
 
 	async function handleGenerate(e) {
 		e.preventDefault();
@@ -44,8 +42,9 @@
 		qualityScore = 0;
 		qualityIndicator = null;
 		validationReport = '';
-		agentLogs = [];
 		progress = {
+			step: 0,
+			total: 3,
 			agent: 'Initializing',
 			status: '🚀 Memulai Agentic AI System...'
 		};
@@ -65,14 +64,13 @@
 			};
 
 			const result = await orchestrator.generate(userInput, (progressData) => {
-				// Update legacy progress bar
+				const isDone = progressData.action === 'done' || progressData.action === 'warn';
 				progress = {
 					...progress,
+					step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
 					agent: progressData.name || progressData.phase || '',
 					status: progressData.message || ''
 				};
-				// Append to console log
-				agentLogs = [...agentLogs, { ...progressData, timestamp: new Date() }];
 			});
 
 			if (result.success) {
@@ -175,15 +173,9 @@
 					<h3 class="font-semibold text-violet-900">Fitur AI Powered</h3>
 				</div>
 				<p class="text-xs leading-relaxed text-violet-700">
-					Generator soal ini menggunakan <strong>Agentic AI System</strong> dengan 2 specialized agents:
+					Generator soal ini menggunakan <strong>Agentic AI System</strong> dengan specialized agent:
 					<br />
-					🤖 <strong>Soal Generator Agent</strong> - Menyusun soal sesuai standar
-					<br />
-					✅ <strong>Validator Agent</strong> - Memvalidasi kualitas soal
-					<br />
-					<span class="mt-2 inline-block text-violet-600"
-						>Soal berkualitas tinggi dengan validasi otomatis!</span
-					>
+					🤖 <strong>Soal Generator Agent</strong> - Menyusun soal sesuai standar Kurikulum Merdeka
 				</p>
 			</div>
 
@@ -390,6 +382,5 @@
 	{/if}
 
 	<!-- Agent Console Monitor -->
-	<AgentConsole logs={agentLogs} isVisible={agentLogs.length > 0} />
-</div>
+	</div>
 </div>

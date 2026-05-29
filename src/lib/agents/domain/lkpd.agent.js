@@ -43,20 +43,7 @@ export class LKPDAgent extends BaseAgent {
 			return this.fail(`Batch 2 gagal: ${Object.values(batch2.errors).join(', ')}`);
 		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_done', batch: 2, message: 'Batch 2 selesai ✓ → materi, langkah & evaluasi tersedia' });
 
-		// ── Batch 3: Validator (non-critical) ──
-		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_start', batch: 3, agents: ['validator'], message: 'Batch 3 → menjalankan validator (non-critical)' });
 		const fullSchema = { ...batch1.merged, ...batch2.merged };
-
-		const batch3 = await runSubAgents({
-			agents: ['validator'],
-			input: userInput,
-			context: fullSchema,
-			critical: [],
-			onProgress
-		});
-
-		if (batch3.schemas.validator) fullSchema.validator = batch3.schemas.validator;
-		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_done', batch: 3, message: 'Batch 3 selesai ✓ → validasi kualitas selesai' });
 
 		// ── Tool 1: Generate Images ──
 		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi LKPD...' });
@@ -97,9 +84,9 @@ export class LKPDAgent extends BaseAgent {
 		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'completed', message: 'LKPDAgent → selesai, mengembalikan hasil ke Orchestrator ✓' });
 
 		const tokenUsage = {
-			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0) + (batch3.tokenUsage?.input || 0),
-			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0) + (batch3.tokenUsage?.cached || 0),
-			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0) + (batch3.tokenUsage?.output || 0)
+			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0),
+			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0),
+			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0)
 		};
 
 		return {
@@ -108,7 +95,7 @@ export class LKPDAgent extends BaseAgent {
 			images,
 			fileBuffer: docxResult.buffer,
 			fileName: `LKPD_${userInput.judul}.docx`,
-			qualityScore: fullSchema.validator?.qualityScore ?? null,
+			qualityScore: null,
 			tokenUsage,
 			metadata: this.getMetadata()
 		};

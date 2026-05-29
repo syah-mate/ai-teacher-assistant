@@ -39,18 +39,6 @@ export class SoalAgent extends BaseAgent {
 
 		const fullSchema = { ...batch1.merged };
 
-		// Validator (non-critical)
-		onProgress?.({ type: 'agent', name: 'SoalAgent', action: 'batch_start', batch: 2, agents: ['validator'], message: 'Batch 2 → menjalankan validator (non-critical)' });
-		const batch2 = await runSubAgents({
-			agents: ['validator'],
-			input: userInput,
-			context: fullSchema,
-			critical: [],
-			onProgress
-		});
-		if (batch2.schemas.validator) fullSchema.validator = batch2.schemas.validator;
-		onProgress?.({ type: 'agent', name: 'SoalAgent', action: 'batch_done', batch: 2, message: 'Batch 2 selesai ✓ → validasi kualitas selesai' });
-
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx soal...' });
 		const docxResult = await generateDocx({ jenis: 'soal', schema: fullSchema, input: userInput });
 		if (!docxResult.success) {
@@ -80,7 +68,7 @@ export class SoalAgent extends BaseAgent {
 			schema: fullSchema,
 			fileBuffer: docxResult.buffer,
 			fileName: `Soal_${userInput.judul}.docx`,
-			qualityScore: fullSchema.validator?.qualityScore ?? null,
+			qualityScore: null,
 			tokenUsage,
 			metadata: this.getMetadata()
 		};
