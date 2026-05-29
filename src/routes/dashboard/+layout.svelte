@@ -38,11 +38,6 @@
 
 	const settingsItems = [
 		{
-			href: '/dashboard/pengaturan/integrasi',
-			label: 'Integrasi',
-			icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
-		},
-		{
 			href: '/dashboard/pengaturan/plan',
 			label: 'Plan',
 			icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'
