@@ -12,6 +12,36 @@ const sessions = db.collection('sessions');
 // Create indexes for better performance
 await sessions.createIndex({ expires_at: 1 });
 
+async function ensureUserIndexes() {
+	const indexes = await users.indexes();
+	const usernameIndex = indexes.find((index) => index.name === 'username_1');
+
+	// Migrate legacy unique index to partial unique so multiple null values do not collide.
+	if (usernameIndex?.unique && !usernameIndex.partialFilterExpression) {
+		await users.dropIndex('username_1');
+	}
+
+	await users.createIndex(
+		{ username: 1 },
+		{
+			name: 'username_1',
+			unique: true,
+			partialFilterExpression: { username: { $type: 'string' } }
+		}
+	);
+
+	await users.createIndex(
+		{ google_id: 1 },
+		{
+			name: 'google_id_1',
+			unique: true,
+			partialFilterExpression: { google_id: { $type: 'string' } }
+		}
+	);
+}
+
+await ensureUserIndexes();
+
 const adapter = new MongodbAdapter(sessions, users);
 
 export const lucia = new Lucia(adapter, {

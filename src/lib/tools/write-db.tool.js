@@ -5,6 +5,12 @@
  */
 
 export async function writeDB(collection, data) {
+	// Background job context menyimpan hasil final lewat job-runner.saveResult().
+	// Jika tool ini tetap menulis di sini, akan terjadi data double.
+	if (typeof globalThis !== 'undefined' && globalThis.__isJobServerContext?.()) {
+		return { success: true, skipped: true, reason: 'job-context-save-handled-by-job-runner' };
+	}
+
 	// Jika berjalan di background job (server-side), tulis langsung ke MongoDB
 	// tanpa melalui HTTP endpoint /api/db-write.
 	const serverWriter = typeof globalThis !== 'undefined' && globalThis.__getJobDBWriter?.();

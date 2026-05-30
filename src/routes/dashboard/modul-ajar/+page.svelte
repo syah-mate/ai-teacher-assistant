@@ -6,6 +6,8 @@
 	let form = $state({
 		judulModul: '',
 		mapel: '',
+		namaGuru: '',
+		sekolah: '',
 		kelas: 'X',
 		fase: 'Fase E',
 		jumlahPertemuan: '4',
@@ -16,9 +18,7 @@
 		deskripsi: '',
 		saranaPrasarana: '',
 		prasyarat: '',
-		atp: '',
-		penulis: '',
-		instansi: 'Sekolah'
+		atp: ''
 	});
 
 	let isSubmitting = $state(false);
@@ -76,8 +76,8 @@
 			alokasiPerPertemuan: form.alokasiPerPertemuan,
 			metode: form.metode,
 			modePembelajaran: form.modePembelajaran,
-			penulis: form.penulis || 'Guru Mata Pelajaran',
-			instansi: form.instansi || 'Sekolah'
+			penulis: form.namaGuru || 'Guru Mata Pelajaran',
+			instansi: form.sekolah || 'Sekolah'
 		};
 
 		try {
@@ -243,6 +243,28 @@
 							placeholder="cth: Matematika, Bahasa Indonesia, IPA..."
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 							required
+						/>
+					</div>
+
+					<div>
+						<label for="nama-guru-input" class="mb-1 block text-sm font-medium text-gray-700">Nama Guru <span class="text-gray-400">(opsional)</span></label>
+						<input
+							id="nama-guru-input"
+							type="text"
+							bind:value={form.namaGuru}
+							placeholder="cth: Budi Santoso, S.Pd."
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						/>
+					</div>
+
+					<div>
+						<label for="sekolah-input" class="mb-1 block text-sm font-medium text-gray-700">Sekolah <span class="text-gray-400">(opsional)</span></label>
+						<input
+							id="sekolah-input"
+							type="text"
+							bind:value={form.sekolah}
+							placeholder="cth: SMA Negeri 1 Jakarta"
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
 						/>
 					</div>
 					

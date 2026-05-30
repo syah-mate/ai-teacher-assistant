@@ -11,7 +11,13 @@
 
 	async function handleLogout() {
 		try {
-			await fetch('/logout', { method: 'POST' });
+			await fetch('/logout', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded'
+				},
+				body: new URLSearchParams()
+			});
 			goto('/login');
 		} catch (error) {
 			console.error('Logout error:', error);

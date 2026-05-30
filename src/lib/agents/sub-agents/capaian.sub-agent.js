@@ -14,16 +14,15 @@ export class CapaianSubAgent extends BaseSubAgent {
 
 		const fase = context.identitas?.identitas?.fase || '';
 
-		const systemPrompt = this.buildSystemPrompt(`Rancang capaian dan tujuan pembelajaran sesuai Kurikulum Merdeka.
+		const systemPrompt = this.buildSystemPrompt(`Rancang tujuan pembelajaran dan kemampuan prasyarat sesuai Kurikulum Merdeka.
 
 OUTPUT FORMAT JSON:
 {
-  "capaianPembelajaran": "string",
+  "kemampuanPrasyarat": "string (penjelasan kompetensi/kemampuan yang harus sudah dikuasai siswa sebelum mempelajari modul ini, 2-4 kalimat)",
   "tujuanPembelajaran": [{ "nomor": 1, "tujuan": "string", "levelBloom": "C4" }],
   "alurTujuanPembelajaran": [{ "tahap": 1, "judulTahap": "string", "deskripsi": "string" }],
   "profilPelajarPancasila": [{ "dimensi": "string", "implementasi": "string" }],
-  "indikatorPencapaian": ["string"],
-  "kompetensiDasar": "string"
+  "indikatorPencapaian": ["string"]
 }`);
 
 		const userPrompt = `

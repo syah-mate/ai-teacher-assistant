@@ -42,6 +42,7 @@ globalThis.__isJobServerContext = () => jobStorage.getStore() != null;
 
 // Set in-process tracker agar tidak start job yang sama dua kali
 const activeJobs = new Set();
+let ensureResultIndexesPromise = null;
 
 // ---------- Public API ----------
 
@@ -138,7 +139,7 @@ async function runJob(jobId) {
 
 			if (result.success) {
 				// Simpan hasil ke koleksi tipe (modul_ajar / lkpd / soal)
-				const resultId = await saveResult(job.userInput, result);
+				const resultId = await saveResult(jobId, job.userInput, result);
 
 				await col.updateOne(
 					{ _id: new ObjectId(jobId) },
@@ -189,9 +190,16 @@ async function runJob(jobId) {
 /**
  * Simpan schema hasil ke koleksi yang sesuai dan kembalikan ID-nya.
  */
-async function saveResult(userInput, result) {
+async function saveResult(jobId, userInput, result) {
 	const tipe = userInput.jenis; // modul_ajar | lkpd | soal
+	await ensureResultIndexes();
 	const col = await getCollection(tipe);
+
+	// Idempotensi per job: satu job hanya boleh menghasilkan satu dokumen hasil.
+	const existing = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
+	if (existing?._id) {
+		return existing._id.toString();
+	}
 
 	const baseData = {
 		userId: userInput.userId,
@@ -199,6 +207,7 @@ async function saveResult(userInput, result) {
 		mapel: userInput.mapel,
 		kelas: userInput.kelas,
 		jenjang: userInput.jenjang,
+		sourceJobId: jobId,
 		schema: result.schema,
 		createdAt: new Date()
 	};
@@ -226,8 +235,39 @@ async function saveResult(userInput, result) {
 		});
 	}
 
-	const r = await col.insertOne(baseData);
-	return r.insertedId.toString();
+	try {
+		const r = await col.insertOne(baseData);
+		return r.insertedId.toString();
+	} catch (err) {
+		// Jika race condition antar worker/hot-reload memicu insert bersamaan,
+		// index unique sourceJobId menjaga agar hanya satu dokumen yang lolos.
+		if (err?.code === 11000) {
+			const winner = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
+			if (winner?._id) return winner._id.toString();
+		}
+		throw err;
+	}
+}
+
+async function ensureResultIndexes() {
+	if (!ensureResultIndexesPromise) {
+		ensureResultIndexesPromise = (async () => {
+			const collections = ['modul_ajar', 'lkpd', 'soal'];
+			for (const name of collections) {
+				const col = await getCollection(name);
+				await col.createIndex(
+					{ sourceJobId: 1 },
+					{
+						name: 'sourceJobId_1',
+						unique: true,
+						partialFilterExpression: { sourceJobId: { $type: 'string' } }
+					}
+				);
+			}
+		})();
+	}
+
+	return ensureResultIndexesPromise;
 }
 
 /**

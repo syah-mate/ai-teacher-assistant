@@ -70,7 +70,7 @@
 	}
 
 	const images = extractImages(item.tipe, item.schema);
-	const markdown = item.schema ? formatSchemaToText(item.tipe, item.schema) : '_Isi dokumen tidak tersedia._';
+	const markdown = item.schema ? formatSchemaToText(item.tipe, item.schema, { metode: item.metode, modePembelajaran: item.modePembelajaran }) : '_Isi dokumen tidak tersedia._';
 	const renderedHtml = renderMarkdownWithImages(markdown, images);
 
 	let isDownloadingDocx = $state(false);

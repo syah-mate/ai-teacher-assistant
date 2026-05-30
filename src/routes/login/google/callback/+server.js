@@ -4,6 +4,10 @@ import { getCollection } from '$lib/server/db';
 import { redirect, error } from '@sveltejs/kit';
 import { generateIdFromEntropySize } from 'lucia';
 
+function getGoogleUsername(googleSub) {
+	return `google_${String(googleSub || '').toLowerCase()}`;
+}
+
 export async function GET({ url, cookies }) {
 	// Ambil parameter dari URL callback
 	const code = url.searchParams.get('code');
@@ -45,6 +49,7 @@ export async function GET({ url, cookies }) {
 
 		// Cari user berdasarkan google_id
 		let user = await usersCollection.findOne({ google_id: googleUser.sub });
+		const googleUsername = getGoogleUsername(googleUser.sub);
 
 		if (!user) {
 			// Cek apakah email sudah terdaftar via credentials
@@ -57,6 +62,7 @@ export async function GET({ url, cookies }) {
 					{
 						$set: {
 							google_id: googleUser.sub,
+							username: existingEmailUser.username || googleUsername,
 							picture: googleUser.picture,
 							email_verified: googleUser.email_verified,
 							updated_at: new Date()
@@ -69,6 +75,7 @@ export async function GET({ url, cookies }) {
 				const newUserId = generateIdFromEntropySize(10); // 16-char string
 				await usersCollection.insertOne({
 					_id: newUserId,
+					username: googleUsername,
 					google_id: googleUser.sub,
 					email: googleUser.email,
 					name: googleUser.name,
@@ -87,6 +94,7 @@ export async function GET({ url, cookies }) {
 				{ _id: user._id },
 				{
 					$set: {
+						username: user.username || googleUsername,
 						picture: googleUser.picture,
 						updated_at: new Date()
 					}

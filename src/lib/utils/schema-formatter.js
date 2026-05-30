@@ -3,14 +3,14 @@
  * Konversi schema JSON dari sub-agents ke teks yang bisa ditampilkan.
  */
 
-export function formatSchemaToText(jenis, schema) {
-	if (jenis === 'modul_ajar') return formatModulAjar(schema);
+export function formatSchemaToText(jenis, schema, meta = {}) {
+	if (jenis === 'modul_ajar') return formatModulAjar(schema, meta);
 	if (jenis === 'lkpd') return formatLKPD(schema);
 	if (jenis === 'soal') return formatSoal(schema);
 	return JSON.stringify(schema, null, 2);
 }
 
-function formatModulAjar(schema) {
+function formatModulAjar(schema, meta = {}) {
 	const identitas = schema.identitas || {};
 	const capaian = schema.capaian || {};
 	const kegiatan = schema.kegiatan || {};
@@ -28,11 +28,13 @@ function formatModulAjar(schema) {
 	text += `| Penulis | ${id.penulis || ''} |\n`;
 	text += `| Instansi | ${id.instansi || ''} |\n`;
 	text += `| Durasi Total | ${identitas.durasiTotal || ''} |\n`;
-	text += `| Alokasi Waktu | ${identitas.alokasiWaktu || ''} |\n\n`;
+	text += `| Alokasi Waktu | ${identitas.alokasiWaktu || ''} |\n`;
+	text += `| Model Pembelajaran | ${meta.metode || ''} |\n`;
+	text += `| Mode Pembelajaran | ${meta.modePembelajaran || ''} |\n\n`;
 	text += `**Deskripsi Umum:**\n${identitas.deskripsiUmum || ''}\n\n`;
 
-	text += `## B. CAPAIAN & TUJUAN PEMBELAJARAN\n\n`;
-	text += `**Capaian Pembelajaran:**\n${capaian.capaianPembelajaran || ''}\n\n`;
+	text += `## B. KEMAMPUAN PRASYARAT & TUJUAN PEMBELAJARAN\n\n`;
+	text += `**Kemampuan Prasyarat / Prasyarat Kompetensi:**\n${capaian.kemampuanPrasyarat || ''}\n\n`;
 	if ((capaian.tujuanPembelajaran || []).length > 0) {
 		text += `**Tujuan Pembelajaran:**\n`;
 		capaian.tujuanPembelajaran.forEach((t) => {

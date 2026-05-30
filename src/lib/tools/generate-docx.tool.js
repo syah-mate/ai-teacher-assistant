@@ -27,13 +27,15 @@ function formatModulAjarSchema(schema, input) {
 	text += `Penulis           : ${id.penulis || input.penulis || ''}\n`;
 	text += `Instansi          : ${id.instansi || input.instansi || ''}\n`;
 	text += `Durasi Total      : ${identitas.durasiTotal || ''}\n`;
-	text += `Alokasi Waktu     : ${identitas.alokasiWaktu || ''}\n\n`;
+	text += `Alokasi Waktu     : ${identitas.alokasiWaktu || ''}\n`;
+	text += `Model Pembelajaran: ${input.metode || ''}\n`;
+	text += `Mode Pembelajaran : ${input.modePembelajaran || ''}\n\n`;
 	text += `Deskripsi:\n${identitas.deskripsiUmum || ''}\n\n`;
 
-	// B. Capaian & Tujuan
-	text += `B. CAPAIAN & TUJUAN PEMBELAJARAN\n`;
-	text += `──────────────────────────────────\n`;
-	text += `Capaian Pembelajaran:\n${capaian.capaianPembelajaran || ''}\n\n`;
+	// B. Kemampuan Prasyarat & Tujuan
+	text += `B. KEMAMPUAN PRASYARAT & TUJUAN PEMBELAJARAN\n`;
+	text += `─────────────────────────────────────────────\n`;
+	text += `Kemampuan Prasyarat / Prasyarat Kompetensi:\n${capaian.kemampuanPrasyarat || ''}\n\n`;
 	text += `Tujuan Pembelajaran:\n`;
 	(capaian.tujuanPembelajaran || []).forEach((t) => {
 		text += `${t.nomor}. ${t.tujuan} (${t.levelBloom || ''})\n`;
