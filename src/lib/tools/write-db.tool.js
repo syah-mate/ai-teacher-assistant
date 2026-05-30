@@ -5,6 +5,13 @@
  */
 
 export async function writeDB(collection, data) {
+	// Jika berjalan di background job (server-side), tulis langsung ke MongoDB
+	// tanpa melalui HTTP endpoint /api/db-write.
+	const serverWriter = typeof globalThis !== 'undefined' && globalThis.__getJobDBWriter?.();
+	if (serverWriter) {
+		return serverWriter(collection, data);
+	}
+
 	try {
 		const res = await fetch('/api/db-write', {
 			method: 'POST',

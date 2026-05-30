@@ -43,6 +43,12 @@
 			icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'
 		}
 	];
+
+	const historyItem = {
+		href: '/dashboard/riwayat',
+		label: 'Riwayat Generate',
+		icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+	};
 </script>
 
 <div class="flex min-h-screen bg-gray-50">
@@ -123,6 +129,21 @@
 					<span class="truncate">{item.label}</span>
 				</a>
 			{/each}
+
+			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+				Riwayat
+			</p>
+			<a
+				href={historyItem.href}
+				class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page.url.pathname.startsWith(historyItem.href)
+					? 'border border-blue-100 bg-blue-50 text-blue-700'
+					: 'text-gray-600 hover:bg-gray-100'}"
+			>
+				<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={historyItem.icon} />
+				</svg>
+				<span class="truncate">{historyItem.label}</span>
+			</a>
 
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
 				Pengaturan

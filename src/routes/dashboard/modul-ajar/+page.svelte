@@ -1,6 +1,7 @@
 <script>
-	import { Orchestrator } from '$lib/agents/orchestrator.js';
-	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
+	import { get } from 'svelte/store';
+	import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
+	import { onDestroy } from 'svelte';
 
 	let form = $state({
 		judulModul: '',
@@ -20,23 +21,18 @@
 		instansi: 'Sekolah'
 	});
 
-	let isGenerating = $state(false);
-	let output = $state('');
+	let isSubmitting = $state(false);
+	let jobId = $state(null);
+	let jobStatus = $state(null); // queued | running | completed | failed
+	let jobProgress = $state({ step: 0, total: 6, message: '', phase: '' });
+	let jobResultId = $state(null);
 	let error = $state('');
-	
-	// Progress tracking for agentic mode
-	let progress = $state({
-		step: 0,
-		total: 6,
-		phase: '',
-		message: '',
-		status: 'idle' // idle, running, completed, error
-	});
-	
-	let qualityScore = $state(0);
-	let rawData = $state(null);
 
+	let pollInterval = null;
 
+	const isGenerating = $derived(jobStatus === 'queued' || jobStatus === 'running');
+	const isCompleted = $derived(jobStatus === 'completed');
+	const isFailed = $derived(jobStatus === 'failed');
 
 	const kelasList = [
 		{ val: 'I', fase: 'Fase A' },
@@ -62,99 +58,103 @@
 	async function handleGenerate(e) {
 		e.preventDefault();
 		if (!form.mapel || !form.judulModul) return;
-		
-		isGenerating = true;
-		output = '';
+
+		isSubmitting = true;
 		error = '';
-		qualityScore = 0;
-		rawData = null;
-		
-		await generateWithAgenticAI();
-	}
-	
-	/**
-	 * Generate using Agentic AI System (multi-step with specialized agents)
-	 */
-	async function generateWithAgenticAI() {
+		jobId = null;
+		jobStatus = null;
+		jobResultId = null;
+		jobProgress = { step: 0, total: 6, message: 'Mengirim permintaan...', phase: '' };
+
+		const userInput = {
+			jenis: 'modul_ajar',
+			judul: form.judulModul,
+			mapel: form.mapel,
+			kelas: form.kelas,
+			jenjang: getJenjangFromKelas(form.kelas),
+			jumlahPertemuan: form.jumlahPertemuan,
+			alokasiPerPertemuan: form.alokasiPerPertemuan,
+			metode: form.metode,
+			modePembelajaran: form.modePembelajaran,
+			penulis: form.penulis || 'Guru Mata Pelajaran',
+			instansi: form.instansi || 'Sekolah'
+		};
+
 		try {
-			progress = {
-				step: 0,
-				total: 6,
-				phase: 'starting',
-				message: '🚀 Memulai sistem Agentic AI...',
-				status: 'running'
-			};
-
-			const orchestrator = new Orchestrator();
-
-			const userInput = {
-				jenis: 'modul_ajar',
-				judul: form.judulModul,
-				mapel: form.mapel,
-				kelas: form.kelas,
-				jenjang: getJenjangFromKelas(form.kelas),
-				jumlahPertemuan: form.jumlahPertemuan,
-				alokasiPerPertemuan: form.alokasiPerPertemuan,
-				metode: form.metode,
-				modePembelajaran: form.modePembelajaran,
-				penulis: form.penulis || 'Guru Mata Pelajaran',
-				instansi: form.instansi || 'Sekolah'
-			};
-
-			const result = await orchestrator.generate(userInput, (progressData) => {
-				const isDone = progressData.action === 'done' || progressData.action === 'warn';
-				progress = {
-					...progress,
-					step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
-					phase: progressData.name || '',
-					message: progressData.message || '',
-					status: progressData.action === 'completed' ? 'completed' : 'running'
-				};
+			const res = await fetch('/api/generate-async', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userInput,
+					model: get(selectedModel),
+					thinkingEffort: get(selectedThinking)
+				})
 			});
 
-				if (result.success) {
-				const formattedOutput = formatSchemaToText('modul_ajar', result.schema);
-				output = formattedOutput;
-				qualityScore = result.qualityScore || 0;
-				rawData = result.schema;
-
-				// Store in-memory on window to avoid localStorage quota limits
-				window.__modulAjarHasil = {
-					output: formattedOutput,
-					schema: result.schema,
-					images: result.images || [],
-					judulModul: form.judulModul,
-					mapel: form.mapel,
-					kelas: form.kelas,
-					penulis: form.penulis || 'Guru Mata Pelajaran',
-					instansi: form.instansi || 'Sekolah',
-					qualityScore: result.qualityScore || 0
-				};
-				window.open('/dashboard/modul-ajar/hasil', '_blank');
-
-				// Dispatch event to update rate limit indicator
-				window.dispatchEvent(new Event('generate-success'));
-			} else {
-				error = result.error;
-				progress = {
-					...progress,
-					status: 'error',
-					message: '❌ ' + result.error
-				};
+			const data = await res.json();
+			if (!res.ok) {
+				error = data.error || 'Gagal memulai generate';
+				return;
 			}
+
+			jobId = data.jobId;
+			jobStatus = 'queued';
+			jobProgress = { step: 0, total: 6, message: 'Job antri, segera diproses...', phase: '' };
+			savePendingJob(jobId, 'modul_ajar', form.judulModul, form.mapel);
+			startPolling();
 		} catch (err) {
-			error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
-			console.error('Agentic AI error:', err);
-			progress = {
-				...progress,
-				status: 'error',
-				message: '❌ ' + err.message
-			};
+			error = 'Gagal terhubung ke server: ' + err.message;
 		} finally {
-			isGenerating = false;
+			isSubmitting = false;
 		}
 	}
-	
+
+	function startPolling() {
+		stopPolling();
+		pollInterval = setInterval(async () => {
+			if (!jobId) return;
+			try {
+				const res = await fetch(`/api/jobs/${jobId}`);
+				if (!res.ok) return;
+				const data = await res.json();
+				jobStatus = data.status;
+				if (data.progress) jobProgress = data.progress;
+
+				if (data.status === 'completed') {
+					jobResultId = data.resultId;
+					stopPolling();
+					removePendingJob(jobId);
+					window.dispatchEvent(new Event('generate-success'));
+				} else if (data.status === 'failed') {
+					error = data.error || 'Generate gagal di server';
+					stopPolling();
+					removePendingJob(jobId);
+				}
+			} catch {
+				// ignore transient polling errors
+			}
+		}, 2500);
+	}
+
+	function stopPolling() {
+		if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+	}
+
+	function savePendingJob(id, jenis, judul, mapel) {
+		try {
+			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+			stored.push({ jobId: id, jenis, judul, mapel, createdAt: new Date().toISOString() });
+			localStorage.setItem('pending_jobs', JSON.stringify(stored.slice(-10)));
+		} catch {}
+	}
+
+	function removePendingJob(id) {
+		try {
+			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+			localStorage.setItem('pending_jobs', JSON.stringify(stored.filter((j) => j.jobId !== id)));
+		} catch {}
+	}
+
 	function getJenjangFromKelas(kelas) {
 		const kelasMap = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
 		const num = kelasMap[kelas] || 10;
@@ -162,6 +162,8 @@
 		if (num <= 9) return 'SMP';
 		return 'SMA';
 	}
+
+	onDestroy(stopPolling);
 </script>
 
 <svelte:head>
@@ -372,57 +374,57 @@
 					
 </div>
 				
-			<!-- Progress Indicator -->
-			{#if isGenerating && progress.status === 'running'}
-					<div class="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
-						<div class="mb-2 flex items-center justify-between text-sm">
-							<span class="font-semibold text-blue-900">{progress.message}</span>
-							<span class="text-blue-700">{progress.step}/{progress.total}</span>
-						</div>
-						
-						<!-- Progress Bar -->
-						<div class="h-2 w-full overflow-hidden rounded-full bg-blue-200">
-							<div 
-								class="h-full bg-blue-600 transition-all duration-500"
-								style="width: {(progress.step / progress.total) * 100}%"
-							></div>
-						</div>
-						
-						<!-- Phase indicator -->
-						<div class="mt-2 flex items-center gap-2 text-xs text-blue-700">
-							<svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-							</svg>
-							<span>Phase: {progress.phase || 'processing'}</span>
-						</div>
+			<!-- Job Status Indicator -->
+			{#if jobId}
+				<div class="rounded-lg border-2 {isCompleted ? 'border-green-200 bg-green-50' : isFailed ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'} p-4">
+					<div class="mb-2 flex items-center justify-between text-sm">
+						<span class="font-semibold {isCompleted ? 'text-green-900' : isFailed ? 'text-red-900' : 'text-blue-900'}">
+							{jobProgress.message || 'Memproses...'}
+						</span>
+						<span class="{isCompleted ? 'text-green-700' : isFailed ? 'text-red-700' : 'text-blue-700'}">
+							{jobProgress.step ?? 0}/{jobProgress.total ?? 6}
+						</span>
 					</div>
-				{/if}
+					{#if !isFailed}
+					<div class="h-2 w-full overflow-hidden rounded-full {isCompleted ? 'bg-green-200' : 'bg-blue-200'}">
+						<div
+							class="h-full transition-all duration-500 {isCompleted ? 'bg-green-600' : 'bg-blue-600'}"
+							style="width: {((jobProgress.step ?? 0) / (jobProgress.total ?? 6)) * 100}%"
+						></div>
+					</div>
+					{/if}
+					{#if isGenerating}
+					<div class="mt-2 flex items-center gap-2 text-xs text-blue-700">
+						<svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span>Berjalan di latar belakang — Anda boleh menutup halaman ini</span>
+					</div>
+					{/if}
+				</div>
+			{/if}
 
 				<button
 					type="submit"
-					disabled={isGenerating}
+					disabled={isSubmitting || isGenerating}
 					class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-blue-400"
 				>
-					{#if isGenerating}
+					{#if isSubmitting}
 						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-							></circle>
-							<path
-								class="opacity-75"
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							></path>
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						Sedang Membuat Modul Ajar...
+						Mengirim...
+					{:else if isGenerating}
+						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						Sedang Dibuat di Background...
 					{:else}
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M13 10V3L4 14h7v7l9-11h-7z"
-							/>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 						</svg>
 						Generate Modul Ajar
 					{/if}
@@ -449,23 +451,23 @@
 			{/if}
 
 			<!-- Success notification -->
-			{#if output && !isGenerating}
+			{#if isCompleted && jobResultId}
 				<div class="mt-4 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
 					<svg class="h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
 					<div class="flex-1">
 						<p class="font-medium text-green-800">Modul ajar berhasil dibuat!</p>
-						<p class="mt-0.5 text-sm text-green-600">Dokumen sudah terbuka di tab baru. Jika belum terbuka, klik tombol di samping.</p>
+						<p class="mt-0.5 text-sm text-green-600">Tersimpan di riwayat. Klik tombol untuk membuka hasilnya.</p>
 					</div>
-					<button
-						onclick={() => window.open('/dashboard/modul-ajar/hasil', '_blank')}
+					<a
+						href="/dashboard/riwayat/{jobResultId}"
+						target="_blank"
 						class="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
 					>
 						Buka Hasil
-					</button>
+					</a>
 				</div>
-
 			{/if}
 		</div>
 

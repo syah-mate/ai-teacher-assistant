@@ -1,7 +1,6 @@
 import { BaseAgent } from '../base-agent.js';
 import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
-import { generateImage } from '../../tools/generate-image.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 
 export class LKPDAgent extends BaseAgent {
@@ -45,25 +44,9 @@ export class LKPDAgent extends BaseAgent {
 
 		const fullSchema = { ...batch1.merged, ...batch2.merged };
 
-		// ── Tool 1: Generate Images ──
-		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi LKPD...' });
-		const imageResult = await generateImage({ jenis: 'lkpd', userInput, schema: fullSchema });
-		const images = imageResult.success ? imageResult.images : [];
-		onProgress?.({
-			type: 'tool', name: 'generate-image',
-			action: images.length > 0 ? 'done' : 'warn',
-			message: images.length > 0
-				? `generate-image → ${images.length} ilustrasi selesai ✓`
-				: 'generate-image → dilewati (Cloudflare belum dikonfigurasi)'
-		});
-
-		// ── Tool 2: Generate DOCX (dengan images) ──
+		// ── Tool: Generate DOCX ──
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx LKPD...' });
-		const docxResult = await generateDocx({ jenis: 'lkpd', schema: fullSchema, input: userInput, images });
-
-		const imageUrl =
-			images.length > 0 ? images[0].data : null;
-		onProgress?.({ type: 'tool', name: 'generate-image', action: imageUrl ? 'done' : 'warn', message: imageUrl ? 'generate-image → selesai ✓' : 'generate-image → dilewati (tidak tersedia)' });
+		const docxResult = await generateDocx({ jenis: 'lkpd', schema: fullSchema, input: userInput });
 
 		if (!docxResult.success) {
 			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error', message: 'generate-docx → gagal ✗' });
@@ -71,13 +54,18 @@ export class LKPDAgent extends BaseAgent {
 		}
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done', message: 'generate-docx → selesai ✓' });
 
-		fullSchema.image = imageUrl;
-
 		// Simpan ke DB (fire-and-forget)
 		onProgress?.({ type: 'tool', name: 'write-db', action: 'start', message: 'write-db → menyimpan ke database...' });
 		writeDB('lkpd', {
 			userId: userInput.userId,
 			judul: userInput.judul,
+			mapel: userInput.mapel,
+			kelas: userInput.kelas,
+			jenjang: userInput.jenjang,
+			semester: userInput.semester,
+			metode: userInput.metode,
+			jenisKegiatan: userInput.jenisKegiatan,
+			alokasiWaktu: userInput.alokasiWaktu,
 			schema: fullSchema
 		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done', message: 'write-db → tersimpan ✓' })).catch(() => {});
 
@@ -92,7 +80,6 @@ export class LKPDAgent extends BaseAgent {
 		return {
 			success: true,
 			schema: fullSchema,
-			images,
 			fileBuffer: docxResult.buffer,
 			fileName: `LKPD_${userInput.judul}.docx`,
 			qualityScore: null,

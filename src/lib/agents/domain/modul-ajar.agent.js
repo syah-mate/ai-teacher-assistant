@@ -1,7 +1,6 @@
 import { BaseAgent } from '../base-agent.js';
 import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
-import { generateImage } from '../../tools/generate-image.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 
 export class ModulAjarAgent extends BaseAgent {
@@ -51,29 +50,15 @@ export class ModulAjarAgent extends BaseAgent {
 
 		const fullSchema = { ...batch1.merged, ...batch2.merged };
 
-		// ── Tool 1: Generate Images (satu per pertemuan) ──
-		onProgress?.({ type: 'tool', name: 'generate-image', action: 'start', message: 'generate-image → membuat ilustrasi per pertemuan...' });
-		const imageResult = await generateImage({ jenis: 'modul_ajar', userInput, schema: fullSchema });
-		const images = imageResult.success ? imageResult.images : [];
-		onProgress?.({
-			type: 'tool', name: 'generate-image',
-			action: images.length > 0 ? 'done' : 'warn',
-			message: images.length > 0
-				? `generate-image → ${images.length} ilustrasi selesai ✓`
-				: 'generate-image → dilewati (Cloudflare belum dikonfigurasi)'
-		});
-
-		// ── Tool 2: Generate DOCX (dengan images) ──
+		// ── Tool: Generate DOCX ──
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx modul ajar...' });
-		const docxResult = await generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput, images });
+		const docxResult = await generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput });
 
 		if (!docxResult.success) {
 			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error', message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done', message: 'generate-docx → selesai ✓' });
-
-		fullSchema.image = images[0] ?? null;
 
 		// Simpan ke DB (fire-and-forget)
 		onProgress?.({ type: 'tool', name: 'write-db', action: 'start', message: 'write-db → menyimpan ke database...' });
@@ -82,6 +67,11 @@ export class ModulAjarAgent extends BaseAgent {
 			judul: userInput.judul,
 			mapel: userInput.mapel,
 			kelas: userInput.kelas,
+			jenjang: userInput.jenjang,
+			metode: userInput.metode,
+			modePembelajaran: userInput.modePembelajaran,
+			jumlahPertemuan: userInput.jumlahPertemuan,
+			alokasiPerPertemuan: userInput.alokasiPerPertemuan,
 			schema: fullSchema
 		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done', message: 'write-db → tersimpan ✓' })).catch(() => {});
 
@@ -96,7 +86,6 @@ export class ModulAjarAgent extends BaseAgent {
 		return {
 			success: true,
 			schema: fullSchema,
-			images,
 			fileBuffer: docxResult.buffer,
 			fileName: `Modul_Ajar_${userInput.judul}.docx`,
 			qualityScore: null,

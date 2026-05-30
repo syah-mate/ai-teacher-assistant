@@ -1,6 +1,7 @@
 <script>
-	import { Orchestrator } from '$lib/agents/orchestrator.js';
-	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
+	import { get } from 'svelte/store';
+	import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
+	import { onDestroy } from 'svelte';
 
 	let form = $state({
 		mapel: '',
@@ -13,21 +14,18 @@
 		level: 'C2 – Memahami'
 	});
 
-	let isGenerating = $state(false);
-	let output = $state('');
+	let isSubmitting = $state(false);
+	let jobId = $state(null);
+	let jobStatus = $state(null);
+	let jobProgress = $state({ step: 0, total: 6, message: '', phase: '' });
+	let jobResultId = $state(null);
 	let error = $state('');
 
-	// Progress tracking for agentic mode
-	let progress = $state({
-		step: 0,
-		total: 3,
-		agent: '',
-		status: ''
-	});
+	let pollInterval = null;
 
-	let qualityScore = $state(0);
-	let qualityIndicator = $state(null);
-	let validationReport = $state('');
+	const isGenerating = $derived(jobStatus === 'queued' || jobStatus === 'running');
+	const isCompleted = $derived(jobStatus === 'completed');
+	const isFailed = $derived(jobStatus === 'failed');
 
 	async function handleGenerate(e) {
 		e.preventDefault();
@@ -36,89 +34,90 @@
 			return;
 		}
 
-		isGenerating = true;
-		output = '';
+		isSubmitting = true;
 		error = '';
-		qualityScore = 0;
-		qualityIndicator = null;
-		validationReport = '';
-		progress = {
-			step: 0,
-			total: 3,
-			agent: 'Initializing',
-			status: '🚀 Memulai Agentic AI System...'
+		jobId = null;
+		jobStatus = null;
+		jobResultId = null;
+		jobProgress = { step: 0, total: 6, message: 'Mengirim permintaan...', phase: '' };
+
+		const userInput = {
+			jenis: 'soal',
+			judul: form.topik,
+			mapel: form.mapel,
+			kelas: form.kelas,
+			jenisSoal: form.jenis,
+			jumlahSoal: form.jumlah,
+			tingkat: form.tingkat,
+			levelBloom: form.level
 		};
 
 		try {
-			const orchestrator = new Orchestrator();
-
-			const userInput = {
-				jenis: 'soal',
-				judul: form.topik,
-				mapel: form.mapel,
-				kelas: form.kelas,
-				jenisSoal: form.jenis,
-				jumlahSoal: form.jumlah,
-				tingkat: form.tingkat,
-				levelBloom: form.level
-			};
-
-			const result = await orchestrator.generate(userInput, (progressData) => {
-				const isDone = progressData.action === 'done' || progressData.action === 'warn';
-				progress = {
-					...progress,
-					step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
-					agent: progressData.name || progressData.phase || '',
-					status: progressData.message || ''
-				};
+			const res = await fetch('/api/generate-async', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userInput, model: get(selectedModel), thinkingEffort: get(selectedThinking) })
 			});
 
-			if (result.success) {
-				const formattedOutput = formatSchemaToText('soal', result.schema);
-				output = formattedOutput;
-				qualityScore = result.qualityScore || 0;
-				qualityIndicator = null;
-				validationReport = '';
-				window.__soalHasil = {
-					output: formattedOutput,
-					schema: result.schema,
-					images: [],
-					topik: form.topik,
-					mapel: form.mapel,
-					kelas: form.kelas,
-					jenis: form.jenis,
-					jumlah: form.jumlah,
-					tingkat: form.tingkat,
-					level: form.level,
-					qualityScore: result.qualityScore || 0
-				};
-				window.open('/dashboard/soal/hasil', '_blank');
+			const data = await res.json();
+			if (!res.ok) { error = data.error || 'Gagal memulai generate'; return; }
 
-				progress = {
-					...progress,
-					status: `✅ Soal berhasil dibuat! Hasil dibuka di tab baru.`
-				};
-
-				// Dispatch event to update rate limit indicator
-				window.dispatchEvent(new Event('generate-success'));
-			} else {
-				error = result.error || 'Terjadi kesalahan saat membuat soal';
-				progress = {
-					...progress,
-					status: '❌ ' + error
-				};
-			}
+			jobId = data.jobId;
+			jobStatus = 'queued';
+			jobProgress = { step: 0, total: 6, message: 'Job antri, segera diproses...', phase: '' };
+			savePendingJob(jobId, 'soal', form.topik, form.mapel);
+			startPolling();
 		} catch (err) {
-			console.error('Generation error:', err);
-			error = err.message || 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
-			progress = {
-				...progress,
-				status: '❌ ' + error
-			};
+			error = 'Gagal terhubung ke server: ' + err.message;
 		} finally {
-			isGenerating = false;
+			isSubmitting = false;
 		}
 	}
+
+	function startPolling() {
+		stopPolling();
+		pollInterval = setInterval(async () => {
+			if (!jobId) return;
+			try {
+				const res = await fetch(`/api/jobs/${jobId}`);
+				if (!res.ok) return;
+				const data = await res.json();
+				jobStatus = data.status;
+				if (data.progress) jobProgress = data.progress;
+				if (data.status === 'completed') {
+					jobResultId = data.resultId;
+					stopPolling();
+					removePendingJob(jobId);
+					window.dispatchEvent(new Event('generate-success'));
+				} else if (data.status === 'failed') {
+					error = data.error || 'Generate gagal di server';
+					stopPolling();
+					removePendingJob(jobId);
+				}
+			} catch {}
+		}, 2500);
+	}
+
+	function stopPolling() {
+		if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+	}
+
+	function savePendingJob(id, jenis, judul, mapel) {
+		try {
+			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+			stored.push({ jobId: id, jenis, judul, mapel, createdAt: new Date().toISOString() });
+			localStorage.setItem('pending_jobs', JSON.stringify(stored.slice(-10)));
+		} catch {}
+	}
+
+	function removePendingJob(id) {
+		try {
+			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+			localStorage.setItem('pending_jobs', JSON.stringify(stored.filter((j) => j.jobId !== id)));
+		} catch {}
+	}
+
+	onDestroy(stopPolling);
 </script>
 
 <svelte:head>
@@ -294,47 +293,52 @@
 
 				<button
 					type="submit"
-					disabled={isGenerating}
+					disabled={isSubmitting || isGenerating}
 					class="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 py-3 font-semibold text-white transition-colors hover:bg-violet-700 disabled:bg-violet-400"
 				>
-					{#if isGenerating}
+					{#if isSubmitting}
 						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-							></circle>
-							<path
-								class="opacity-75"
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							></path>
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						Sedang Membuat Soal...
+						Mengirim...
+					{:else if isGenerating}
+						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						Sedang Dibuat di Background...
 					{:else}
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M13 10V3L4 14h7v7l9-11h-7z"
-							/>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 						</svg>
 						Generate Soal (AI Powered)
 					{/if}
 				</button>
 
-				<!-- Progress indicator -->
-				{#if isGenerating}
-					<div class="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4">
+				<!-- Job Status indicator -->
+				{#if jobId}
+					<div class="mt-4 rounded-lg border {isCompleted ? 'border-green-200 bg-green-50' : isFailed ? 'border-red-200 bg-red-50' : 'border-violet-200 bg-violet-50'} p-4">
 						<div class="mb-2 flex items-center justify-between text-sm">
-							<span class="font-medium text-violet-700">{progress.agent}</span>
-							<span class="text-violet-600">Step {progress.step}/{progress.total}</span>
+							<span class="font-medium {isCompleted ? 'text-green-700' : isFailed ? 'text-red-700' : 'text-violet-700'}">
+								{jobProgress.phase || (isCompleted ? 'Selesai' : isFailed ? 'Gagal' : 'Memproses...')}
+							</span>
+							<span class="{isCompleted ? 'text-green-600' : isFailed ? 'text-red-600' : 'text-violet-600'}">
+								Step {jobProgress.step ?? 0}/{jobProgress.total ?? 6}
+							</span>
 						</div>
-						<div class="mb-2 h-2 overflow-hidden rounded-full bg-violet-200">
-							<div
-								class="h-full bg-violet-600 transition-all duration-300"
-								style="width: {(progress.step / progress.total) * 100}%"
-							></div>
+						{#if !isFailed}
+						<div class="mb-2 h-2 overflow-hidden rounded-full {isCompleted ? 'bg-green-200' : 'bg-violet-200'}">
+							<div class="h-full transition-all duration-300 {isCompleted ? 'bg-green-600' : 'bg-violet-600'}"
+								style="width: {((jobProgress.step ?? 0) / (jobProgress.total ?? 6)) * 100}%"></div>
 						</div>
-						<p class="text-xs text-violet-600">{progress.status}</p>
+						{/if}
+						<p class="text-xs {isCompleted ? 'text-green-600' : isFailed ? 'text-red-600' : 'text-violet-600'}">
+							{jobProgress.message || ''}
+						</p>
+						{#if isGenerating}
+						<p class="mt-1 text-xs text-violet-500">Berjalan di latar belakang — Anda boleh menutup halaman ini</p>
+						{/if}
 					</div>
 				{/if}
 
@@ -349,7 +353,7 @@
 		</div>
 
 	<!-- Success notification -->
-	{#if output && !isGenerating}
+	{#if isCompleted && jobResultId}
 		<div class="rounded-2xl border border-violet-200 bg-violet-50 p-5">
 			<div class="flex items-center gap-4">
 				<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-100">
@@ -360,23 +364,19 @@
 				<div class="flex-1">
 					<p class="font-semibold text-violet-900">Soal berhasil dibuat!</p>
 					<p class="mt-0.5 text-sm text-violet-700">
-						{form.jumlah} soal {form.jenis} untuk {form.mapel} Kelas {form.kelas} telah selesai digenerate.
-						{#if qualityScore > 0}
-							<span class="ml-2 rounded-full px-2 py-0.5 text-xs font-semibold {qualityScore >= 80 ? 'bg-violet-200 text-violet-800' : qualityScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}">
-								Kualitas {qualityScore}/100
-							</span>
-						{/if}
+						Tersimpan di riwayat. Klik tombol untuk membuka hasilnya.
 					</p>
 				</div>
-				<button
-					onclick={() => window.open('/dashboard/soal/hasil', '_blank')}
+				<a
+					href="/dashboard/riwayat/{jobResultId}"
+					target="_blank"
 					class="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
 				>
 					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
 					</svg>
 					Buka Hasil
-				</button>
+				</a>
 			</div>
 		</div>
 	{/if}

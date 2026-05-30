@@ -1,6 +1,7 @@
 ﻿<script>
-import { Orchestrator } from '$lib/agents/orchestrator.js';
-import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
+import { get } from 'svelte/store';
+import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
+import { onDestroy } from 'svelte';
 
 let form = $state({
 sekolah: '',
@@ -17,21 +18,18 @@ penulis: '',
 instansi: ''
 });
 
-let isGenerating = $state(false);
-let output = $state('');
+let isSubmitting = $state(false);
+let jobId = $state(null);
+let jobStatus = $state(null);
+let jobProgress = $state({ step: 0, total: 6, message: '', phase: '' });
+let jobResultId = $state(null);
 let error = $state('');
 
-// Progress tracking for agentic mode
-let progress = $state({
-step: 0,
-total: 6,
-phase: '',
-message: '',
-status: 'idle' // idle, running, completed, error
-});
+let pollInterval = null;
 
-let qualityScore = $state(0);
-let rawData = $state(null);
+const isGenerating = $derived(jobStatus === 'queued' || jobStatus === 'running');
+const isCompleted = $derived(jobStatus === 'completed');
+const isFailed = $derived(jobStatus === 'failed');
 
 const kelasList = [
 { val: 'I', fase: 'Fase A' },
@@ -52,26 +50,12 @@ async function handleGenerate(e) {
 e.preventDefault();
 if (!form.mapel || !form.topik) return;
 
-isGenerating = true;
-output = '';
+isSubmitting = true;
 error = '';
-qualityScore = 0;
-rawData = null;
-
-await generateWithAgenticAI();
-}
-
-async function generateWithAgenticAI() {
-try {
-progress = {
-step: 0,
-total: 8,
-phase: 'starting',
-message: 'Memulai sistem Agentic AI untuk LKPD...',
-status: 'running'
-};
-
-const orchestrator = new Orchestrator();
+jobId = null;
+jobStatus = null;
+jobResultId = null;
+jobProgress = { step: 0, total: 6, message: 'Mengirim permintaan...', phase: '' };
 
 const userInput = {
 jenis: 'lkpd',
@@ -90,60 +74,69 @@ instansi: form.instansi || form.sekolah || 'Sekolah',
 metode: form.model
 };
 
-const result = await orchestrator.generate(userInput, (progressData) => {
-const isDone = progressData.action === 'done' || progressData.action === 'warn';
-progress = {
-...progress,
-step: isDone ? Math.min(progress.step + 1, progress.total) : progress.step,
-phase: progressData.name || '',
-message: progressData.message || '',
-status: progressData.action === 'completed' ? 'completed' : 'running'
-};
+try {
+const res = await fetch('/api/generate-async', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ userInput, model: get(selectedModel), thinkingEffort: get(selectedThinking) })
 });
 
-if (result.success) {
-const formattedOutput = formatSchemaToText('lkpd', result.schema);
-output = formattedOutput;
-qualityScore = result.qualityScore || 0;
-rawData = result.schema;
+const data = await res.json();
+if (!res.ok) { error = data.error || 'Gagal memulai generate'; return; }
 
-// Store in-memory on window to avoid localStorage quota limits
-window.__lkpdHasil = {
-output: formattedOutput,
-schema: result.schema,
-images: result.images || [],
-topik: form.topik,
-mapel: form.mapel,
-kelas: form.kelas,
-semester: form.semester,
-sekolah: form.sekolah,
-penulis: form.penulis || 'Guru Mata Pelajaran',
-instansi: form.instansi || form.sekolah || 'Sekolah',
-qualityScore: result.qualityScore || 0
-};
-window.open('/dashboard/lkpd/hasil', '_blank');
-
-// Dispatch event to update rate limit indicator
-window.dispatchEvent(new Event('generate-success'));
-} else {
-error = result.error;
-progress = {
-...progress,
-status: 'error',
-message: 'Gagal: ' + result.error
-};
-}
+jobId = data.jobId;
+jobStatus = 'queued';
+jobProgress = { step: 0, total: 6, message: 'Job antri, segera diproses...', phase: '' };
+savePendingJob(jobId, 'lkpd', form.topik, form.mapel);
+startPolling();
 } catch (err) {
-error = 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
-console.error('Agentic AI error:', err);
-progress = {
-...progress,
-status: 'error',
-message: 'Error: ' + err.message
-};
+error = 'Gagal terhubung ke server: ' + err.message;
 } finally {
-isGenerating = false;
+isSubmitting = false;
 }
+}
+
+function startPolling() {
+stopPolling();
+pollInterval = setInterval(async () => {
+if (!jobId) return;
+try {
+const res = await fetch(`/api/jobs/${jobId}`);
+if (!res.ok) return;
+const data = await res.json();
+jobStatus = data.status;
+if (data.progress) jobProgress = data.progress;
+if (data.status === 'completed') {
+jobResultId = data.resultId;
+stopPolling();
+removePendingJob(jobId);
+window.dispatchEvent(new Event('generate-success'));
+} else if (data.status === 'failed') {
+error = data.error || 'Generate gagal di server';
+stopPolling();
+removePendingJob(jobId);
+}
+} catch {}
+}, 2500);
+}
+
+function stopPolling() {
+if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+function savePendingJob(id, jenis, judul, mapel) {
+try {
+const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+stored.push({ jobId: id, jenis, judul, mapel, createdAt: new Date().toISOString() });
+localStorage.setItem('pending_jobs', JSON.stringify(stored.slice(-10)));
+} catch {}
+}
+
+function removePendingJob(id) {
+try {
+const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
+localStorage.setItem('pending_jobs', JSON.stringify(stored.filter((j) => j.jobId !== id)));
+} catch {}
 }
 
 function getJenjangFromKelas(kelas) {
@@ -153,6 +146,8 @@ if (kelasNum >= 1 && kelasNum <= 6) return 'SD';
 if (kelasNum >= 7 && kelasNum <= 9) return 'SMP';
 return 'SMA';
 }
+
+onDestroy(stopPolling);
 </script>
 
 <svelte:head>
@@ -351,40 +346,52 @@ class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-t
 </div>
 </div>
 
-<!-- Progress Indicator -->
-{#if isGenerating && progress.status === 'running'}
-<div class="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
+<!-- Job Status Indicator -->
+{#if jobId}
+<div class="rounded-lg border-2 {isCompleted ? 'border-green-200 bg-green-50' : isFailed ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'} p-4">
 <div class="mb-2 flex items-center justify-between text-sm">
-<span class="font-semibold text-emerald-900">{progress.message}</span>
-<span class="text-emerald-700">{progress.step}/{progress.total}</span>
+<span class="font-semibold {isCompleted ? 'text-green-900' : isFailed ? 'text-red-900' : 'text-emerald-900'}">
+{jobProgress.message || 'Memproses...'}
+</span>
+<span class="{isCompleted ? 'text-green-700' : isFailed ? 'text-red-700' : 'text-emerald-700'}">
+{jobProgress.step ?? 0}/{jobProgress.total ?? 6}
+</span>
 </div>
-<div class="h-2 w-full overflow-hidden rounded-full bg-emerald-200">
-<div
-class="h-full bg-emerald-600 transition-all duration-500"
-style="width: {(progress.step / progress.total) * 100}%"
-></div>
+{#if !isFailed}
+<div class="h-2 w-full overflow-hidden rounded-full {isCompleted ? 'bg-green-200' : 'bg-emerald-200'}">
+<div class="h-full transition-all duration-500 {isCompleted ? 'bg-green-600' : 'bg-emerald-600'}"
+style="width: {((jobProgress.step ?? 0) / (jobProgress.total ?? 6)) * 100}%"></div>
 </div>
+{/if}
+{#if isGenerating}
 <div class="mt-2 flex items-center gap-2 text-xs text-emerald-700">
 <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 </svg>
-<span>Agent aktif: <strong>{progress.phase || 'memproses...'}</strong></span>
+<span>Berjalan di latar belakang — Anda boleh menutup halaman ini</span>
 </div>
+{/if}
 </div>
 {/if}
 
 <button
 type="submit"
-disabled={isGenerating}
+disabled={isSubmitting || isGenerating}
 class="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:bg-emerald-400"
 >
-{#if isGenerating}
+{#if isSubmitting}
 <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 </svg>
-Sedang Membuat LKPD...
+Mengirim...
+{:else if isGenerating}
+<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+Sedang Dibuat di Background...
 {:else}
 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -414,23 +421,23 @@ Generate LKPD
 {/if}
 
 <!-- Success notification -->
-{#if output && !isGenerating}
+{#if isCompleted && jobResultId}
 <div class="mt-4 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
 <svg class="h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 </svg>
 <div class="flex-1">
 <p class="font-medium text-green-800">LKPD berhasil dibuat!</p>
-<p class="mt-0.5 text-sm text-green-600">Dokumen sudah terbuka di tab baru. Jika belum terbuka, klik tombol di samping.</p>
+<p class="mt-0.5 text-sm text-green-600">Tersimpan di riwayat. Klik tombol untuk membuka hasilnya.</p>
 </div>
-<button
-onclick={() => window.open('/dashboard/lkpd/hasil', '_blank')}
+<a
+href="/dashboard/riwayat/{jobResultId}"
+target="_blank"
 class="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
 >
 Buka Hasil
-</button>
+</a>
 </div>
-
 {/if}
 </div>
 

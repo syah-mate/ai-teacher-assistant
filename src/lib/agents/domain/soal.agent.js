@@ -52,6 +52,13 @@ export class SoalAgent extends BaseAgent {
 		writeDB('soal', {
 			userId: userInput.userId,
 			judul: userInput.judul,
+			mapel: userInput.mapel,
+			kelas: userInput.kelas,
+			jenjang: userInput.jenjang,
+			jenisSoal: userInput.jenisSoal,
+			jumlahSoal: userInput.jumlahSoal,
+			tingkat: userInput.tingkat,
+			levelBloom: userInput.levelBloom,
 			schema: fullSchema
 		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done', message: 'write-db → tersimpan ✓' })).catch(() => {});
 

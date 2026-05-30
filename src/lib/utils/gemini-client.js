@@ -22,6 +22,14 @@ import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
  * @returns {Promise<{success: boolean, data?: string, error?: string}>}
  */
 export async function callGeminiAPI(prompt, options = {}) {
+	// Jika berjalan di background job (server-side), gunakan injected AI client
+	// yang dikunci ke model & thinkingEffort pilihan user saat submit job.
+	// globalThis.__getJobAIClient diset oleh job-runner.js via AsyncLocalStorage.
+	const serverClient = typeof globalThis !== 'undefined' && globalThis.__getJobAIClient?.();
+	if (serverClient) {
+		return serverClient(prompt, options);
+	}
+
 	const { maxRetries = 3, timeout = 120000 } = options;
 	const model = get(selectedModel);
 	const thinkingEffort = get(selectedThinking);

@@ -47,6 +47,10 @@ return result;
 }
 
 async startSession() {
+// Jika berjalan di background job, gunakan fungsi rate limit server-side langsung
+const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobRateLimitFns?.();
+if (serverFns) return serverFns.checkStart();
+
 try {
 const res = await fetch('/api/generate-session/start', {
 method: 'POST',
@@ -63,6 +67,10 @@ return { ok: false, error: 'Gagal terhubung ke server: ' + err.message };
 }
 
 async completeSession() {
+// Jika berjalan di background job, gunakan fungsi rate limit server-side langsung
+const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobRateLimitFns?.();
+if (serverFns) return serverFns.completeSession();
+
 await fetch('/api/generate-session/complete', {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' }

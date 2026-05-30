@@ -49,7 +49,6 @@ function formatModulAjarSchema(schema, input) {
 	text += `─────────────────────────\n`;
 	(kegiatan.pertemuan || []).forEach((p) => {
 		text += `\nPertemuan ke-${p.ke}: ${p.tujuanPertemuan || ''}\n`;
-		text += `[Image embedded - visible in .docx download]\n`;
 		text += `Pertanyaan Pemantik:\n`;
 		(p.pertanyaanPemantik || []).forEach((q) => {
 			text += `• ${q}\n`;
@@ -230,6 +229,13 @@ function formatSoalSchema(schema) {
  * @returns {Promise<{ success: boolean, buffer?: ArrayBuffer, error?: string }>}
  */
 export async function generateDocx({ jenis, schema, input = {}, images = [] }) {
+	// When running inside a background job (server-side), skip DOCX generation.
+	// The schema is persisted to MongoDB by the job runner; DOCX is built on-demand
+	// from the export endpoints when the user downloads it from Riwayat.
+	if (globalThis.__isJobServerContext?.()) {
+		return { success: true, skipped: true };
+	}
+
 	try {
 		if (jenis === 'modul_ajar') {
 			const content = formatModulAjarSchema(schema, input);
