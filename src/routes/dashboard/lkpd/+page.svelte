@@ -7,6 +7,7 @@ let form = $state({
 sekolah: '',
 mapel: '',
 kelas: 'VII',
+fase: 'Fase D',
 semester: '1',
 topik: '',
 tujuan: '',
@@ -46,9 +47,16 @@ const kelasList = [
 { val: 'XII', fase: 'Fase F' }
 ];
 
+function syncFaseByKelas(kelas) {
+	const found = kelasList.find((k) => k.val === kelas);
+	if (found) form.fase = found.fase;
+}
+
 async function handleGenerate(e) {
 e.preventDefault();
 if (!form.mapel || !form.topik) return;
+
+syncFaseByKelas(form.kelas);
 
 isSubmitting = true;
 error = '';
@@ -62,6 +70,7 @@ jenis: 'lkpd',
 judul: form.topik,
 mapel: form.mapel,
 kelas: form.kelas,
+fase: form.fase,
 semester: form.semester,
 jenjang: getJenjangFromKelas(form.kelas),
 alokasiWaktu: form.waktu,

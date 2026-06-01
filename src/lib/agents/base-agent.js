@@ -115,22 +115,32 @@ OUTPUT REQUIREMENTS:
 	 */
 	parseJSON(text) {
 		try {
-			// Remove markdown code blocks if present
-			let cleaned = text.trim();
-			
-			// Check for JSON code block
-			const jsonBlockMatch = cleaned.match(/```json\s*([\s\S]*?)\s*```/);
+			let cleaned = (text || '').trim();
+
+			// Check for JSON code block first
+			const jsonBlockMatch = cleaned.match(/```json\s*([\s\S]*?)\s*```/i);
 			if (jsonBlockMatch) {
-				cleaned = jsonBlockMatch[1];
+				cleaned = jsonBlockMatch[1].trim();
 			} else {
-				// Check for generic code block
+				// Fallback: generic code block
 				const codeBlockMatch = cleaned.match(/```\s*([\s\S]*?)\s*```/);
 				if (codeBlockMatch) {
-					cleaned = codeBlockMatch[1];
+					cleaned = codeBlockMatch[1].trim();
 				}
 			}
 
-			return JSON.parse(cleaned);
+			try {
+				return JSON.parse(cleaned);
+			} catch {
+				// If model adds text before/after JSON, try extracting the outer object.
+				const firstBrace = cleaned.indexOf('{');
+				const lastBrace = cleaned.lastIndexOf('}');
+				if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+					const maybeJson = cleaned.slice(firstBrace, lastBrace + 1);
+					return JSON.parse(maybeJson);
+				}
+				throw new Error('Cannot recover JSON object from response');
+			}
 		} catch (error) {
 			console.warn(`[${this.name}] JSON parse error, returning raw text:`, error.message);
 			// Fallback: return as object with raw property

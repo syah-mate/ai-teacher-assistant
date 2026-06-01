@@ -447,7 +447,7 @@
 						{@html section.html}
 						<button
 							onclick={() => startEdit(i)}
-							class="no-print edit-section-btn pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 opacity-0 shadow-sm transition-all hover:bg-yellow-100 hover:border-yellow-400 hover:text-yellow-900 group-hover/section:pointer-events-auto group-hover/section:opacity-100"
+							class="no-print edit-section-btn pointer-events-auto opacity-100 sm:pointer-events-none sm:opacity-0 absolute right-2 top-2 flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 shadow-sm transition-all hover:bg-yellow-100 hover:border-yellow-400 hover:text-yellow-900 sm:group-hover/section:pointer-events-auto sm:group-hover/section:opacity-100"
 							title="Edit bagian ini"
 						>
 							<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

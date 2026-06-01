@@ -18,6 +18,11 @@ export class KegiatanSubAgent extends BaseSubAgent {
 
 		const systemPrompt = this.buildSystemPrompt(`Rancang kegiatan pembelajaran lengkap per pertemuan sesuai Kurikulum Merdeka.
 
+ATURAN FORMAT TAMBAHAN:
+- Hindari penggunaan tanda kutip ganda di dalam nilai string
+- Gunakan kalimat ringkas dan jelas
+- Pastikan setiap string ditutup dengan benar
+
 OUTPUT FORMAT JSON:
 {
   "pertemuan": [{

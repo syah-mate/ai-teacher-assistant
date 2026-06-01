@@ -10,7 +10,6 @@
  */
 
 // Registry semua sub-agent yang tersedia — universal, bisa dipanggil siapapun
-import { IdentitasSubAgent } from '../agents/sub-agents/identitas.sub-agent.js';
 import { CapaianSubAgent } from '../agents/sub-agents/capaian.sub-agent.js';
 import { KegiatanSubAgent } from '../agents/sub-agents/kegiatan.sub-agent.js';
 import { AsesmenSubAgent } from '../agents/sub-agents/asesmen.sub-agent.js';
@@ -22,7 +21,6 @@ import { SoalPGSubAgent } from '../agents/sub-agents/soal-pg.sub-agent.js';
 import { SoalEsaiSubAgent } from '../agents/sub-agents/soal-esai.sub-agent.js';
 
 const SUB_AGENT_REGISTRY = {
-	identitas: () => new IdentitasSubAgent(),
 	capaian: () => new CapaianSubAgent(),
 	kegiatan: () => new KegiatanSubAgent(),
 	asesmen: () => new AsesmenSubAgent(),

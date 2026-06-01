@@ -36,22 +36,40 @@ INSTRUKSI OUTPUT KRITIS:
 	 * Gunakan ini di semua sub-agent menggantikan callAI + parseJSON manual
 	 */
 	async callAndParse(systemPrompt, userPrompt, options = {}) {
-		const result = await this.callAI(systemPrompt, userPrompt, {
+		const maxParseAttempts = Number(options.maxParseAttempts || 2);
+		let result = await this.callAI(systemPrompt, userPrompt, {
 			timeout: 90000,
 			...options
 		});
 
-		if (!result.success) {
-			return { success: false, error: result.error };
+		for (let attempt = 1; attempt <= maxParseAttempts; attempt++) {
+			if (!result.success) {
+				return { success: false, error: result.error };
+			}
+
+			const parsed = this.parseJSON(result.data);
+			if (!parsed.parseError) {
+				return { success: true, schema: parsed };
+			}
+
+			const rawPreview = result.data?.slice(0, 220) || '';
+			if (attempt >= maxParseAttempts) {
+				this.log(`JSON parse gagal (attempt ${attempt}/${maxParseAttempts}). Raw: ${rawPreview}`, 'error');
+				return { success: false, error: 'AI menghasilkan format output yang tidak valid' };
+			}
+
+			this.log(`JSON parse gagal (attempt ${attempt}/${maxParseAttempts}). Retry generate JSON...`, 'warn');
+			result = await this.callAI(
+				`${systemPrompt}\n\nRETRY KHUSUS:\n- Ulangi dari awal\n- Keluarkan SATU JSON object lengkap sampai penutup kurung kurawal terakhir\n- Jangan gunakan markdown fence\n- Jangan memotong output di tengah string`,
+				`${userPrompt}\n\nUlangi jawaban sekarang dalam JSON valid dari awal hingga akhir.`,
+				{
+					timeout: 90000,
+					maxRetries: 2,
+					...options
+				}
+			);
 		}
 
-		const parsed = this.parseJSON(result.data);
-
-		if (parsed.parseError) {
-			this.log(`JSON parse gagal. Raw: ${result.data?.slice(0, 200)}`, 'error');
-			return { success: false, error: 'AI menghasilkan format output yang tidak valid' };
-		}
-
-		return { success: true, schema: parsed };
+		return { success: false, error: 'AI menghasilkan format output yang tidak valid' };
 	}
 }

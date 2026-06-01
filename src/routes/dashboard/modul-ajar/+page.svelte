@@ -71,6 +71,7 @@
 			judul: form.judulModul,
 			mapel: form.mapel,
 			kelas: form.kelas,
+			fase: form.fase,
 			jenjang: getJenjangFromKelas(form.kelas),
 			jumlahPertemuan: form.jumlahPertemuan,
 			alokasiPerPertemuan: form.alokasiPerPertemuan,
