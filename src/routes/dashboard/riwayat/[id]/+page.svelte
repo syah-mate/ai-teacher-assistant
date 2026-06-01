@@ -5,6 +5,24 @@
 	let { data } = $props();
 	const item = data.item;
 
+	// ── Section helpers ───────────────────────────────────────────────
+	/**
+	 * Split a rendered HTML string into sections at each h1/h2/h3 boundary.
+	 * Returns an array of { id, html, backup, editing, headingText }.
+	 */
+	function parseSections(html) {
+		const parts = html.split(/(?=<h[123](?:\s[^>]*)?>)/i);
+		return parts
+			.filter((p) => p.trim())
+			.map((part, i) => {
+				const headingMatch = part.match(/^<h([123])(?:[^>]*)?>(.+?)<\/h[123]>/i);
+				const headingText = headingMatch
+					? headingMatch[2].replace(/<[^>]+>/g, '').trim()
+					: `Bagian ${i + 1}`;
+				return { id: i, html: part, backup: part, editing: false, headingText };
+			});
+	}
+
 	// ── Theme per tipe ────────────────────────────────────────────────
 	const themes = {
 		modul_ajar: {
@@ -71,10 +89,17 @@
 
 	const images = extractImages(item.tipe, item.schema);
 	const markdown = item.schema ? formatSchemaToText(item.tipe, item.schema, { metode: item.metode, modePembelajaran: item.modePembelajaran }) : '_Isi dokumen tidak tersedia._';
-	const renderedHtml = renderMarkdownWithImages(markdown, images);
+	const generatedHtml = renderMarkdownWithImages(markdown, images);
 
+	// Use editedHtml from DB if available, otherwise fall back to generated HTML
+	const sourceHtml = item.editedHtml || generatedHtml;
+
+	// Reactive sections state
+	let sections = $state(parseSections(sourceHtml));
 	let isDownloadingDocx = $state(false);
 	let isPrinting = $state(false);
+	let isSaving = $state(false);
+	let saveResult = $state(/** @type {'saved'|'error'|null} */ (null));
 
 	function formatDate(dateStr) {
 		if (!dateStr) return '-';
@@ -169,7 +194,59 @@
 			isPrinting = false;
 		}, 100);
 	}
-</script>
+
+	// ── Section editing ───────────────────────────────────────────────
+	function startEdit(i) {
+		sections[i].backup = sections[i].html;
+		sections[i].editing = true;
+	}
+
+	async function saveSection(i) {
+		sections[i].editing = false;
+		isSaving = true;
+		saveResult = null;
+		try {
+			const fullHtml = sections.map((s) => s.html).join('');
+			const resp = await fetch(`/api/history/${item._id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ editedHtml: fullHtml })
+			});
+			if (!resp.ok) throw new Error('Gagal menyimpan');
+			saveResult = 'saved';
+			setTimeout(() => (saveResult = null), 3000);
+		} catch {
+			saveResult = 'error';
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function cancelEdit(i) {
+		sections[i].html = sections[i].backup;
+		sections[i].editing = false;
+	}
+
+	async function revertToGenerated() {
+		if (!confirm('Kembalikan ke konten asli yang dihasilkan AI? Semua perubahan manual akan hilang.')) return;
+		isSaving = true;
+		saveResult = null;
+		try {
+			const resp = await fetch(`/api/history/${item._id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ editedHtml: '' })
+			});
+			if (!resp.ok) throw new Error();
+			sections = parseSections(generatedHtml);
+			saveResult = 'saved';
+			setTimeout(() => (saveResult = null), 3000);
+		} catch {
+			saveResult = 'error';
+		} finally {
+			isSaving = false;
+		}
+	}</script>
 
 <svelte:head>
 	<title>{item.judul} — Riwayat · Asisten Guru AI</title>
@@ -202,6 +279,32 @@
 			<span class="hidden rounded-full px-2.5 py-0.5 text-xs font-semibold sm:inline {theme.badgeClass}">
 				{theme.label}
 			</span>
+
+			<!-- Save status feedback -->
+			{#if saveResult === 'saved'}
+				<span class="flex items-center gap-1 text-xs font-medium text-green-600">
+					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+					</svg>
+					Tersimpan
+				</span>
+			{:else if saveResult === 'error'}
+				<span class="text-xs font-medium text-red-500">Gagal menyimpan</span>
+			{/if}
+
+			<!-- Revert to AI-generated (only if item was previously edited) -->
+			{#if item.editedHtml}
+				<button
+					onclick={revertToGenerated}
+					class="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+					title="Kembalikan ke konten asli AI"
+				>
+					<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+					</svg>
+					Reset
+				</button>
+			{/if}
 
 			<!-- PDF -->
 			<button
@@ -297,8 +400,64 @@
 		</div>
 
 		<!-- Content with per-tipe CSS variables -->
-		<div class="document-content px-12 py-8" style={cssVars}>
-			{@html renderedHtml}
+		<div class="document-content" style={cssVars}>
+			{#each sections as section, i (section.id)}
+				<div class="section-block group/section relative px-12 {i === 0 ? 'pt-8' : ''} {i === sections.length - 1 ? 'pb-8' : ''}">
+					{#if section.editing}
+						<!-- ── Edit mode ── -->
+						<div
+							role="textbox"
+							aria-multiline="true"
+							aria-label="Edit bagian {section.headingText}"
+							contenteditable="true"
+							class="section-editor outline-none"
+							bind:innerHTML={sections[i].html}
+						></div>
+						<div class="no-print mt-3 mb-2 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
+							<button
+								onclick={() => saveSection(i)}
+							disabled={isSaving}
+							class="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-60"
+						>
+							{#if isSaving}
+								<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+								</svg>
+								Menyimpan...
+							{:else}
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+								</svg>
+								Simpan Bagian
+							{/if}
+							</button>
+							<button
+								onclick={() => cancelEdit(i)}
+								class="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-100"
+							>
+								Batal
+							</button>
+							<span class="ml-1 truncate text-xs text-gray-400">
+								Mengedit: <em>{section.headingText}</em>
+							</span>
+						</div>
+					{:else}
+						<!-- ── View mode ── -->
+						{@html section.html}
+						<button
+							onclick={() => startEdit(i)}
+							class="no-print edit-section-btn pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 opacity-0 shadow-sm transition-all hover:bg-yellow-100 hover:border-yellow-400 hover:text-yellow-900 group-hover/section:pointer-events-auto group-hover/section:opacity-100"
+							title="Edit bagian ini"
+						>
+							<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+							</svg>
+							Edit
+						</button>
+					{/if}
+				</div>
+			{/each}
 		</div>
 
 		<!-- Footer -->
@@ -531,4 +690,28 @@
 		.document-content :global(blockquote) { page-break-inside: avoid; }
 		.document-content :global(ol li) { page-break-inside: avoid; }
 	}
+
+	/* ── Section editing ─────────────────────────────────────────────── */
+	.section-block {
+		/* gives space for absolute edit button */
+		isolation: isolate;
+	}
+
+	/* Highlight the active edit area */
+	.section-editor {
+		border-radius: 6px;
+		outline: 2px solid #3b82f6;
+		outline-offset: 4px;
+		padding: 0.25rem;
+		min-height: 2rem;
+		cursor: text;
+	}
+
+	/* Keep all document styles inside an editing section */
+	.document-content .section-editor :global(h1) { color: var(--h1-color); font-size: 1.6rem; font-weight: 800; margin-top: 2.5rem; margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--h1-border); line-height: 1.3; }
+	.document-content .section-editor :global(h2) { color: var(--h2-color); font-size: 1.25rem; font-weight: 700; margin-top: 2rem; margin-bottom: 0.6rem; }
+	.document-content .section-editor :global(h3) { color: #374151; font-size: 1.05rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; padding-left: 0.75rem; border-left: 3px solid var(--h3-border); }
+	.document-content .section-editor :global(p)  { font-size: 0.9375rem; line-height: 1.85; color: #1f2937; margin-bottom: 1rem; }
+	.document-content .section-editor :global(ul li::before) { background: var(--bullet); }
+	.document-content .section-editor :global(ol li::before) { color: var(--ol-counter); }
 </style>

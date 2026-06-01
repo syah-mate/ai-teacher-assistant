@@ -1,6 +1,6 @@
 /**
- * GET /api/history/[id]
- * Mengambil satu item riwayat lengkap (termasuk schema) berdasarkan ID.
+ * GET  /api/history/[id]  – Mengambil satu item riwayat lengkap (termasuk schema) berdasarkan ID.
+ * PATCH /api/history/[id] – Menyimpan editedHtml hasil pengeditan oleh user.
  */
 
 import { json } from '@sveltejs/kit';
@@ -50,9 +50,52 @@ export async function GET({ params, locals }) {
 					tingkat: doc.tingkat || null,
 					levelBloom: doc.levelBloom || null,
 					schema: doc.schema || null,
+					editedHtml: doc.editedHtml || null,
 					createdAt: doc.createdAt
 				}
 			});
+		}
+	}
+
+	return json({ error: 'Data tidak ditemukan' }, { status: 404 });
+}
+
+export async function PATCH({ params, request, locals }) {
+	if (!locals.user) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	const { id } = params;
+
+	let objectId;
+	try {
+		objectId = new ObjectId(id);
+	} catch {
+		return json({ error: 'ID tidak valid' }, { status: 400 });
+	}
+
+	const userId = locals.user.id || locals.user._id?.toString() || null;
+
+	let body;
+	try {
+		body = await request.json();
+	} catch {
+		return json({ error: 'Body tidak valid' }, { status: 400 });
+	}
+
+	const { editedHtml } = body;
+	if (typeof editedHtml !== 'string') {
+		return json({ error: 'editedHtml wajib berupa string' }, { status: 400 });
+	}
+
+	for (const name of COLLECTIONS) {
+		const col = await getCollection(name);
+		const result = await col.updateOne(
+			{ _id: objectId, userId },
+			{ $set: { editedHtml, editedAt: new Date() } }
+		);
+		if (result.matchedCount > 0) {
+			return json({ success: true });
 		}
 	}
 
