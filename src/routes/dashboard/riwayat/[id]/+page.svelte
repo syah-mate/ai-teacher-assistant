@@ -1,9 +1,10 @@
 <script>
 	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
 	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
+	import { resolveRenderer } from '$lib/utils/template-renderer.js';
 
 	let { data } = $props();
-	const item = data.item;
+	const item = $derived(data.item);
 
 	// ── Section helpers ───────────────────────────────────────────────
 	/**
@@ -63,17 +64,17 @@
 		}
 	};
 
-	const theme = themes[item.tipe] ?? themes.soal;
+	const theme = $derived(themes[item.tipe] ?? themes.soal);
 
 	// CSS variables injected on the content wrapper
-	const cssVars = [
+	const cssVars = $derived([
 		`--h1-color:${theme.h1Color}`, `--h2-color:${theme.h2Color}`, `--h3-border:${theme.h3Border}`,
 		`--bullet:${theme.bullet}`, `--bullet-nested:${theme.bulletNested}`, `--ol-counter:${theme.olCounter}`,
 		`--bq-border:${theme.bqBorder}`, `--bq-bg:${theme.bqBg}`, `--bq-color:${theme.bqColor}`,
 		`--thead-bg:${theme.theadBg}`, `--tr-even:${theme.trEven}`, `--tr-hover:${theme.trHover}`,
 		`--hr-start:${theme.hrStart}`, `--hr-mid:${theme.hrMid}`, `--hr-end:${theme.hrEnd}`,
 		`--h1-border:${theme.h1Border}`, `--code-bg:${theme.codeBg}`, `--code-color:${theme.codeColor}`
-	].join(';');
+	].join(';'));
 
 	// ── Extract images from schema ────────────────────────────────────
 	function extractImages(tipe, schema) {
@@ -87,15 +88,27 @@
 		return [];
 	}
 
-	const images = extractImages(item.tipe, item.schema);
-	const markdown = item.schema ? formatSchemaToText(item.tipe, item.schema, { metode: item.metode, modePembelajaran: item.modePembelajaran }) : '_Isi dokumen tidak tersedia._';
-	const generatedHtml = renderMarkdownWithImages(markdown, images);
+	const images = $derived(extractImages(item.tipe, item.schema));
+
+	// Resolve komponen renderer untuk modul_ajar (template-aware)
+	// Untuk lkpd & soal tetap null → pakai pipeline markdown lama
+	const RendererComponent = $derived(
+		item.tipe === 'modul_ajar' && item.schema
+			? resolveRenderer(item.templateId)
+			: null
+	);
+
+	const markdown = $derived(
+		item.schema ? formatSchemaToText(item.tipe, item.schema, { metode: item.metode, modePembelajaran: item.modePembelajaran }) : '_Isi dokumen tidak tersedia._'
+	);
+	const generatedHtml = $derived(renderMarkdownWithImages(markdown, images));
 
 	// Use editedHtml from DB if available, otherwise fall back to generated HTML
-	const sourceHtml = item.editedHtml || generatedHtml;
+	const sourceHtml = $derived(item.editedHtml || generatedHtml);
 
-	// Reactive sections state
-	let sections = $state(parseSections(sourceHtml));
+	// Reactive sections state (dipakai untuk lkpd & soal)
+	let sections = $state(/** @type {Array<{id:number,html:string,backup:string,editing:boolean,headingText:string}>} */ ([]));
+	$effect(() => { sections = parseSections(sourceHtml); });
 	let isDownloadingDocx = $state(false);
 	let isPrinting = $state(false);
 	let isSaving = $state(false);
@@ -399,8 +412,17 @@
 			</div>
 		</div>
 
-		<!-- Content with per-tipe CSS variables -->
+		<!-- Content — template-aware untuk modul_ajar, markdown untuk lkpd/soal -->
 		<div class="document-content" style={cssVars}>
+			{#if RendererComponent}
+				<!-- Render via komponen Svelte template (modul_ajar) -->
+				<div class="px-12 py-8">
+					{#key item.templateId}
+						<RendererComponent schema={item.schema} meta={item} />
+					{/key}
+				</div>
+			{:else}
+			<!-- Render via markdown pipeline lama (lkpd, soal) -->
 			{#each sections as section, i (section.id)}
 				<div class="section-block group/section relative px-12 {i === 0 ? 'pt-8' : ''} {i === sections.length - 1 ? 'pb-8' : ''}">
 					{#if section.editing}
@@ -458,6 +480,7 @@
 					{/if}
 				</div>
 			{/each}
+			{/if}
 		</div>
 
 		<!-- Footer -->

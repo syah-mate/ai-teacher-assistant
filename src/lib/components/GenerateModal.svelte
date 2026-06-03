@@ -123,9 +123,15 @@
 
 <!-- Overlay -->
 <div
+	role="button"
+	tabindex="0"
+	aria-label="Tutup modal"
 	class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
 	onclick={() => {
 		if (!isGenerating) onClose();
+	}}
+	onkeydown={(e) => {
+		if ((e.key === 'Enter' || e.key === 'Escape') && !isGenerating) onClose();
 	}}
 ></div>
 
@@ -151,6 +157,7 @@
 			<button
 				onclick={onClose}
 				disabled={isGenerating}
+				aria-label="Tutup"
 				class="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-white/80
        transition-colors hover:bg-white/25 disabled:opacity-30"
 			>
@@ -182,10 +189,11 @@
 			</div>
 			<div class="space-y-3">
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-700">
+					<label for="input-judul" class="mb-1.5 block text-sm font-medium text-gray-700">
 						Judul Modul <span class="text-red-400">*</span>
 					</label>
 					<input
+						id="input-judul"
 						bind:value={judul}
 						placeholder="cth. Operasi Aljabar Linear Kelas X"
 						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
@@ -195,10 +203,11 @@
 
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">
+						<label for="input-mapel" class="mb-1.5 block text-sm font-medium text-gray-700">
 							Mata Pelajaran <span class="text-red-400">*</span>
 						</label>
 						<input
+							id="input-mapel"
 							bind:value={mapel}
 							placeholder="cth. Matematika"
 							class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
@@ -206,8 +215,9 @@
 						/>
 					</div>
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">Kelas</label>
+						<label for="input-kelas" class="mb-1.5 block text-sm font-medium text-gray-700">Kelas</label>
 						<select
+							id="input-kelas"
 							value={kelas}
 							onchange={(e) => onKelasChange(e.target.value)}
 							class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
@@ -240,8 +250,9 @@
 			<div class="space-y-3">
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">Jumlah Pertemuan</label>
+						<label for="input-pertemuan" class="mb-1.5 block text-sm font-medium text-gray-700">Jumlah Pertemuan</label>
 						<select
+							id="input-pertemuan"
 							bind:value={jumlahPertemuan}
 							class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
        focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
@@ -252,8 +263,9 @@
 						</select>
 					</div>
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">Alokasi Waktu</label>
+						<label for="input-alokasi" class="mb-1.5 block text-sm font-medium text-gray-700">Alokasi Waktu</label>
 						<select
+							id="input-alokasi"
 							bind:value={alokasiPerPertemuan}
 							class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
        focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
@@ -267,8 +279,9 @@
 					</div>
 				</div>
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-700">Metode Pembelajaran</label>
+					<label for="input-metode" class="mb-1.5 block text-sm font-medium text-gray-700">Metode Pembelajaran</label>
 					<select
+						id="input-metode"
 						bind:value={metode}
 						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
        focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
@@ -304,8 +317,9 @@
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-700">Nama Guru</label>
+					<label for="input-penulis" class="mb-1.5 block text-sm font-medium text-gray-700">Nama Guru</label>
 					<input
+						id="input-penulis"
 						bind:value={penulis}
 						placeholder="cth. Budi Santoso, S.Pd"
 						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors
@@ -313,8 +327,9 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-700">Instansi</label>
+					<label for="input-instansi" class="mb-1.5 block text-sm font-medium text-gray-700">Instansi</label>
 					<input
+						id="input-instansi"
 						bind:value={instansi}
 						placeholder="cth. SMAN 1 Surabaya"
 						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm transition-colors

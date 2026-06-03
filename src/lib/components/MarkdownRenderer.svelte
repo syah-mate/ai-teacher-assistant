@@ -1,10 +1,10 @@
 <script>
 	import { renderMarkdown } from '$lib/utils/markdown.js';
 
-	/** @type {string} */
-	export let content = '';
+	/** @type {{ content?: string }} */
+	let { content = '' } = $props();
 
-	$: html = renderMarkdown(content);
+	const html = $derived(renderMarkdown(content));
 </script>
 
 <div class="prose-content">

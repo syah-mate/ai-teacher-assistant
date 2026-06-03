@@ -1,5 +1,6 @@
 ﻿<script>
 	import { modulAjarStandarTemplate } from '$lib/templates/modul-ajar-standar.template.js';
+	import { modulAjarTabelTemplate } from '$lib/templates/modul-ajar-tabel.template.js';
 	import GenerateModal from '$lib/components/GenerateModal.svelte';
 
 	let showModal = $state(false);
@@ -17,7 +18,22 @@
 				'Kegiatan Pembelajaran',
 				'Asesmen',
 				'Refleksi'
-			]
+			],
+			previewStyle: 'Heading A/B/C/D + bullet list'
+		},
+		{
+			...modulAjarTabelTemplate,
+			available: true,
+			icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />`,
+			color: 'teal',
+			previewSections: [
+				'Identitas',
+				'Capaian & Tujuan',
+				'Kegiatan Pembelajaran',
+				'Asesmen',
+				'Refleksi'
+			],
+			previewStyle: 'Tabel grid compact — cocok untuk dicetak'
 		},
 		{
 			templateId: 'modul-p5',
@@ -27,7 +43,8 @@
 			available: false,
 			icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />`,
 			color: 'violet',
-			previewSections: ['Tema Projek', 'Dimensi PPP', 'Sub-elemen', 'Aktivitas', 'Asesmen']
+			previewSections: ['Tema Projek', 'Dimensi PPP', 'Sub-elemen', 'Aktivitas', 'Asesmen'],
+			previewStyle: 'Coming soon'
 		}
 	];
 
@@ -38,6 +55,13 @@
 			badge: 'bg-blue-50 text-blue-700 border-blue-100',
 			border: 'border-blue-200 shadow-blue-50',
 			chip: 'bg-blue-50 text-blue-700'
+		},
+		teal: {
+			bg: 'bg-teal-100',
+			icon: 'text-teal-600',
+			badge: 'bg-teal-50 text-teal-700 border-teal-100',
+			border: 'border-teal-200 shadow-teal-50',
+			chip: 'bg-teal-50 text-teal-700'
 		},
 		violet: {
 			bg: 'bg-violet-100',
@@ -109,11 +133,17 @@
 				<p class="mb-4 text-sm leading-relaxed text-gray-500">{template.description}</p>
 
 				<!-- Section chips -->
-				<div class="mb-5 flex flex-wrap gap-1.5">
+				<div class="mb-3 flex flex-wrap gap-1.5">
 					{#each template.previewSections as s}
 						<span class="rounded-md px-2 py-0.5 text-xs font-medium {c.chip}">{s}</span>
 					{/each}
 				</div>
+
+				{#if template.previewStyle && template.available}
+					<p class="mb-4 text-xs italic text-gray-400">{template.previewStyle}</p>
+				{:else}
+					<div class="mb-4"></div>
+				{/if}
 
 				<!-- Divider -->
 				<div class="mb-4 border-t border-gray-100"></div>

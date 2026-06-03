@@ -215,6 +215,7 @@ async function saveResult(jobId, userInput, result) {
 	// Field spesifik per tipe
 	if (tipe === 'modul_ajar') {
 		Object.assign(baseData, {
+			templateId: userInput.templateId || 'modul-ajar-standar',
 			metode: userInput.metode,
 			modePembelajaran: userInput.modePembelajaran,
 			jumlahPertemuan: userInput.jumlahPertemuan,
