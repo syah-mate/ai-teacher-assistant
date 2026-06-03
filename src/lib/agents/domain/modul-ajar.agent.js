@@ -2,6 +2,12 @@ import { BaseAgent } from '../base-agent.js';
 import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
+import { modulAjarStandarTemplate } from '../../templates/modul-ajar-standar.template.js';
+
+// Registry template — key = templateId yang dikirim dari frontend
+const TEMPLATE_REGISTRY = {
+	'modul-ajar-standar': modulAjarStandarTemplate
+};
 
 export class ModulAjarAgent extends BaseAgent {
 	constructor() {
@@ -42,68 +48,102 @@ export class ModulAjarAgent extends BaseAgent {
 
 	async run(userInput, onProgress) {
 		this.log(`Starting: "${userInput.judul}"`);
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'start', message: `ModulAjarAgent → memulai "${userInput.judul}"` });
+		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'start',
+			message: `ModulAjarAgent → memulai "${userInput.judul}"` });
 
-		// ── Bangun identitas dari userInput (tanpa AI call) ──
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'info', message: 'ModulAjarAgent → membangun identitas dari userInput (no AI call)' });
+		// ── 1. Load template ──────────────────────────────────────────────
+		const template = TEMPLATE_REGISTRY[userInput.templateId] ?? modulAjarStandarTemplate;
+		this.log(`Template: ${template.templateId}`);
+
+		// ── 2. Build identitas (tidak berubah) ────────────────────────────
+		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'info',
+			message: 'ModulAjarAgent → membangun identitas dari userInput (no AI call)' });
 		const identitasSchema = this.buildIdentitasFromInput(userInput);
 
-		// ── Batch 1: Capaian (single agent) ──
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_start', batch: 1, agents: ['capaian'], message: 'Batch 1 → menjalankan capaian' });
+		// ── 3. Grouping sections per batch number ─────────────────────────
+		const batchMap = {};
+		for (const section of template.sections) {
+			if (!batchMap[section.batch]) batchMap[section.batch] = [];
+			batchMap[section.batch].push(section);
+		}
+		const batchNumbers = Object.keys(batchMap).map(Number).sort((a, b) => a - b);
 
-		const batch1 = await runSubAgents({
-			agents: ['capaian'],
-			input: userInput,
-			context: { identitas: identitasSchema },
-			critical: ['capaian'],
-			onProgress
-		});
+		// ── 4. Akumulasi context & tokenUsage lintas batch ────────────────
+		let mergedContext = { identitas: identitasSchema };
+		const totalTokenUsage = { input: 0, cached: 0, output: 0 };
 
-		if (!batch1.success) {
-			return this.fail(`Batch 1 gagal: ${Object.values(batch1.errors).join(', ')}`);
+		// ── 5. Jalankan tiap batch secara sequential ──────────────────────
+		for (const batchNum of batchNumbers) {
+			const sectionsInBatch = batchMap[batchNum];
+			const agentKeys = sectionsInBatch.map((s) => s.agentKey);
+			const criticalKeys = sectionsInBatch.filter((s) => s.critical).map((s) => s.agentKey);
+
+			// Build sectionDefs map: { agentKey: sectionDef }
+			const sectionDefs = {};
+			for (const section of sectionsInBatch) {
+				sectionDefs[section.agentKey] = section.sectionDef;
+			}
+
+			onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_start',
+				batch: batchNum, agents: agentKeys,
+				message: `Batch ${batchNum} → ${agentKeys.join(', ')}` });
+
+			const batchResult = await runSubAgents({
+				agents: agentKeys,
+				input: userInput,
+				context: mergedContext,
+				critical: criticalKeys,
+				sectionDefs,
+				onProgress
+			});
+
+			if (!batchResult.success) {
+				return this.fail(`Batch ${batchNum} gagal: ${Object.values(batchResult.errors).join(', ')}`);
+			}
+
+			// Angkat deskripsiUmum ke identitas
+			if (batchResult.merged.capaian?.deskripsiUmum) {
+				identitasSchema.deskripsiUmum = batchResult.merged.capaian.deskripsiUmum;
+				delete batchResult.merged.capaian.deskripsiUmum;
+			}
+
+			// Merge hasil ke context untuk batch berikutnya
+			mergedContext = { ...mergedContext, ...batchResult.merged };
+
+			// Akumulasi token
+			if (batchResult.tokenUsage) {
+				totalTokenUsage.input  += batchResult.tokenUsage.input  || 0;
+				totalTokenUsage.cached += batchResult.tokenUsage.cached || 0;
+				totalTokenUsage.output += batchResult.tokenUsage.output || 0;
+			}
+
+			onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_done',
+				batch: batchNum, message: `Batch ${batchNum} selesai ✓` });
 		}
 
-		if (batch1.merged.capaian?.deskripsiUmum) {
-			identitasSchema.deskripsiUmum = batch1.merged.capaian.deskripsiUmum;
-			delete batch1.merged.capaian.deskripsiUmum;
-		}
-
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_done', batch: 1, message: 'Batch 1 selesai ✓ → capaian tersedia' });
-
-		// ── Batch 2: Kegiatan & Asesmen PARALEL ──
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_start', batch: 2, agents: ['kegiatan', 'asesmen'], message: 'Batch 2 → menjalankan kegiatan + asesmen secara paralel' });
-
-		const batch2 = await runSubAgents({
-			agents: ['kegiatan', 'asesmen'],
-			input: userInput,
-			context: { ...batch1.merged, identitas: identitasSchema },
-			critical: ['kegiatan', 'asesmen'],
-			onProgress
-		});
-
-		if (!batch2.success) {
-			return this.fail(`Batch 2 gagal: ${Object.values(batch2.errors).join(', ')}`);
-		}
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_done', batch: 2, message: 'Batch 2 selesai ✓ → kegiatan & asesmen tersedia' });
-
+		// ── 6. Build fullSchema ───────────────────────────────────────────
+		const { identitas: _identitasDuplikat, ...restContext } = mergedContext;
 		const fullSchema = {
 			identitas: identitasSchema,
-			...batch1.merged,
-			...batch2.merged
+			...restContext
 		};
 
-		// ── Tool: Generate DOCX ──
-		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start', message: 'generate-docx → membuat file .docx modul ajar...' });
+		// ── 7. Generate DOCX ──────────────────────────────────────────────
+		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start',
+			message: 'generate-docx → membuat file .docx modul ajar...' });
 		const docxResult = await generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput });
 
 		if (!docxResult.success) {
-			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error', message: 'generate-docx → gagal ✗' });
+			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error',
+				message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
-		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done', message: 'generate-docx → selesai ✓' });
+		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done',
+			message: 'generate-docx → selesai ✓' });
 
-		// Simpan ke DB (fire-and-forget)
-		onProgress?.({ type: 'tool', name: 'write-db', action: 'start', message: 'write-db → menyimpan ke database...' });
+		// ── 8. Simpan ke DB — fire-and-forget ─────────────────────────────
+		onProgress?.({ type: 'tool', name: 'write-db', action: 'start',
+			message: 'write-db → menyimpan ke database...' });
 		writeDB('modul_ajar', {
 			userId: userInput.userId,
 			judul: userInput.judul,
@@ -114,16 +154,13 @@ export class ModulAjarAgent extends BaseAgent {
 			modePembelajaran: userInput.modePembelajaran,
 			jumlahPertemuan: userInput.jumlahPertemuan,
 			alokasiPerPertemuan: userInput.alokasiPerPertemuan,
+			templateId: userInput.templateId || 'modul-ajar-standar',
 			schema: fullSchema
-		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done', message: 'write-db → tersimpan ✓' })).catch(() => {});
+		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done',
+			message: 'write-db → tersimpan ✓' })).catch(() => {});
 
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'completed', message: 'ModulAjarAgent → selesai, mengembalikan hasil ke Orchestrator ✓' });
-
-		const tokenUsage = {
-			input: (batch1.tokenUsage?.input || 0) + (batch2.tokenUsage?.input || 0),
-			cached: (batch1.tokenUsage?.cached || 0) + (batch2.tokenUsage?.cached || 0),
-			output: (batch1.tokenUsage?.output || 0) + (batch2.tokenUsage?.output || 0)
-		};
+		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'completed',
+			message: 'ModulAjarAgent → selesai ✓' });
 
 		return {
 			success: true,
@@ -131,7 +168,7 @@ export class ModulAjarAgent extends BaseAgent {
 			fileBuffer: docxResult.buffer,
 			fileName: `Modul_Ajar_${userInput.judul}.docx`,
 			qualityScore: null,
-			tokenUsage,
+			tokenUsage: totalTokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

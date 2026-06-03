@@ -49,7 +49,7 @@ const SUB_AGENT_REGISTRY = {
  *   merged:  { [agentName]: Object }
  * }>}
  */
-export async function runSubAgents({ agents, input, context = {}, critical, onProgress }) {
+export async function runSubAgents({ agents, input, context = {}, critical, sectionDefs = {}, onProgress }) {
 	// Default: semua agent dianggap critical kecuali dideklarasikan
 	const criticalSet = new Set(critical ?? agents);
 
@@ -71,7 +71,10 @@ export async function runSubAgents({ agents, input, context = {}, critical, onPr
 			const startTime = Date.now();
 			onProgress?.({ type: 'sub-agent', name, action: 'start', message: `${name} → memulai...` });
 			const agent = SUB_AGENT_REGISTRY[name]();
-			const result = await agent.execute(input, context);
+			const sectionDef = sectionDefs[name];
+			const result = sectionDef
+				? await agent.executeFromTemplate(input, context, sectionDef)
+				: await agent.execute(input, context);
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 			if (result.success) {
 				onProgress?.({ type: 'sub-agent', name, action: 'done', message: `${name} → selesai (${duration}s)` });

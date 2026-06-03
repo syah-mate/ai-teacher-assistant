@@ -72,4 +72,58 @@ INSTRUKSI OUTPUT KRITIS:
 
 		return { success: false, error: 'AI menghasilkan format output yang tidak valid' };
 	}
+
+	/**
+	 * Rakit 3 lapisan prompt menjadi { systemPrompt, userPrompt }.
+	 * Layer 1+2: buildSystemPrompt dengan instruksi + outputSchema dari sectionDef.
+	 * Layer 3: data form user + context dari batch sebelumnya.
+	 */
+	buildPromptFromLayers(sectionDef, input, context = {}) {
+		// LAYER 1 + LAYER 2 digabung — sectionDef masuk sebagai taskDescription
+		const systemPrompt = this.buildSystemPrompt(
+			`${sectionDef.instruksi}\n\nOUTPUT FORMAT JSON (ikuti PERSIS struktur ini, tidak ada field tambahan):\n${sectionDef.outputSchema}`
+		);
+
+		// LAYER 3 — inputs dari user
+		const tujuanList = (context.capaian?.tujuanPembelajaran || [])
+			.map((t) => `${t.nomor}. ${t.tujuan}`)
+			.join('\n');
+
+		const userPrompt = [
+			`Section yang dibuat    : ${sectionDef.namaSection}`,
+			`Judul Modul            : ${input.judul}`,
+			`Mata Pelajaran         : ${input.mapel}`,
+			`Kelas                  : ${input.kelas}`,
+			`Fase                   : ${input.fase || '-'}`,
+			`Jenjang                : ${input.jenjang || '-'}`,
+			`Jumlah Pertemuan       : ${input.jumlahPertemuan || 1}`,
+			`Alokasi per Pertemuan  : ${input.alokasiPerPertemuan || '2x45 menit'}`,
+			`Metode Pembelajaran    : ${input.metode || 'Problem Based Learning'}`,
+			`Nama Guru              : ${input.penulis || 'Guru Mata Pelajaran'}`,
+			`Instansi               : ${input.instansi || 'Sekolah'}`,
+			tujuanList ? `\nTujuan Pembelajaran (dari batch sebelumnya):\n${tujuanList}` : ''
+		]
+			.filter(Boolean)
+			.join('\n');
+
+		return { systemPrompt, userPrompt };
+	}
+
+	/**
+	 * Jalankan sub-agent menggunakan template-mode (3 lapisan prompt).
+	 * Dipanggil oleh run-sub-agents.tool.js jika sectionDef tersedia.
+	 */
+	async executeFromTemplate(input, context = {}, sectionDef) {
+		this.log(`[template-mode] section: ${sectionDef.namaSection} | judul: ${input.judul}`);
+
+		const { systemPrompt, userPrompt } = this.buildPromptFromLayers(sectionDef, input, context);
+
+		const result = await this.callAndParse(systemPrompt, userPrompt);
+
+		if (!result.success) {
+			return { success: false, error: result.error, agentName: this.name };
+		}
+
+		return { success: true, schema: result.schema, agentName: this.name };
+	}
 }
