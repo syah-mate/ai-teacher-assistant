@@ -88,7 +88,7 @@
 					jobResultId = data.resultId;
 					stopPolling();
 					removePendingJob(jobId);
-					window.dispatchEvent(new Event('generate-success'));
+						window.dispatchEvent(new CustomEvent('quota-updated'));
 				} else if (data.status === 'failed') {
 					error = data.error || 'Generate gagal di server';
 					stopPolling();

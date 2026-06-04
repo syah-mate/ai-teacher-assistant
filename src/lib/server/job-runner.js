@@ -35,7 +35,7 @@ const jobStorage = new AsyncLocalStorage();
 // so the globals must always point to the latest instance.
 globalThis.__getJobAIClient = () => jobStorage.getStore()?.aiClient ?? null;
 globalThis.__getJobDBWriter = () => jobStorage.getStore()?.dbWriter ?? null;
-globalThis.__getJobRateLimitFns = () => jobStorage.getStore()?.rateLimitFns ?? null;
+globalThis.__getJobQuotaFns = () => jobStorage.getStore()?.quotaFns ?? null;
 // Skip DOCX generation in server-side jobs — schema is saved directly to MongoDB;
 // DOCX is generated on-demand from the export endpoints when user downloads.
 globalThis.__isJobServerContext = () => jobStorage.getStore() != null;
@@ -108,11 +108,11 @@ async function runJob(jobId) {
 		// DB writer server-side langsung ke MongoDB
 		const dbWriter = makeDirectDBWriter(job.userId);
 
-		// Rate limit functions server-side
-		const rateLimitFns = makeRateLimitFns(job.userId);
+		// Quota functions server-side
+		const quotaFns = makeQuotaFns(job.userId);
 
 		// Jalankan orchestrator di dalam async context job ini
-		await jobStorage.run({ aiClient, dbWriter, rateLimitFns }, async () => {
+		await jobStorage.run({ aiClient, dbWriter, quotaFns }, async () => {
 			const { Orchestrator } = await import('$lib/agents/orchestrator.js');
 			const orchestrator = new Orchestrator();
 
@@ -292,54 +292,71 @@ function makeDirectDBWriter(userId) {
 }
 
 /**
- * Rate limit functions server-side (tanpa melalui /api/generate-session/start|complete).
- * Orchestrator menggunakan ini saat berjalan di background job context.
+ * Quota functions server-side untuk background job context.
+ * Dipanggil oleh Orchestrator via globalThis.__getJobQuotaFns()
+ *
+ * @param {string} userId - MongoDB _id user sebagai string
  */
-function makeRateLimitFns(userId) {
-	const USER_RATE_LIMIT = 2;
-	const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+function makeQuotaFns(userId) {
 
-	async function checkStart() {
+	/**
+	 * Cek apakah user masih punya kuota sebelum generate.
+	 * Return { ok: true } jika boleh lanjut, { ok: false, error: string } jika kuota habis.
+	 */
+	async function checkQuota() {
 		try {
-			const col = await getCollection('rate_limits');
-			const record = await col.findOne({ userId, type: 'generate' });
-			const now = Date.now();
+			const col = await getCollection('users');
+			const user = await col.findOne({ _id: userId });
 
-			if (!record) return { ok: true };
-
-			const windowExpired = now - record.windowStart.getTime() > RATE_LIMIT_WINDOW_MS;
-			if (windowExpired) return { ok: true };
-
-			if (record.count >= USER_RATE_LIMIT) {
-				const resetIn = Math.ceil((record.windowStart.getTime() + RATE_LIMIT_WINDOW_MS - now) / 1000);
-				return { ok: false, error: `Rate limit: coba lagi dalam ${Math.ceil(resetIn / 60)} menit.` };
+			if (!user) {
+				return { ok: false, error: 'User tidak ditemukan.' };
 			}
 
-			return { ok: true };
-		} catch {
-			return { ok: true }; // Gagal cek = izinkan saja
+			const remaining = user.quota_remaining ?? 0;
+
+			if (remaining <= 0) {
+				return {
+					ok: false,
+					error: 'Kuota generate Anda sudah habis. Silakan upgrade Plan untuk mendapatkan kuota tambahan.'
+				};
+			}
+
+			return { ok: true, remaining };
+		} catch (err) {
+			console.error('[QuotaFns] checkQuota error:', err);
+			return { ok: false, error: 'Gagal memeriksa kuota. Silakan coba lagi.' };
 		}
 	}
 
-	async function completeSession() {
+	/**
+	 * Kurangi 1 kuota setelah generate SUKSES.
+	 * Dipanggil oleh Orchestrator hanya jika agent.run() berhasil.
+	 */
+	async function consumeQuota() {
 		try {
-			const col = await getCollection('rate_limits');
-			const now = new Date();
-			const record = await col.findOne({ userId, type: 'generate' });
+			const col = await getCollection('users');
 
-			if (!record || Date.now() - record.windowStart.getTime() > RATE_LIMIT_WINDOW_MS) {
-				await col.updateOne(
-					{ userId, type: 'generate' },
-					{ $set: { count: 1, windowStart: now } },
-					{ upsert: true }
-				);
+			const result = await col.findOneAndUpdate(
+				{
+					_id: userId,
+					quota_remaining: { $gt: 0 }
+				},
+				{
+					$inc: { quota_remaining: -1 },
+					$set: { quota_updated_at: new Date() }
+				},
+				{ returnDocument: 'after' }
+			);
+
+			if (!result) {
+				console.warn(`[QuotaFns] consumeQuota: quota already 0 for user ${userId}`);
 			} else {
-				await col.updateOne({ userId, type: 'generate' }, { $inc: { count: 1 } });
+				console.log(`[QuotaFns] consumeQuota: user ${userId} remaining=${result.quota_remaining}`);
 			}
-		} catch {
-			// ignore
+		} catch (err) {
+			console.error('[QuotaFns] consumeQuota error:', err);
 		}
 	}
 
-	return { checkStart, completeSession };
+	return { checkQuota, consumeQuota };
 }

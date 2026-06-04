@@ -96,7 +96,7 @@ export async function callGeminiAPI(prompt, options = {}) {
 
 			// Dispatch event untuk refresh rate limit indicator
 			if (typeof window !== 'undefined') {
-				window.dispatchEvent(new CustomEvent('generate-success', { detail: data }));
+				window.dispatchEvent(new CustomEvent('quota-updated'));
 			}
 
 			return {

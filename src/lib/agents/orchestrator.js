@@ -32,7 +32,7 @@ error: `Jenis tidak dikenal: "${userInput.jenis}". Pilih: modul_ajar, lkpd, soal
 };
 }
 
-const session = await this.startSession();
+const session = await this.checkQuota();
 if (!session.ok) return { success: false, error: session.error };
 
 const agent = agentFactory();
@@ -41,40 +41,42 @@ onProgress?.({ type: 'orchestrator', action: 'delegating', name: agentName, mess
 
 const result = await agent.run(userInput, onProgress);
 
-if (result.success) await this.completeSession();
+if (result.success) await this.consumeQuota();
 
 return result;
 }
 
-async startSession() {
-// Jika berjalan di background job, gunakan fungsi rate limit server-side langsung
-const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobRateLimitFns?.();
-if (serverFns) return serverFns.checkStart();
+async checkQuota() {
+// Jika berjalan di background job, gunakan quota fns dari job-runner
+const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobQuotaFns?.();
+if (serverFns) return serverFns.checkQuota();
 
+// Fallback: fetch dari API (jika dipakai di luar background job)
 try {
-const res = await fetch('/api/generate-session/start', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' }
-});
+const res = await fetch('/api/user/quota');
 if (!res.ok) {
 const data = await res.json().catch(() => ({}));
-return { ok: false, error: data.error || 'Gagal memulai sesi' };
+return { ok: false, error: data.error || 'Gagal memeriksa kuota' };
 }
-return { ok: true };
+const data = await res.json();
+if (data.remaining <= 0) {
+return {
+ok: false,
+error: 'Kuota generate Anda sudah habis. Silakan upgrade Plan untuk mendapatkan kuota tambahan.'
+};
+}
+return { ok: true, remaining: data.remaining };
 } catch (err) {
 return { ok: false, error: 'Gagal terhubung ke server: ' + err.message };
 }
 }
 
-async completeSession() {
-// Jika berjalan di background job, gunakan fungsi rate limit server-side langsung
-const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobRateLimitFns?.();
-if (serverFns) return serverFns.completeSession();
+async consumeQuota() {
+const serverFns = typeof globalThis !== 'undefined' && globalThis.__getJobQuotaFns?.();
+if (serverFns) return serverFns.consumeQuota();
 
-await fetch('/api/generate-session/complete', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' }
-}).catch(() => {});
+// consumeQuota selalu dipanggil dari background job
+console.warn('[Orchestrator] consumeQuota called outside job context');
 }
 
 log(message, level = 'info') {

@@ -1,7 +1,52 @@
 <script>
+	import { onMount } from 'svelte';
 	let currentPlan = $state('Plus');
 	let showUpgradeModal = $state(false);
 	let selectedPlan = $state('');
+
+	let upgrading = $state(false);
+	let upgradeSuccess = $state(false);
+	let upgradeError = $state('');
+	let currentQuota = $state(null);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/user/quota');
+			if (res.ok) {
+				const data = await res.json();
+				currentQuota = data.remaining;
+			}
+		} catch {
+			// abaikan
+		}
+	});
+
+	async function handleUpgradePro() {
+		upgrading = true;
+		upgradeSuccess = false;
+		upgradeError = '';
+
+		try {
+			const res = await fetch('/api/user/quota', { method: 'POST' });
+			const data = await res.json();
+
+			if (!res.ok) {
+				upgradeError = data.error || 'Gagal menambahkan kuota.';
+				return;
+			}
+
+			upgradeSuccess = true;
+			currentQuota = data.remaining;
+
+			window.dispatchEvent(new CustomEvent('quota-updated'));
+
+			setTimeout(() => { upgradeSuccess = false; }, 5000);
+		} catch {
+			upgradeError = 'Terjadi kesalahan. Silakan coba lagi.';
+		} finally {
+			upgrading = false;
+		}
+	}
 
 	const plans = [
 		{
@@ -47,6 +92,11 @@
 
 	function handleUpgrade(planName) {
 		if (planName === 'Plus') return;
+		if (planName === 'Pro') {
+			handleUpgradePro();
+			return;
+		}
+		// Institution → buka modal (hubungi sales)
 		selectedPlan = planName;
 		showUpgradeModal = true;
 	}
@@ -111,6 +161,11 @@
 			<div>
 				<p class="text-sm font-medium text-blue-100 mb-1">Plan Aktif Sekarang</p>
 				<h2 class="text-2xl font-bold">{currentPlan}</h2>
+			{#if currentQuota !== null}
+				<p class="mt-1 text-sm text-blue-100">
+					Sisa kuota generate: <strong class="text-white">{currentQuota}</strong>
+				</p>
+			{/if}
 			</div>
 			<div class="rounded-full bg-white/20 px-4 py-2 backdrop-blur-sm">
 				<svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,6 +181,21 @@
 	</div>
 
 	<!-- Plans grid -->
+	{#if upgradeSuccess}
+		<div class="mb-4 flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+			<svg class="h-5 w-5 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+			</svg>
+			<span>20 kuota berhasil ditambahkan! Sisa kuota kamu sekarang: <strong>{currentQuota}</strong></span>
+		</div>
+	{/if}
+
+	{#if upgradeError}
+		<div class="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+			{upgradeError}
+		</div>
+	{/if}
+
 	<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 		{#each plans as plan}
 			{@const colors = getColorClasses(plan.color)}
@@ -180,15 +250,28 @@
 				</div>
 
 				<!-- CTA Button -->
-				<button
-					onclick={() => handleUpgrade(plan.name)}
-					disabled={plan.current}
-					class="w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 {plan.current
-						? 'bg-gray-100 text-gray-400'
-						: colors.button + ' focus:ring-' + plan.color + '-500'}"
-				>
-					{plan.current ? 'Plan Aktif' : plan.name === 'Institution' ? 'Hubungi Sales' : 'Upgrade ke ' + plan.name}
-				</button>
+				{#if plan.name === 'Pro'}
+					<button
+						onclick={() => handleUpgrade(plan.name)}
+						disabled={upgrading}
+						class="w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors
+							   bg-purple-600 hover:bg-purple-700 text-white
+							   disabled:opacity-60 disabled:cursor-not-allowed
+							   focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+					>
+						{upgrading ? '⏳ Memproses...' : '✨ Upgrade ke Pro (+20 Kuota)'}
+					</button>
+				{:else}
+					<button
+						onclick={() => handleUpgrade(plan.name)}
+						disabled={plan.current}
+						class="w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 {plan.current
+							? 'bg-gray-100 text-gray-400'
+							: colors.button + ' focus:ring-' + plan.color + '-500'}"
+					>
+						{plan.current ? 'Plan Aktif' : plan.name === 'Institution' ? 'Hubungi Sales' : 'Upgrade ke ' + plan.name}
+					</button>
+				{/if}
 			</div>
 		{/each}
 	</div>
