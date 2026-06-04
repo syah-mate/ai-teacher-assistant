@@ -85,45 +85,42 @@
           </ul>
         </div>
       {/if}
+ 
+      <div class="field-block">
+        <p class="field-label">Pembuka</p>
+        <ul>
+          {#each (p.langkahPembelajaran?.pembuka || []) as l}
+            <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
+          {/each}
+        </ul>
+      </div>
 
-      <div class="langkah-grid">
-        <!-- Pembuka -->
-        <div class="langkah-col">
-          <p class="langkah-label pembuka">Pembuka</p>
-          <ul>
-            {#each (p.langkahPembelajaran?.pembuka || []) as l}
-              <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
-            {/each}
-          </ul>
-        </div>
-        <!-- Inti -->
-        <div class="langkah-col">
-          <p class="langkah-label inti">Inti</p>
-          <ul>
-            {#each (p.langkahPembelajaran?.inti || []) as l}
-              <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
-            {/each}
-          </ul>
-        </div>
-        <!-- Penutup -->
-        <div class="langkah-col">
-          <p class="langkah-label penutup">Penutup</p>
-          <ul>
-            {#each (p.langkahPembelajaran?.penutup || []) as l}
-              <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
-            {/each}
-          </ul>
-        </div>
+      <div class="field-block">
+        <p class="field-label">Inti</p>
+        <ul>
+          {#each (p.langkahPembelajaran?.inti || []) as l}
+            <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
+          {/each}
+        </ul>
+      </div>
+
+      <div class="field-block">
+        <p class="field-label">Penutup</p>
+        <ul>
+          {#each (p.langkahPembelajaran?.penutup || []) as l}
+            <li>{l.aktivitas} <span class="durasi">{l.durasi || ''}</span></li>
+          {/each}
+        </ul>
       </div>
 
       {#if p.diferensiasi}
-        <div class="diferensiasi-block">
+        <div class="field-block">
           <p class="field-label">Diferensiasi</p>
-          <div class="dif-grid">
-            <div><span class="dif-label">Konten:</span> {p.diferensiasi.konten || '-'}</div>
-            <div><span class="dif-label">Proses:</span> {p.diferensiasi.proses || '-'}</div>
-            <div><span class="dif-label">Produk:</span> {p.diferensiasi.produk || '-'}</div>
-          </div>
+          <ul>
+            {#if p.diferensiasi.konten}<li><strong>Konten:</strong> {p.diferensiasi.konten}</li>{/if}
+            {#if p.diferensiasi.proses}<li><strong>Proses:</strong> {p.diferensiasi.proses}</li>{/if}
+            {#if p.diferensiasi.produk}<li><strong>Produk:</strong> {p.diferensiasi.produk}</li>{/if}
+          </ul>
         </div>
       {/if}
     </div>
@@ -271,49 +268,11 @@
     font-style: normal;
   }
 
-  .langkah-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.75rem;
-    margin: 0.75rem 0;
-  }
-  .langkah-col {
-    background: #f9fafb;
-    border-radius: 8px;
-    padding: 0.75rem;
-  }
-  .langkah-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-  }
-  .langkah-label.pembuka { color: #0891b2; }
-  .langkah-label.inti    { color: #1d4ed8; }
-  .langkah-label.penutup { color: #7c3aed; }
-
   .durasi {
     font-size: 0.75rem;
     color: #9ca3af;
     margin-left: 0.25rem;
   }
-
-  .diferensiasi-block {
-    background: #fafafa;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-top: 0.75rem;
-  }
-  .dif-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: #374151;
-  }
-  .dif-label { font-weight: 600; color: #111827; }
 
   .pertemuan-block {
     border-bottom: 1px dashed #e5e7eb;
