@@ -5,37 +5,28 @@
 
 	const plans = [
 		{
-			name: 'Plus',
+			name: 'Trial',
 			price: 'Gratis',
 			period: '',
 			description: 'Perfect untuk memulai dengan fitur dasar',
 			color: 'blue',
 			current: true,
 			benefits: [
-				'Akses ke semua generator dasar',
-				'Maksimal 50 generasi per bulan',
-				'Template standar',
-				'Dukungan email',
-				'Penyimpanan cloud 1GB'
+				'2 kuota trial',
+				'Template standar'
 			]
 		},
 		{
 			name: 'Pro',
-			price: 'Rp 199.000',
+			price: 'Rp 50.000',
 			period: '/bulan',
-			description: 'Untuk guru profesional yang membutuhkan lebih',
+			description: 'Untuk guru profesional',
 			color: 'purple',
 			current: false,
 			benefits: [
-				'Semua fitur Plus',
-				'Generasi tanpa batas',
+				'20 kuota generate',
 				'Template premium & kustom',
-				'Integrasi Google Drive penuh',
-				'Dukungan prioritas 24/7',
-				'Penyimpanan cloud 10GB',
-				'Export ke berbagai format',
-				'Analitik pembelajaran',
-				'Kolaborasi tim (5 anggota)'
+				'Export ke PDF dan ms Word'
 			]
 		},
 		{
@@ -47,15 +38,8 @@
 			current: false,
 			benefits: [
 				'Semua fitur Pro',
-				'Unlimited users',
-				'Dedicated account manager',
-				'Custom branding',
-				'SSO & Advanced security',
-				'Penyimpanan unlimited',
-				'API access',
-				'Training & onboarding',
-				'Custom integrations',
-				'SLA 99.9% uptime',
+				'Whitelabeling & custom branding',
+				'API access & integrasi khusus',
 				'Dedicated server option'
 			]
 		}
