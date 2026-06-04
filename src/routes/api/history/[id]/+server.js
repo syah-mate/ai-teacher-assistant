@@ -42,6 +42,7 @@ export async function GET({ params, locals }) {
 					modePembelajaran: doc.modePembelajaran || null,
 					jumlahPertemuan: doc.jumlahPertemuan || null,
 					alokasiPerPertemuan: doc.alokasiPerPertemuan || null,
+					templateId: doc.templateId || 'modul-ajar-standar',
 					semester: doc.semester || null,
 					jenisKegiatan: doc.jenisKegiatan || null,
 					alokasiWaktu: doc.alokasiWaktu || null,
