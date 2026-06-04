@@ -13,6 +13,10 @@ const sessions = db.collection('sessions');
 await sessions.createIndex({ expires_at: 1 });
 
 async function ensureUserIndexes() {
+	// Create collections explicitly so createIndex works on fresh/empty databases
+	await db.createCollection('users').catch(() => {});
+	await db.createCollection('sessions').catch(() => {});
+
 	const indexes = await users.indexes();
 	const usernameIndex = indexes.find((index) => index.name === 'username_1');
 

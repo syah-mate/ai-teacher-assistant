@@ -442,7 +442,7 @@
 	}
 
 	/* Jawaban lines (underscores rendered as text) */
-	.document-content :global(p):has(+ p) {
+	:global(.document-content p:has(+ p)) {
 		margin-bottom: 0.5rem;
 	}
 
