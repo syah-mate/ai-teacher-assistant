@@ -115,16 +115,20 @@ async function runJob(jobId) {
 		await jobStorage.run({ aiClient, dbWriter, quotaFns }, async () => {
 			const { Orchestrator } = await import('$lib/agents/orchestrator.js');
 			const orchestrator = new Orchestrator();
+			let lastProgressStep = 0;
 
 			const result = await orchestrator.generate(job.userInput, async (progressData) => {
 				// Update progress di MongoDB (throttled — tiap perubahan message)
 				try {
+					const step = resolveProgressStep(progressData, lastProgressStep);
+					lastProgressStep = Math.max(lastProgressStep, step);
+
 					await col.updateOne(
 						{ _id: new ObjectId(jobId) },
 						{
 							$set: {
 								progress: {
-									step: progressData.step ?? 0,
+									step: lastProgressStep,
 									total: 6,
 									message: progressData.message || '',
 									phase: progressData.name || ''
@@ -185,6 +189,42 @@ async function runJob(jobId) {
 			// ignore
 		}
 	}
+}
+
+function resolveProgressStep(progressData, lastStep = 0) {
+	if (Number.isFinite(progressData?.step)) {
+		return progressData.step;
+	}
+
+	if (progressData?.type === 'orchestrator') {
+		return 1;
+	}
+
+	if (progressData?.action === 'start' || progressData?.action === 'info') {
+		return Math.max(lastStep, 1);
+	}
+
+	if (progressData?.action === 'batch_start') {
+		return Math.max(lastStep, Math.min((progressData.batch ?? 1) + 1, 4));
+	}
+
+	if (progressData?.action === 'batch_done') {
+		return Math.max(lastStep, Math.min((progressData.batch ?? 1) + 2, 5));
+	}
+
+	if (progressData?.type === 'sub-agent' && progressData?.action === 'done') {
+		return Math.max(lastStep, 3);
+	}
+
+	if (progressData?.type === 'tool') {
+		return Math.max(lastStep, 5);
+	}
+
+	if (progressData?.action === 'completed') {
+		return 5;
+	}
+
+	return lastStep;
 }
 
 /**

@@ -105,6 +105,15 @@
 		return { modul_ajar: 'Modul Ajar', lkpd: 'LKPD', soal: 'Soal' }[jenis] || jenis;
 	}
 
+	function progressPercent(job) {
+		const step = job.progress?.step ?? 0;
+		const total = job.progress?.total ?? 6;
+		const percent = total > 0 ? (step / total) * 100 : 0;
+		const minimum = job.status === 'running' ? 12 : job.status === 'queued' ? 6 : 0;
+
+		return Math.min(100, Math.max(minimum, percent));
+	}
+
 	onMount(async () => {
 		await Promise.all([fetchHistory(), fetchActiveJobs()]);
 		startJobPolling();
@@ -154,7 +163,7 @@
 						<div class="mt-2">
 							<div class="h-1.5 w-full overflow-hidden rounded-full bg-amber-100">
 								<div class="h-full bg-amber-500 transition-all duration-500"
-									style="width: {((job.progress.step ?? 0) / (job.progress.total ?? 6)) * 100}%"></div>
+									style="width: {progressPercent(job)}%"></div>
 							</div>
 							<p class="mt-1 text-xs text-amber-700">{job.progress.message}</p>
 						</div>
