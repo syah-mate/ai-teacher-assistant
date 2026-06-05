@@ -51,6 +51,15 @@
 
 	const canSubmit = $derived(judul.trim().length > 0 && mapel.trim().length > 0);
 
+	function fillExample() {
+		judul = 'Perkenalan Teman Baru';
+		mapel = 'Bahasa Indonesia';
+		onKelasChange('II');
+		jumlahPertemuan = '2';
+		penulis = 'Budi';
+		instansi = 'SD Cita Hati';
+	}
+
 	async function handleGenerate() {
 		if (!canSubmit) return;
 
@@ -186,6 +195,13 @@
 				<span class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
 					>Informasi Utama</span
 				>
+				<button
+					type="button"
+					onclick={fillExample}
+					class="ml-auto rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-100"
+				>
+					coba contoh modul ajar
+				</button>
 			</div>
 			<div class="space-y-3">
 				<div>
@@ -380,7 +396,7 @@
 					></path>
 				</svg>
 				<p class="text-sm text-blue-700">
-					Sedang generate dengan AI... mohon tunggu dan jangan tutup modal ini.
+					Sedang generate dengan AI di latar belakang, anda bisa menutup jendela ini dan akan diberitahu saat modul ajar sudah siap.
 				</p>
 			</div>
 		{/if}
