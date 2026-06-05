@@ -1,5 +1,4 @@
 ﻿<script>
-	import { onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
 
@@ -7,8 +6,6 @@
 
 	let isGenerating = $state(false);
 	let error = $state('');
-	let jobId = $state(null);
-	let pollInterval = null;
 
 	// Form fields
 	let judul = $state('');
@@ -65,7 +62,6 @@
 
 		isGenerating = true;
 		error = '';
-		jobId = null;
 
 		const userInput = {
 			jenis: template.jenis,
@@ -93,41 +89,21 @@
 				body: JSON.stringify({ userInput, model, thinkingEffort })
 			});
 
+			const data = await res.json().catch(() => ({}));
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
+				if (res.status === 402) {
+					throw new Error(data.error || 'Kuota generate Anda sudah habis.');
+				}
 				throw new Error(data.error || 'Gagal memulai generate');
 			}
 
-			const { jobId: id } = await res.json();
-			jobId = id;
-
-			pollInterval = setInterval(async () => {
-				try {
-					const poll = await fetch(`/api/jobs/${jobId}`).then((r) => r.json());
-					if (poll.status === 'completed') {
-						clearInterval(pollInterval);
-						pollInterval = null;
-						isGenerating = false;
-						onSuccess(poll.resultId);
-					} else if (poll.status === 'failed') {
-						clearInterval(pollInterval);
-						pollInterval = null;
-						isGenerating = false;
-						error = poll.error || 'Generate gagal. Silakan coba lagi.';
-					}
-				} catch {
-					// lanjut polling saat error jaringan sementara
-				}
-			}, 2000);
+			onSuccess(data.jobId);
 		} catch (err) {
 			isGenerating = false;
 			error = err.message || 'Terjadi kesalahan.';
 		}
 	}
-
-	onDestroy(() => {
-		if (pollInterval) clearInterval(pollInterval);
-	});
 </script>
 
 <!-- Overlay -->
@@ -396,7 +372,7 @@
 					></path>
 				</svg>
 				<p class="text-sm text-blue-700">
-					Sedang generate dengan AI di latar belakang, anda bisa menutup jendela ini dan akan diberitahu saat modul ajar sudah siap.
+					Memulai generate... mohon tunggu sebentar.
 				</p>
 			</div>
 		{/if}

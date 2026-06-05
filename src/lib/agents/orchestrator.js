@@ -32,6 +32,7 @@ error: `Jenis tidak dikenal: "${userInput.jenis}". Pilih: modul_ajar, lkpd, soal
 };
 }
 
+// Quota sudah di-reserve secara atomic di POST /api/generate-async sebelum job dibuat.
 const session = await this.checkQuota();
 if (!session.ok) return { success: false, error: session.error };
 

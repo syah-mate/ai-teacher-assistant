@@ -338,64 +338,19 @@ function makeDirectDBWriter(userId) {
  * @param {string} userId - MongoDB _id user sebagai string
  */
 function makeQuotaFns(userId) {
-
 	/**
-	 * Cek apakah user masih punya kuota sebelum generate.
-	 * Return { ok: true } jika boleh lanjut, { ok: false, error: string } jika kuota habis.
+	 * Kuota sudah di-reserve secara atomic di POST /api/generate-async.
+	 * Fungsi ini dipertahankan agar kontrak orchestrator tetap sama.
 	 */
 	async function checkQuota() {
-		try {
-			const col = await getCollection('users');
-			const user = await col.findOne({ _id: userId });
-
-			if (!user) {
-				return { ok: false, error: 'User tidak ditemukan.' };
-			}
-
-			const remaining = user.quota_remaining ?? 0;
-
-			if (remaining <= 0) {
-				return {
-					ok: false,
-					error: 'Kuota generate Anda sudah habis. Silakan upgrade Plan untuk mendapatkan kuota tambahan.'
-				};
-			}
-
-			return { ok: true, remaining };
-		} catch (err) {
-			console.error('[QuotaFns] checkQuota error:', err);
-			return { ok: false, error: 'Gagal memeriksa kuota. Silakan coba lagi.' };
-		}
+		return { ok: true };
 	}
 
 	/**
-	 * Kurangi 1 kuota setelah generate SUKSES.
-	 * Dipanggil oleh Orchestrator hanya jika agent.run() berhasil.
+	 * Kuota sudah dikurangi sebelum job dimulai, jadi tidak ada aksi setelah selesai.
 	 */
 	async function consumeQuota() {
-		try {
-			const col = await getCollection('users');
-
-			const result = await col.findOneAndUpdate(
-				{
-					_id: userId,
-					quota_remaining: { $gt: 0 }
-				},
-				{
-					$inc: { quota_remaining: -1 },
-					$set: { quota_updated_at: new Date() }
-				},
-				{ returnDocument: 'after' }
-			);
-
-			if (!result) {
-				console.warn(`[QuotaFns] consumeQuota: quota already 0 for user ${userId}`);
-			} else {
-				console.log(`[QuotaFns] consumeQuota: user ${userId} remaining=${result.quota_remaining}`);
-			}
-		} catch (err) {
-			console.error('[QuotaFns] consumeQuota error:', err);
-		}
+		// no-op
 	}
 
 	return { checkQuota, consumeQuota };

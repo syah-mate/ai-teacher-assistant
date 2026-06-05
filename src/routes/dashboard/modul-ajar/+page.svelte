@@ -1,4 +1,5 @@
 ﻿<script>
+	import { goto } from '$app/navigation';
 	import { modulAjarStandarTemplate } from '$lib/templates/modul-ajar-standar.template.js';
 	import { modulAjarTabelTemplate } from '$lib/templates/modul-ajar-tabel.template.js';
 	import GenerateModal from '$lib/components/GenerateModal.svelte';
@@ -191,13 +192,12 @@
 			showModal = false;
 			selectedTemplate = null;
 		}}
-		onSuccess={(resultId) => {
+		onSuccess={(jobId) => {
+			void jobId;
 			showModal = false;
 			selectedTemplate = null;
-			const opened = window.open(`/dashboard/riwayat/${resultId}`, '_blank');
-			if (!opened) {
-				alert(`Generate selesai! Buka hasil di: /dashboard/riwayat/${resultId}`);
-			}
+			window.dispatchEvent(new CustomEvent('quota-updated'));
+			goto('/dashboard/riwayat');
 		}}
 	/>
 {/if}

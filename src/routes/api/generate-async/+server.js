@@ -18,6 +18,7 @@
 import { json } from '@sveltejs/kit';
 import { getCollection } from '$lib/server/db.js';
 import { startJob } from '$lib/server/job-runner.js';
+import { ObjectId } from 'mongodb';
 
 const ALLOWED_MODELS = [
 	'google/gemini-3.5-flash',
@@ -28,6 +29,40 @@ const ALLOWED_MODELS = [
 const DEFAULT_MODEL = 'google/gemini-3.5-flash';
 const ALLOWED_THINKING = new Set(['low', 'medium', 'high']);
 const ALLOWED_JENIS = new Set(['modul_ajar', 'lkpd', 'soal']);
+
+/**
+ * Kurangi 1 kuota user secara atomic sebelum job dibuat.
+ * Kondisi quota_remaining > 0 mencegah kuota turun di bawah 0 saat request paralel.
+ */
+async function reserveQuota(userId) {
+	try {
+		const col = await getCollection('users');
+		const userIds = ObjectId.isValid(userId) ? [userId, new ObjectId(userId)] : [userId];
+		const result = await col.findOneAndUpdate(
+			{
+				_id: { $in: userIds },
+				quota_remaining: { $gt: 0 }
+			},
+			{
+				$inc: { quota_remaining: -1 },
+				$set: { quota_updated_at: new Date() }
+			},
+			{ returnDocument: 'after' }
+		);
+
+		if (!result) {
+			return {
+				ok: false,
+				error: 'Kuota generate Anda sudah habis. Silakan upgrade Plan untuk mendapatkan kuota tambahan.'
+			};
+		}
+
+		return { ok: true, remaining: result.quota_remaining };
+	} catch (err) {
+		console.error('[generate-async] reserveQuota error:', err);
+		return { ok: false, error: 'Gagal memeriksa kuota. Silakan coba lagi.' };
+	}
+}
 
 export async function POST({ request, locals }) {
 	if (!locals.user) {
@@ -63,6 +98,11 @@ export async function POST({ request, locals }) {
 	const enrichedInput = { ...userInput, userId };
 
 	try {
+		const quota = await reserveQuota(userId);
+		if (!quota.ok) {
+			return json({ error: quota.error }, { status: 402 });
+		}
+
 		const col = await getCollection('jobs');
 		const result = await col.insertOne({
 			userId,
