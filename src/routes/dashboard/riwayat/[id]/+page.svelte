@@ -113,6 +113,14 @@
 	let isPrinting = $state(false);
 	let isSaving = $state(false);
 	let saveResult = $state(/** @type {'saved'|'error'|null} */ (null));
+	let editMode = $state(false);
+	/** @type {string|null} — HTML hasil edit template yang belum tersimpan ke DB */
+	let savedHtml = $state(/** @type {string|null} */ (null));
+	/** @type {HTMLDivElement|null} — ref ke container template untuk contenteditable */
+	let editContainer = $state(null);
+
+	// HTML yang akan ditampilkan: prioritaskan hasil edit lokal, lalu dari DB
+	const displayEditedHtml = $derived(savedHtml || item.editedHtml);
 
 	function formatDate(dateStr) {
 		if (!dateStr) return '-';
@@ -252,6 +260,7 @@
 			});
 			if (!resp.ok) throw new Error();
 			sections = parseSections(generatedHtml);
+			savedHtml = null;
 			saveResult = 'saved';
 			setTimeout(() => (saveResult = null), 3000);
 		} catch {
@@ -259,6 +268,57 @@
 		} finally {
 			isSaving = false;
 		}
+	}
+
+	// ── Template editing (modul_ajar) ─────────────────────────────────
+	// Saat editMode aktif & editContainer tersedia, buat .doc-section contenteditable
+	$effect(() => {
+		if (!editContainer || !editMode) return;
+		// Beri waktu render selesai
+		const timer = setTimeout(() => {
+			const sections = editContainer.querySelectorAll('.doc-section, .tbl-section');
+			sections.forEach((s) => s.setAttribute('contenteditable', 'true'));
+		}, 50);
+
+		return () => {
+			clearTimeout(timer);
+			if (editContainer) {
+				const sections = editContainer.querySelectorAll('.doc-section, .tbl-section');
+				sections.forEach((s) => s.removeAttribute('contenteditable'));
+			}
+		};
+	});
+
+	async function saveTemplateEdits() {
+		if (!editContainer) return;
+		isSaving = true;
+		saveResult = null;
+		try {
+			// Hapus contenteditable dulu agar HTML bersih
+			const sections = editContainer.querySelectorAll('.doc-section, .tbl-section');
+			sections.forEach((s) => s.removeAttribute('contenteditable'));
+
+			const fullHtml = editContainer.innerHTML;
+
+			const resp = await fetch(`/api/history/${item._id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ editedHtml: fullHtml })
+			});
+			if (!resp.ok) throw new Error('Gagal menyimpan');
+			savedHtml = fullHtml;
+			saveResult = 'saved';
+			editMode = false;
+			setTimeout(() => (saveResult = null), 3000);
+		} catch {
+			saveResult = 'error';
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function cancelTemplateEdits() {
+		editMode = false;
 	}</script>
 
 <svelte:head>
@@ -306,7 +366,7 @@
 			{/if}
 
 			<!-- Revert to AI-generated (only if item was previously edited) -->
-			{#if item.editedHtml}
+		{#if displayEditedHtml}
 				<button
 					onclick={revertToGenerated}
 					class="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
@@ -316,6 +376,28 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
 					</svg>
 					Reset
+				</button>
+			{/if}
+
+			<!-- Edit toggle (modul_ajar only) -->
+			{#if item.tipe === 'modul_ajar'}
+				<button
+					onclick={() => editMode = !editMode}
+					class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {editMode ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' : 'border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}"
+					title={editMode ? 'Lihat pratinjau template' : 'Edit konten per bagian'}
+				>
+					{#if editMode}
+						<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+						</svg>
+						Pratinjau
+					{:else}
+						<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+						</svg>
+						Edit Konten
+					{/if}
 				</button>
 			{/if}
 
@@ -415,18 +497,104 @@
 		<!-- Content — template-aware untuk modul_ajar, markdown untuk lkpd/soal -->
 		<div class="document-content" style={cssVars}>
 			{#if RendererComponent}
-				<!-- Render via komponen Svelte template (modul_ajar) -->
-				<div class="px-12 py-8">
-					{#key item.templateId}
-						{#if isCustomTemplate(item.templateId)}
-							<RendererComponent schema={item.schema} meta={item} sections={item.templateSections ?? []} />
-						{:else}
-							<RendererComponent schema={item.schema} meta={item} />
-						{/if}
-					{/key}
-				</div>
+				<!-- ═══ MODUL AJAR: template-based ═══ -->
+				{#if displayEditedHtml}
+					<!-- Punya hasil edit (lokal / DB): render HTML langsung -->
+					{#if editMode}
+						<div bind:this={editContainer} class="px-12 py-8 template-edit-container">
+							{@html displayEditedHtml}
+						</div>
+						<!-- Save / Cancel bar -->
+						<div class="no-print mx-12 mb-6 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
+							<button
+								onclick={saveTemplateEdits}
+								disabled={isSaving}
+								class="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-60"
+							>
+								{#if isSaving}
+									<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+									</svg>
+									Menyimpan...
+								{:else}
+									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+									</svg>
+									Simpan Semua Perubahan
+								{/if}
+							</button>
+							<button
+								onclick={cancelTemplateEdits}
+								class="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-100"
+							>
+								Batal
+							</button>
+							<span class="ml-1 text-xs text-gray-400">
+								Klik langsung pada teks untuk mengedit. Tiap bagian bisa diedit.
+							</span>
+						</div>
+					{:else}
+						<div class="px-12 py-8">
+							{@html displayEditedHtml}
+						</div>
+					{/if}
+				{:else}
+					<!-- Belum ada edit: render template component -->
+					{#if editMode}
+						<div bind:this={editContainer} class="px-12 py-8 template-edit-container">
+							{#key item.templateId}
+								{#if isCustomTemplate(item.templateId)}
+									<RendererComponent schema={item.schema} meta={item} sections={item.templateSections ?? []} />
+								{:else}
+									<RendererComponent schema={item.schema} meta={item} />
+								{/if}
+							{/key}
+						</div>
+						<!-- Save / Cancel bar -->
+						<div class="no-print mx-12 mb-6 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
+							<button
+								onclick={saveTemplateEdits}
+								disabled={isSaving}
+								class="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-60"
+							>
+								{#if isSaving}
+									<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+									</svg>
+									Menyimpan...
+								{:else}
+									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+									</svg>
+									Simpan Semua Perubahan
+								{/if}
+							</button>
+							<button
+								onclick={cancelTemplateEdits}
+								class="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-100"
+							>
+								Batal
+							</button>
+							<span class="ml-1 text-xs text-gray-400">
+								Klik langsung pada teks untuk mengedit. Tiap bagian bisa diedit.
+							</span>
+						</div>
+					{:else}
+						<div class="px-12 py-8">
+							{#key item.templateId}
+								{#if isCustomTemplate(item.templateId)}
+									<RendererComponent schema={item.schema} meta={item} sections={item.templateSections ?? []} />
+								{:else}
+									<RendererComponent schema={item.schema} meta={item} />
+								{/if}
+							{/key}
+						</div>
+					{/if}
+				{/if}
 			{:else}
-			<!-- Render via markdown pipeline lama (lkpd, soal) -->
+			<!-- ═══ LKPD / SOAL: markdown pipeline ═══ -->
 			{#each sections as section, i (section.id)}
 				<div class="section-block group/section relative px-12 {i === 0 ? 'pt-8' : ''} {i === sections.length - 1 ? 'pb-8' : ''}">
 					{#if section.editing}
@@ -473,7 +641,7 @@
 						{@html section.html}
 						<button
 							onclick={() => startEdit(i)}
-							class="no-print edit-section-btn pointer-events-auto opacity-100 sm:pointer-events-none sm:opacity-0 absolute right-2 top-2 flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 shadow-sm transition-all hover:bg-yellow-100 hover:border-yellow-400 hover:text-yellow-900 sm:group-hover/section:pointer-events-auto sm:group-hover/section:opacity-100"
+							class="no-print edit-section-btn absolute right-2 top-2 flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 shadow-sm transition-all hover:bg-yellow-100 hover:border-yellow-400 hover:text-yellow-900 opacity-100"
 							title="Edit bagian ini"
 						>
 							<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -741,4 +909,24 @@
 	.document-content .section-editor :global(p)  { font-size: 0.9375rem; line-height: 1.85; color: #1f2937; margin-bottom: 1rem; }
 	.document-content .section-editor :global(ul li::before) { background: var(--bullet); }
 	.document-content .section-editor :global(ol li::before) { color: var(--ol-counter); }
+
+	/* ── Template contenteditable (modul_ajar edit mode) ────────────── */
+	.template-edit-container :global(.doc-section[contenteditable="true"]),
+	.template-edit-container :global(.tbl-section[contenteditable="true"]) {
+		outline: 2px dashed #3b82f6;
+		outline-offset: 4px;
+		border-radius: 8px;
+		padding: 0.5rem;
+		transition: outline-color 0.2s;
+		cursor: text;
+	}
+	.template-edit-container :global(.doc-section[contenteditable="true"]:hover),
+	.template-edit-container :global(.tbl-section[contenteditable="true"]:hover) {
+		outline-color: #1d4ed8;
+	}
+	.template-edit-container :global(.doc-section[contenteditable="true"]:focus),
+	.template-edit-container :global(.tbl-section[contenteditable="true"]:focus) {
+		outline: 2px solid #2563eb;
+		background: #fafbff;
+	}
 </style>

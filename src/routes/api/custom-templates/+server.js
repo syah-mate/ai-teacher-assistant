@@ -53,8 +53,7 @@ export async function POST({ request, locals }) {
 			batch: s.batch ?? 2,
 			critical: s.critical ?? false,
 			promptMode: s.promptMode ?? 'default',
-			customInstruksi: s.customInstruksi ?? '',
-			customOutputSchema: s.customOutputSchema ?? '',
+		customFieldInstruksi: s.customFieldInstruksi ?? {},
 			displayType: s.displayType ?? 'description_bullets'
 		})),
 		createdAt: new Date()

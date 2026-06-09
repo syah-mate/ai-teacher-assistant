@@ -3,7 +3,7 @@ import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 import { modulAjarStandarTemplate } from '../../templates/modul-ajar-standar.template.js';
-import { getSectionDef } from '../../templates/section-registry.js';
+import { getSectionDef, SECTION_REGISTRY } from '../../templates/section-registry.js';
 
 // Registry template — key = templateId yang dikirim dari frontend
 const TEMPLATE_REGISTRY = {
@@ -29,21 +29,38 @@ function resolveSectionDefs(template) {
 	// Template kustom: resolve sectionDef berdasarkan promptMode
 	return Object.fromEntries(
 		template.sections.map(s => {
-			if (s.promptMode === 'custom') {
-				// Pakai instruksi & outputSchema dari user
-				return [s.agentKey, {
-					namaSection: s.title,
-					instruksi: s.customInstruksi || `Hasilkan konten untuk bagian ${s.title} dalam konteks modul ajar.`,
-					outputSchema: s.customOutputSchema || '{ "konten": "string" }'
-				}];
-			} else {
-				// Ambil dari section-registry default
-				return [s.agentKey, getSectionDef(s.agentKey) ?? {
+			// Ambil sectionDef default dari registry — SELALU, baik default maupun custom
+			const defaultDef = getSectionDef(s.agentKey);
+
+			if (s.promptMode !== 'custom' || !defaultDef) {
+				// promptMode: 'default' atau agentKey tidak dikenal → pakai sectionDef apa adanya
+				return [s.agentKey, defaultDef ?? {
 					namaSection: s.title,
 					instruksi: `Hasilkan konten untuk bagian ${s.title} dalam konteks modul ajar.`,
 					outputSchema: '{ "konten": "string" }'
 				}];
 			}
+
+			// promptMode: 'custom' — schema TETAP dari registry, instruksi digabung per-field
+			const customFieldInstruksi = s.customFieldInstruksi ?? {};
+			const registryFields = SECTION_REGISTRY[s.agentKey]?.customPromptFields ?? [];
+
+			// Bangun instruksi tambahan dari field yang diisi user
+			const fieldOverrides = registryFields
+				.filter(f => customFieldInstruksi[f.key]?.trim())
+				.map(f => `- ${f.label}: ${customFieldInstruksi[f.key].trim()}`)
+				.join('\n');
+
+			// Gabungkan instruksi default + override user
+			const instruksiFinal = fieldOverrides
+				? `${defaultDef.instruksi}\n\nINSTRUKSI KHUSUS DARI GURU:\n${fieldOverrides}`
+				: defaultDef.instruksi;
+
+			return [s.agentKey, {
+				namaSection: defaultDef.namaSection,
+				instruksi: instruksiFinal,   // instruksi gabungan
+				outputSchema: defaultDef.outputSchema  // TETAP dari registry — tidak berubah
+			}];
 		})
 	);
 }

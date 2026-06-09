@@ -1,7 +1,7 @@
 <!-- src/lib/components/TemplateBuilder.svelte -->
 <!-- Shared component untuk new & edit template builder -->
 <script>
-	import { getSectionRegistryList, SECTION_REGISTRY, FALLBACK_CUSTOM_SCHEMA } from '$lib/templates/section-registry.js';
+	import { getSectionRegistryList, SECTION_REGISTRY } from '$lib/templates/section-registry.js';
 
 	/** Props */
 	let {
@@ -17,7 +17,6 @@
 	let templateDesc = $state(initialDescription);
 	let sections = $state([...initialSections]);
 	let saving = $state(false);
-	let isGeneratingSchema = $state(false);
 	let errorMsg = $state('');
 	let dragIndex = $state(null);
 
@@ -45,8 +44,7 @@
 			batch: reg.batch,
 			critical: reg.critical,
 			promptMode: 'default',
-			customInstruksi: '',
-			customOutputSchema: '',
+			customFieldInstruksi: {},
 			displayType: 'description_bullets'
 		}];
 	}
@@ -105,50 +103,9 @@
 			batch: 2,
 			critical: false,
 			promptMode: 'custom',
-			customInstruksi: '',
-			customOutputSchema: '{\n  "konten": "string"\n}',
+			customFieldInstruksi: { _instruksi: '' },
 			displayType: 'description_bullets'
 		}];
-	}
-
-	// ── Auto-Generate Schema dari Instruksi Kustom ────────────────────
-
-	/**
-	 * Iterasi semua sections, untuk yang promptMode 'custom' dan punya instruksi,
-	 * panggil API generate-schema dan isi customOutputSchema hasilnya.
-	 * Mutasi array sections secara langsung (by reference index).
-	 *
-	 * @returns {Promise<void>}
-	 */
-	async function generateSchemaForSections() {
-		for (let i = 0; i < sections.length; i++) {
-			const s = sections[i];
-
-			// Skip: bukan custom prompt, atau instruksi kosong
-			if (s.promptMode !== 'custom' || !s.customInstruksi?.trim()) {
-				continue;
-			}
-
-			try {
-				const res = await fetch('/api/custom-templates/generate-schema', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ instruksi: s.customInstruksi })
-				});
-
-				if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-				const data = await res.json();
-
-				// Update section dengan schema hasil AI (atau fallback yang dikembalikan API)
-				sections[i] = { ...sections[i], customOutputSchema: data.schema };
-
-			} catch (err) {
-				// Network error atau API down — pakai fallback lokal
-				console.warn(`[simpanTemplate] generate-schema gagal untuk "${s.title}", pakai fallback`, err);
-				sections[i] = { ...sections[i], customOutputSchema: FALLBACK_CUSTOM_SCHEMA };
-			}
-		}
 	}
 
 	// ── Submit ────────────────────────────────────────────────────────
@@ -164,14 +121,9 @@
 			return;
 		}
 
-		isGeneratingSchema = true;
 		saving = true;
 
 		try {
-			// Step 1: Generate schema untuk semua section kustom
-			await generateSchemaForSections();
-
-			// Step 2: Simpan template
 			const result = await onSave?.(templateName.trim(), templateDesc.trim(), sections);
 			if (!result?.success) {
 				errorMsg = result?.error || 'Gagal menyimpan template';
@@ -179,7 +131,6 @@
 		} catch (err) {
 			errorMsg = err.message || 'Gagal menyimpan template';
 		} finally {
-			isGeneratingSchema = false;
 			saving = false;
 		}
 	}
@@ -329,28 +280,43 @@
 										</div>
 
 										{#if section.promptMode === 'custom'}
-											<div class="space-y-3 mt-3">
+											{@const fields = SECTION_REGISTRY[section.agentKey]?.customPromptFields ?? []}
 
-												<div>
-													<label class="block text-xs font-semibold text-gray-600 mb-1">
-														Instruksi Kustom
-													</label>
+											{#if fields.length > 0}
+												<!-- Section dari bank: tampilkan per-field textarea -->
+												<div class="space-y-4 mt-3">
+													{#each fields as field}
+														<div>
+															<label class="block text-xs font-semibold text-gray-700 mb-1">
+																{field.label}
+																<span class="ml-1 font-normal text-gray-400">(kosongkan untuk pakai default)</span>
+															</label>
+															<textarea
+																bind:value={sections[i].customFieldInstruksi[field.key]}
+																rows="2"
+																placeholder={field.placeholder}
+																class="w-full rounded-lg border border-gray-200 p-2.5 text-sm text-gray-700
+																	placeholder-gray-400 focus:border-purple-400 focus:outline-none
+																	focus:ring-2 focus:ring-purple-100 resize-y"
+															></textarea>
+														</div>
+													{/each}
+												</div>
+
+											{:else}
+												<!-- Section kustom (agentKey tidak dikenal): satu textarea bebas -->
+												<div class="mt-3">
+													<label class="block text-xs font-semibold text-gray-700 mb-1">Instruksi Kustom</label>
 													<textarea
-														bind:value={sections[i].customInstruksi}
-														rows="4"
-														placeholder="Contoh: Buat 3 poin materi utama dan 2 pertanyaan refleksi untuk siswa"
-														class="w-full rounded-lg border border-gray-200 p-3 text-sm text-gray-700
+														bind:value={sections[i].customFieldInstruksi['_instruksi']}
+														rows="3"
+														placeholder="Jelaskan konten yang ingin dihasilkan AI untuk section ini..."
+														class="w-full rounded-lg border border-gray-200 p-2.5 text-sm text-gray-700
 															placeholder-gray-400 focus:border-purple-400 focus:outline-none
 															focus:ring-2 focus:ring-purple-100 resize-y"
 													></textarea>
-													<p class="mt-1 text-xs text-gray-400">
-														💡 Tulis dalam bahasa Indonesia. Schema JSON akan dibuat otomatis saat template disimpan.
-													</p>
 												</div>
-
-												<!-- Tidak ada field Output Schema di sini — digenerate otomatis saat simpan -->
-
-											</div>
+											{/if}
 										{/if}
 									</div>
 								</details>
@@ -454,15 +420,7 @@
 				? 'bg-gray-400 cursor-not-allowed shadow-none'
 				: 'bg-purple-600 shadow-purple-200 hover:bg-purple-700 hover:shadow-md'}"
 	>
-		{#if isGeneratingSchema}
-			<!-- Spinner -->
-			<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-				<path class="opacity-75" fill="currentColor"
-					d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-			</svg>
-			Menyiapkan template...
-		{:else if saving}
+		{#if saving}
 			<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
 				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 				<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
