@@ -30,27 +30,7 @@
 		return KNOWN_AGENTS.has(agentKey);
 	}
 
-	/**
-	 * Cek apakah data dari sub-agent punya field yang dikenali renderer khusus.
-	 * Jika tidak → fallback ke generic renderer supaya konten tetap tampil.
-	 */
-	function hasKnownFields(data, agentKey) {
-		if (!data || typeof data !== 'object') return false;
-		switch (agentKey) {
-			case 'capaian':
-				return !!(data.kemampuanPrasyarat || data.tujuanPembelajaran?.length || data.profilPelajarPancasila?.length);
-			case 'kegiatan':
-				return !!(data.pertemuan?.length);
-			case 'asesmen':
-				return !!(data.asesmenDiagnostik || data.asesmenFormatif?.length || data.asesmenSumatif);
-			case 'materi':
-				return !!(data.ringkasanMateri || data.konsepKunci?.length || data.faktaPenting?.length || data.contohAplikasi?.length);
-			case 'evaluasi':
-				return !!(data.soalEvaluasi?.length || data.pertanyaanRefleksi?.length || data.rubrikPenilaian?.length);
-			default:
-				return false;
-		}
-	}
+
 </script>
 
 <!-- ================================================================ -->
@@ -79,7 +59,7 @@
 		<section class="doc-section">
 			<h2>{section.title}</h2>
 
-			{#if section.agentKey === 'capaian' && hasKnownFields(data, 'capaian')}
+			{#if section.agentKey === 'capaian'}
 				<!-- ── CAPAIAN: Kemampuan Prasyarat, Tujuan, Profil PP ─────── -->
 
 				{#if section.displayType === 'table'}
@@ -156,7 +136,7 @@
 
 				{/if}
 
-			{:else if section.agentKey === 'kegiatan' && hasKnownFields(data, 'kegiatan')}
+			{:else if section.agentKey === 'kegiatan'}
 				<!-- ── KEGIATAN: per pertemuan ──────────────────────────────── -->
 
 				{#if data.pertemuan?.length}
@@ -291,7 +271,7 @@
 					{/each}
 				{/if}
 
-			{:else if section.agentKey === 'asesmen' && hasKnownFields(data, 'asesmen')}
+			{:else if section.agentKey === 'asesmen'}
 				<!-- ── ASESMEN: Diagnostik, Formatif, Sumatif ──────────────── -->
 
 				{#if section.displayType === 'table'}
@@ -392,7 +372,7 @@
 
 				{/if}
 
-			{:else if section.agentKey === 'materi' && hasKnownFields(data, 'materi')}
+			{:else if section.agentKey === 'materi'}
 				<!-- ── MATERI: Kata Pengantar + Materi Pokok ───────────────── -->
 				<!--
 					Sub-agent materi menghasilkan: ringkasanMateri, konsepKunci, faktaPenting,
@@ -488,7 +468,7 @@
 
 				{/if}
 
-			{:else if section.agentKey === 'evaluasi' && hasKnownFields(data, 'evaluasi')}
+			{:else if section.agentKey === 'evaluasi'}
 				<!-- ── EVALUASI: Soal & Kunci, Rubrik, Refleksi Guru ──────── -->
 				<!--
 					Sub-agent evaluasi menghasilkan: soalEvaluasi, pertanyaanRefleksi, totalBobot.
