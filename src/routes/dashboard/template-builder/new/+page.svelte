@@ -1,13 +1,16 @@
 <!-- src/routes/dashboard/template-builder/new/+page.svelte -->
 <script>
+	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import TemplateBuilder from '$lib/components/TemplateBuilder.svelte';
+
+	const jenis = $derived($page.url.searchParams.get('jenis') || 'modul_ajar');
 
 	async function handleSave(name, description, sections) {
 		const res = await fetch('/api/custom-templates', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name, description, sections })
+			body: JSON.stringify({ name, description, sections, jenis })
 		});
 
 		if (res.ok) {
@@ -44,6 +47,7 @@
 
 	<TemplateBuilder
 		mode="create"
+		{jenis}
 		onSave={handleSave}
 		onCancel={handleCancel}
 	/>

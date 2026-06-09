@@ -8,6 +8,52 @@
 	let isPrinting = $state(false);
 	let notFound = $state(false);
 
+	let markdownSections = $state([]);
+	let htmlSections = $state([]);
+	let editingIndex = $state(-1);
+	let editContent = $state('');
+
+	function splitMarkdownBySections(markdown) {
+		const lines = markdown.split('\n');
+		const sections = [];
+		let current = [];
+		for (const line of lines) {
+			if (line.match(/^#{1,3} /) && current.length > 0) {
+				sections.push(current.join('\n'));
+				current = [line];
+			} else {
+				current.push(line);
+			}
+		}
+		if (current.length > 0) sections.push(current.join('\n'));
+		return sections;
+	}
+
+	function splitHtmlBySections(html) {
+		const parts = html.split(/(?=<h[123][\s>])/);
+		return parts.filter((p) => p.trim());
+	}
+
+	function startEdit(index) {
+		editingIndex = index;
+		editContent = markdownSections[index];
+	}
+
+	function saveEdit() {
+		if (editingIndex < 0) return;
+		markdownSections[editingIndex] = editContent;
+		modulData.output = markdownSections.join('\n');
+		const fullHtml = renderMarkdownWithImages(modulData.output, modulData.images);
+		htmlSections = splitHtmlBySections(fullHtml);
+		editingIndex = -1;
+		editContent = '';
+	}
+
+	function cancelEdit() {
+		editingIndex = -1;
+		editContent = '';
+	}
+
 	onMount(() => {
 		const data = window.opener?.__modulAjarHasil;
 		if (!data) {
@@ -17,6 +63,8 @@
 		try {
 			modulData = data;
 			renderedHtml = renderMarkdownWithImages(modulData.output, modulData.images);
+			markdownSections = splitMarkdownBySections(modulData.output);
+			htmlSections = splitHtmlBySections(renderedHtml);
 		} catch {
 			notFound = true;
 		}
@@ -210,7 +258,36 @@
 
 			<!-- Rendered content -->
 			<div class="document-content px-12 py-8">
-				{@html renderedHtml}
+				{#each htmlSections as section, i}
+					<div class="section-wrapper">
+						{#if editingIndex === i}
+							<div class="edit-panel">
+								<textarea
+									class="edit-textarea"
+									bind:value={editContent}
+									rows="10"
+								></textarea>
+								<div class="edit-actions">
+									<button class="btn-save" onclick={saveEdit}>
+										<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+										Simpan
+									</button>
+									<button class="btn-cancel" onclick={cancelEdit}>Batal</button>
+								</div>
+							</div>
+						{:else}
+							{@html section}
+							<button class="edit-btn no-print" onclick={() => startEdit(i)} title="Edit bagian ini">
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+								</svg>
+								Edit
+							</button>
+						{/if}
+					</div>
+				{/each}
 			</div>
 
 			<!-- Footer -->
@@ -449,6 +526,107 @@
 		color: #6b7280;
 		margin-top: 0.5rem;
 		font-style: italic;
+	}
+
+	/* ===================== Section edit ===================== */
+	.section-wrapper {
+		position: relative;
+	}
+
+	.section-wrapper .edit-btn {
+		opacity: 0;
+		position: absolute;
+		top: 0.5rem;
+		right: 0;
+		transition: opacity 0.15s ease;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		background: white;
+		border: 1px solid #dbeafe;
+		color: #1d4ed8;
+		font-size: 0.72rem;
+		font-weight: 600;
+		padding: 0.25rem 0.625rem;
+		border-radius: 6px;
+		cursor: pointer;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+		line-height: 1;
+	}
+
+	.section-wrapper:hover .edit-btn {
+		opacity: 1;
+	}
+
+	.section-wrapper .edit-btn:hover {
+		background: #eff6ff;
+		border-color: #93c5fd;
+	}
+
+	.edit-panel {
+		background: #f9fafb;
+		border: 1px solid #dbeafe;
+		border-radius: 8px;
+		padding: 1rem;
+		margin: 0.5rem 0 1rem;
+	}
+
+	.edit-textarea {
+		width: 100%;
+		min-height: 160px;
+		border: 1px solid #d1d5db;
+		border-radius: 6px;
+		padding: 0.75rem;
+		font-size: 0.875rem;
+		font-family: 'Courier New', monospace;
+		line-height: 1.6;
+		resize: vertical;
+		outline: none;
+		box-sizing: border-box;
+	}
+
+	.edit-textarea:focus {
+		border-color: #3b82f6;
+		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+	}
+
+	.edit-actions {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+
+	.btn-save {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		background: #1d4ed8;
+		color: white;
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 0.4rem 0.875rem;
+		border-radius: 6px;
+		border: none;
+		cursor: pointer;
+	}
+
+	.btn-save:hover {
+		background: #1e40af;
+	}
+
+	.btn-cancel {
+		background: white;
+		color: #6b7280;
+		font-size: 0.8rem;
+		font-weight: 500;
+		padding: 0.4rem 0.875rem;
+		border-radius: 6px;
+		border: 1px solid #d1d5db;
+		cursor: pointer;
+	}
+
+	.btn-cancel:hover {
+		background: #f3f4f6;
 	}
 
 	/* ===================== Print styles ===================== */

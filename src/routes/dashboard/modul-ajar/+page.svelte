@@ -14,7 +14,7 @@
 			const res = await fetch('/api/custom-templates');
 			if (res.ok) {
 				const data = await res.json();
-				customTemplates = data.templates ?? [];
+				customTemplates = (data.templates ?? []).filter(t => t.jenis === 'modul_ajar');
 			}
 		} catch {
 			// ignore
@@ -127,7 +127,7 @@
 			</span>
 		</div>
 		<a
-			href="/dashboard/template-builder/new"
+			href="/dashboard/template-builder/new?jenis=modul_ajar"
 			class="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300
 				px-4 py-2 text-sm font-medium text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all"
 		>
@@ -267,7 +267,7 @@
 						</div>
 						<button
 							onclick={() => handlePilih(ct)}
-							class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-purple-500 to-indigo-600
 								px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-purple-200
 								transition-all hover:shadow-md hover:shadow-purple-300 active:scale-95"
 						>

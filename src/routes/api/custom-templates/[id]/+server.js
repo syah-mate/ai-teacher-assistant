@@ -33,11 +33,12 @@ export async function PUT({ params, request, locals }) {
 	if (!existing) return json({ error: 'Template tidak ditemukan' }, { status: 404 });
 
 	const body = await request.json();
-	const { name, description, sections } = body;
+	const { name, description, sections, jenis } = body;
 
 	const update = { updatedAt: new Date() };
 	if (name?.trim()) update.name = name.trim();
 	if (description !== undefined) update.description = description.trim();
+	if (jenis) update.jenis = jenis;
 	if (sections?.length > 0) {
 		update.sections = sections.map((s, i) => ({
 			id: s.id || crypto.randomUUID(),

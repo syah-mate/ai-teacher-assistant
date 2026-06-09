@@ -10,10 +10,12 @@
 //   - batch       : 1 (sequential, harus duluan) atau 2 (paralel)
 //   - critical    : jika gagal, hentikan pipeline
 //   - sectionDef  : { namaSection, instruksi, outputSchema } — dikirim ke executeFromTemplate()
+//   - jenis       : 'modul_ajar' | 'lkpd' — untuk filter di Template Builder
 
 export const SECTION_REGISTRY = {
 
 	capaian: {
+		jenis: 'modul_ajar',
 		agentKey: 'capaian',
 		label: 'Kemampuan Prasyarat & Tujuan Pembelajaran',
 		description: 'Kemampuan prasyarat, tujuan pembelajaran, dan profil pelajar Pancasila',
@@ -58,6 +60,7 @@ deskripsiUmum berisi 3–4 kalimat yang mencakup topik utama, pendekatan, dan re
 	},
 
 	kegiatan: {
+		jenis: 'modul_ajar',
 		agentKey: 'kegiatan',
 		label: 'Kegiatan Pembelajaran',
 		description: 'Langkah pembelajaran per pertemuan: Pembuka, Inti, Penutup + diferensiasi',
@@ -95,6 +98,7 @@ PENTING: Jangan gunakan tanda kutip ganda (") di dalam nilai string JSON. Ganti 
 	},
 
 	asesmen: {
+		jenis: 'modul_ajar',
 		agentKey: 'asesmen',
 		label: 'Asesmen Pembelajaran',
 		description: 'Asesmen diagnostik, formatif per pertemuan, dan sumatif',
@@ -145,6 +149,7 @@ Refleksi guru berupa pertanyaan reflektif (diawali kata tanya), bukan pernyataan
 	},
 
 	materi: {
+		jenis: 'modul_ajar',
 		agentKey: 'materi',
 		label: 'Materi Pembelajaran',
 		description: 'Kata pengantar dan materi pokok pembelajaran',
@@ -181,6 +186,7 @@ Contoh aplikasi harus kontekstual dengan kehidupan nyata siswa.`,
 	},
 
 	evaluasi: {
+		jenis: 'modul_ajar',
 		agentKey: 'evaluasi',
 		label: 'Soal Evaluasi & Refleksi',
 		description: 'Soal evaluasi, rubrik penilaian, dan refleksi guru',
@@ -215,6 +221,7 @@ Pertanyaan refleksi mendorong siswa berpikir tentang proses belajar mereka.`,
 	},
 
 	langkah: {
+		jenis: 'modul_ajar',
 		agentKey: 'langkah',
 		label: 'Langkah-Langkah Kegiatan',
 		description: 'Langkah detail kegiatan siswa dan guru',
@@ -244,6 +251,170 @@ Sertakan alokasi waktu per langkah.`,
   }]
 }`
 		}
+	},
+
+	// ── SECTION LKPD ─────────────────────────────────────────────────────────
+
+	capaian_lkpd: {
+		jenis: 'lkpd',
+		agentKey: 'capaian_lkpd',
+		label: 'Capaian Pembelajaran LKPD',
+		description: 'Tujuan pembelajaran spesifik untuk lembar kerja ini',
+		batch: 1,
+		critical: true,
+		schemaFields: ['Tujuan Pembelajaran'],
+		customPromptFields: [
+			{
+				key: 'tujuanPembelajaran',
+				label: 'Tujuan Pembelajaran',
+				placeholder: 'Contoh: Fokus pada kemampuan menganalisis data eksperimen',
+				defaultInstruksi: 'Gunakan kata kerja operasional Taksonomi Bloom. Tujuan harus spesifik dan terukur untuk satu sesi LKPD.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Capaian Pembelajaran',
+			instruksi: `Rancang tujuan pembelajaran untuk LKPD ini sesuai Kurikulum Merdeka.
+Tujuan harus spesifik, terukur, dan dapat dicapai dalam satu sesi kegiatan.
+Gunakan kata kerja operasional Taksonomi Bloom (C1–C6).`,
+			outputSchema: `{
+  "tujuanPembelajaran": [{ "nomor": 1, "tujuan": "string", "levelBloom": "C3" }],
+  "indikatorKetercapaian": ["string"]
+}`
+		}
+	},
+
+	ringkasan_materi: {
+		jenis: 'lkpd',
+		agentKey: 'ringkasan_materi',
+		label: 'Ringkasan Materi',
+		description: 'Materi singkat, konsep kunci, dan fakta penting untuk siswa',
+		batch: 2,
+		critical: true,
+		schemaFields: ['Materi Singkat', 'Konsep Kunci', 'Fakta Penting'],
+		customPromptFields: [
+			{
+				key: 'materiSingkat',
+				label: 'Materi Singkat',
+				placeholder: 'Contoh: Tulis dalam gaya yang mudah dipahami siswa SMP',
+				defaultInstruksi: 'Susun ringkasan materi yang padat dan relevan, 2-3 paragraf, ditulis untuk siswa bukan guru.'
+			},
+			{
+				key: 'konsepKunci',
+				label: 'Konsep Kunci',
+				placeholder: 'Contoh: Fokus pada 3 konsep utama dengan definisi sederhana',
+				defaultInstruksi: 'Definisi konsep harus sederhana, jelas, dan mudah diingat siswa.'
+			},
+			{
+				key: 'faktaPenting',
+				label: 'Fakta Penting',
+				placeholder: 'Contoh: Sertakan angka/data yang menarik perhatian siswa',
+				defaultInstruksi: 'Fakta harus relevan dengan kehidupan sehari-hari siswa.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Ringkasan Materi',
+			instruksi: `Susun materi ringkas yang akan dibaca siswa sebelum atau saat mengerjakan LKPD.
+Tulis untuk siswa (bukan guru) — bahasa jelas, kontekstual, tidak terlalu teknis.
+Konsep kunci harus disertai definisi sederhana yang mudah diingat.
+Fakta penting harus relevan dengan kehidupan sehari-hari atau menarik perhatian.`,
+			outputSchema: `{
+  "materiSingkat": "string",
+  "konsepKunci": [{ "konsep": "string", "definisi": "string" }],
+  "faktaPenting": ["string"]
+}`
+		}
+	},
+
+	langkah_kerja: {
+		jenis: 'lkpd',
+		agentKey: 'langkah_kerja',
+		label: 'Langkah Kerja',
+		description: 'Prosedur kegiatan: eksperimen, latihan soal, project karya, atau observasi',
+		batch: 2,
+		critical: true,
+		schemaFields: ['Eksperimen', 'Latihan Soal', 'Project Karya', 'Observasi'],
+		customPromptFields: [
+			{
+				key: 'langkahKegiatan',
+				label: 'Instruksi Khusus Langkah Kerja',
+				placeholder: 'Contoh: Gunakan alat yang tersedia di laboratorium sekolah, max 8 langkah',
+				defaultInstruksi: 'Langkah harus urut, jelas, dan bisa dikerjakan mandiri oleh siswa tanpa bimbingan penuh guru.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Langkah Kerja',
+			instruksi: `Susun langkah kerja sesuai jenis kegiatan yang dipilih (jenisKegiatan dari userInput).
+Jika eksperimen: sertakan alat/bahan, prosedur step-by-step, dan tabel pengamatan.
+Jika latihan soal: susun soal bertahap dari mudah ke sulit dengan ruang jawaban.
+Jika project karya: sertakan tahap perencanaan, pembuatan, dan presentasi.
+Jika observasi: sertakan panduan pengamatan, tabel pencatatan, dan pertanyaan analisis.
+Setiap langkah harus bisa dikerjakan mandiri oleh siswa.
+PENTING: Jangan gunakan tanda kutip ganda (") di dalam nilai string JSON.`,
+			outputSchema: `{
+  "jenisKegiatanAktif": ["string"],
+  "alatBahan": ["string"],
+  "langkahKerja": [{
+    "bagian": "string",
+    "tujuanBagian": "string",
+    "langkah": [{
+      "nomor": 1,
+      "instruksi": "string",
+      "ruangJawaban": true,
+      "estimasiWaktu": "5 menit"
+    }]
+  }],
+  "tabelPengamatan": {
+    "judul": "string",
+    "kolom": ["string"],
+    "keterangan": "string"
+  }
+}`
+		}
+	},
+
+	penilaian_lkpd: {
+		jenis: 'lkpd',
+		agentKey: 'penilaian_lkpd',
+		label: 'Penilaian',
+		description: 'Rubrik penilaian dan evaluasi hasil kerja siswa',
+		batch: 2,
+		critical: false,
+		schemaFields: ['Rubrik Penilaian', 'Evaluasi & Penilaian'],
+		customPromptFields: [
+			{
+				key: 'rubrikPenilaian',
+				label: 'Rubrik Penilaian',
+				placeholder: 'Contoh: Gunakan 4 level penilaian dengan deskripsi spesifik tiap aspek',
+				defaultInstruksi: 'Rubrik harus operasional — deskripsi tiap level harus spesifik dan terukur, bukan generik.'
+			},
+			{
+				key: 'evaluasiPenilaian',
+				label: 'Evaluasi & Penilaian',
+				placeholder: 'Contoh: Sertakan soal refleksi untuk siswa tentang proses belajar',
+				defaultInstruksi: 'Evaluasi mencakup refleksi proses belajar dan penilaian diri siswa.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Penilaian',
+			instruksi: `Rancang instrumen penilaian LKPD yang operasional.
+Rubrik penilaian: tiap level harus deskripsinya spesifik dan terukur (bukan "baik", "cukup" tanpa keterangan).
+Evaluasi mencakup soal refleksi siswa tentang proses dan hasil belajar.
+Skor total rubrik harus 100.`,
+			outputSchema: `{
+  "rubrikPenilaian": [{
+    "aspek": "string",
+    "bobot": 25,
+    "kriteria": {
+      "sangat_baik": "string",
+      "baik": "string",
+      "cukup": "string",
+      "perlu_bimbingan": "string"
+    }
+  }],
+  "evaluasiRefleksi": ["string"],
+  "totalBobot": 100
+}`
+		}
 	}
 };
 
@@ -253,6 +424,15 @@ Sertakan alokasi waktu per langkah.`,
  */
 export function getSectionRegistryList() {
 	return Object.values(SECTION_REGISTRY);
+}
+
+/**
+ * Ambil array section registry yang difilter berdasarkan jenis.
+ * @param {'modul_ajar'|'lkpd'} jenis
+ * @returns {Array} list section yang sesuai jenis
+ */
+export function getSectionRegistryByJenis(jenis) {
+	return Object.values(SECTION_REGISTRY).filter(s => s.jenis === jenis);
 }
 
 /**

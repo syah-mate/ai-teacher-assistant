@@ -19,6 +19,10 @@ import { EvaluasiSubAgent } from '../agents/sub-agents/evaluasi.sub-agent.js';
 import { ValidatorSubAgent } from '../agents/sub-agents/validator.sub-agent.js';
 import { SoalPGSubAgent } from '../agents/sub-agents/soal-pg.sub-agent.js';
 import { SoalEsaiSubAgent } from '../agents/sub-agents/soal-esai.sub-agent.js';
+import { CapaianLKPDSubAgent } from '../agents/sub-agents/capaian-lkpd.sub-agent.js';
+import { RingkasanMateriSubAgent } from '../agents/sub-agents/ringkasan-materi.sub-agent.js';
+import { LangkahKerjaSubAgent } from '../agents/sub-agents/langkah-kerja.sub-agent.js';
+import { PenilaianLKPDSubAgent } from '../agents/sub-agents/penilaian-lkpd.sub-agent.js';
 
 const SUB_AGENT_REGISTRY = {
 	capaian: () => new CapaianSubAgent(),
@@ -29,7 +33,11 @@ const SUB_AGENT_REGISTRY = {
 	evaluasi: () => new EvaluasiSubAgent(),
 	validator: () => new ValidatorSubAgent(),
 	'soal-pg': () => new SoalPGSubAgent(),
-	'soal-esai': () => new SoalEsaiSubAgent()
+	'soal-esai': () => new SoalEsaiSubAgent(),
+	'capaian_lkpd':     () => new CapaianLKPDSubAgent(),
+	'ringkasan_materi': () => new RingkasanMateriSubAgent(),
+	'langkah_kerja':    () => new LangkahKerjaSubAgent(),
+	'penilaian_lkpd':   () => new PenilaianLKPDSubAgent()
 };
 
 /**

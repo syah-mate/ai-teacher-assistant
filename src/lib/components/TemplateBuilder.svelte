@@ -1,11 +1,12 @@
 <!-- src/lib/components/TemplateBuilder.svelte -->
 <!-- Shared component untuk new & edit template builder -->
 <script>
-	import { getSectionRegistryList, SECTION_REGISTRY } from '$lib/templates/section-registry.js';
+	import { getSectionRegistryList, getSectionRegistryByJenis, SECTION_REGISTRY } from '$lib/templates/section-registry.js';
 
 	/** Props */
 	let {
 		mode = 'create',         // 'create' | 'edit'
+		jenis = 'modul_ajar',    // 'modul_ajar' | 'lkpd' — filter bank section
 		initialName = '',
 		initialDescription = '',
 		initialSections = [],
@@ -13,14 +14,20 @@
 		onCancel = null
 	} = $props();
 
-	let templateName = $state(initialName);
-	let templateDesc = $state(initialDescription);
-	let sections = $state([...initialSections]);
+	let templateName = $state('');
+	let templateDesc = $state('');
+	let sections = $state([]);
 	let saving = $state(false);
 	let errorMsg = $state('');
 	let dragIndex = $state(null);
 
-	const availableSections = getSectionRegistryList();
+	$effect(() => {
+		templateName = initialName;
+		templateDesc = initialDescription;
+		sections = initialSections.map(s => ({...s}));
+	});
+
+	const availableSections = $derived(getSectionRegistryByJenis(jenis));
 
 	// ── Canvas drag & drop ────────────────────────────────────────────
 
@@ -149,8 +156,9 @@
 
 	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 		<div>
-			<label class="mb-1.5 block text-xs font-semibold text-gray-500">Nama Template *</label>
+			<label for="tpl-name" class="mb-1.5 block text-xs font-semibold text-gray-500">Nama Template *</label>
 			<input
+				id="tpl-name"
 				type="text"
 				bind:value={templateName}
 				placeholder="Contoh: Modul Ajar Bahasa Indonesia SD"
@@ -159,8 +167,9 @@
 			/>
 		</div>
 		<div>
-			<label class="mb-1.5 block text-xs font-semibold text-gray-500">Deskripsi</label>
+			<label for="tpl-desc" class="mb-1.5 block text-xs font-semibold text-gray-500">Deskripsi</label>
 			<input
+				id="tpl-desc"
 				type="text"
 				bind:value={templateDesc}
 				placeholder="Deskripsi singkat template ini..."
@@ -178,7 +187,9 @@
 	<!-- KOLOM KIRI (CANVAS) -->
 	<div class="flex-1 min-w-0">
 		<div
-			class="rounded-2xl border-2 border-dashed p-5 min-h-[400px] transition-colors {dragIndex !== null ? 'border-purple-300 bg-purple-50/20' : 'border-gray-200 bg-gray-50/50'}"
+			role="region"
+			aria-label="Canvas template — drag section ke sini"
+			class="rounded-2xl border-2 border-dashed p-5 min-h-100 transition-colors {dragIndex !== null ? 'border-purple-300 bg-purple-50/20' : 'border-gray-200 bg-gray-50/50'}"
 			ondragover={onDragOver}
 			ondrop={onDropOnCanvas}
 		>
@@ -195,6 +206,7 @@
 				<div class="space-y-3">
 					{#each sections as section, i (section.id)}
 						<div
+							role="listitem"
 							class="section-card group rounded-xl border bg-white shadow-sm transition-all hover:shadow-md"
 							class:border-purple-300={dragIndex === i}
 							class:border-gray-200={dragIndex !== i}
@@ -287,11 +299,12 @@
 												<div class="space-y-4 mt-3">
 													{#each fields as field}
 														<div>
-															<label class="block text-xs font-semibold text-gray-700 mb-1">
+															<label for="tpl-field-{field.key}-{i}" class="block text-xs font-semibold text-gray-700 mb-1">
 																{field.label}
 																<span class="ml-1 font-normal text-gray-400">(kosongkan untuk pakai default)</span>
 															</label>
 															<textarea
+																id="tpl-field-{field.key}-{i}"
 																bind:value={sections[i].customFieldInstruksi[field.key]}
 																rows="2"
 																placeholder={field.placeholder}
@@ -306,8 +319,9 @@
 											{:else}
 												<!-- Section kustom (agentKey tidak dikenal): satu textarea bebas -->
 												<div class="mt-3">
-													<label class="block text-xs font-semibold text-gray-700 mb-1">Instruksi Kustom</label>
-													<textarea
+											<label for="tpl-custom-instr-{i}" class="block text-xs font-semibold text-gray-700 mb-1">Instruksi Kustom</label>
+											<textarea
+												id="tpl-custom-instr-{i}"
 														bind:value={sections[i].customFieldInstruksi['_instruksi']}
 														rows="3"
 														placeholder="Jelaskan konten yang ingin dihasilkan AI untuk section ini..."
@@ -336,8 +350,8 @@
 				<div class="space-y-2">
 					{#each availableSections as sec (sec.agentKey)}
 						{@const alreadyAdded = sections.some(s => s.agentKey === sec.agentKey)}
-						<div
-							class="rounded-xl border bg-white px-4 py-3 transition-all select-none"
+						<div						role="button"
+						tabindex={alreadyAdded ? -1 : 0}							class="rounded-xl border bg-white px-4 py-3 transition-all select-none"
 							class:border-gray-200={!alreadyAdded}
 							class:opacity-40={alreadyAdded}
 							class:cursor-not-allowed={alreadyAdded}

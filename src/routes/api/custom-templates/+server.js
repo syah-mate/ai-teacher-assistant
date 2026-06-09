@@ -24,7 +24,7 @@ export async function POST({ request, locals }) {
 	const userId = locals.user.id || locals.user._id?.toString();
 
 	const body = await request.json();
-	const { name, description = '', sections = [] } = body;
+	const { name, description = '', sections = [], jenis = 'modul_ajar' } = body;
 
 	if (!name?.trim()) return json({ error: 'Nama template wajib diisi' }, { status: 400 });
 	if (sections.length === 0) return json({ error: 'Minimal 1 section' }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST({ request, locals }) {
 		userId,
 		name: name.trim(),
 		description: description.trim(),
-		jenis: 'modul_ajar',
+		jenis,
 		isSystemTemplate: false,
 		sections: sections.map((s, i) => ({
 			id: s.id || crypto.randomUUID(),

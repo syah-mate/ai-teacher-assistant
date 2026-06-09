@@ -101,29 +101,39 @@ function formatModulAjar(schema, meta = {}) {
 }
 
 function formatLKPD(schema) {
-	const identitas = schema.identitas || {};
-	const capaian = schema.capaian || {};
-	const materi = schema.materi || {};
-	const langkah = schema.langkah || {};
-	const evaluasi = schema.evaluasi || {};
-	const id = identitas.identitas || {};
+	const identitas  = schema.identitas || {};
+	const capaian    = schema.capaian_lkpd || {};
+	const materi     = schema.ringkasan_materi || {};
+	const langkah    = schema.langkah_kerja || {};
+	const penilaian  = schema.penilaian_lkpd || {};
+	const id         = identitas.identitas || {};
 	let text = '';
 
+	// ── HEADER ──
 	text += `# LKPD: ${identitas.judul || ''}\n\n`;
-	text += `**Mapel:** ${id.mataPelajaran || ''} | **Kelas:** ${id.kelas || ''} | **Fase:** ${id.fase || ''}\n\n`;
+	text += `**Mapel:** ${id.mataPelajaran || ''} | **Kelas:** ${id.kelas || ''} | **Fase:** ${id.fase || ''}\n`;
+	text += `**Jenis Kegiatan:** ${identitas.jenisKegiatan || ''} | **Pola Belajar:** ${identitas.polaBelajar || ''}\n`;
 	text += `**Penulis:** ${id.penulis || ''} — ${id.instansi || ''}\n\n`;
 	text += `---\n\n`;
 
+	// ── A. CAPAIAN PEMBELAJARAN ──
 	text += `## A. CAPAIAN PEMBELAJARAN\n\n`;
-	text += `${capaian.capaianPembelajaran || ''}\n\n`;
 	if ((capaian.tujuanPembelajaran || []).length > 0) {
 		text += `**Tujuan Pembelajaran:**\n`;
-		capaian.tujuanPembelajaran.forEach((t) => text += `${t.nomor}. ${t.tujuan}\n`);
+		capaian.tujuanPembelajaran.forEach((t) =>
+			text += `${t.nomor}. ${t.tujuan} *(${t.levelBloom || ''})*\n`
+		);
+		text += '\n';
+	}
+	if ((capaian.indikatorKetercapaian || []).length > 0) {
+		text += `**Indikator Ketercapaian:**\n`;
+		capaian.indikatorKetercapaian.forEach((i) => text += `- ${i}\n`);
 		text += '\n';
 	}
 
+	// ── B. RINGKASAN MATERI ──
 	text += `## B. RINGKASAN MATERI\n\n`;
-	text += `${materi.ringkasanMateri || ''}\n\n`;
+	text += `${materi.materiSingkat || ''}\n\n`;
 	if ((materi.konsepKunci || []).length > 0) {
 		text += `**Konsep Kunci:**\n`;
 		materi.konsepKunci.forEach((k) => text += `- **${k.konsep}**: ${k.definisi}\n`);
@@ -135,9 +145,16 @@ function formatLKPD(schema) {
 		text += '\n';
 	}
 
+	// ── C. LANGKAH KERJA ──
 	text += `## C. LANGKAH KERJA\n\n`;
+	if ((langkah.alatBahan || []).length > 0) {
+		text += `**Alat & Bahan:**\n`;
+		langkah.alatBahan.forEach((a) => text += `- ${a}\n`);
+		text += '\n';
+	}
 	(langkah.langkahKerja || []).forEach((bag) => {
-		text += `### ${bag.bagian}\n*${bag.tujuanBagian || ''}*\n\n`;
+		text += `### ${bag.bagian}\n`;
+		if (bag.tujuanBagian) text += `*${bag.tujuanBagian}*\n\n`;
 		(bag.langkah || []).forEach((l) => {
 			text += `**${l.nomor}.** ${l.instruksi}`;
 			if (l.estimasiWaktu) text += ` *(${l.estimasiWaktu})*`;
@@ -146,15 +163,33 @@ function formatLKPD(schema) {
 			text += '\n';
 		});
 	});
+	const tabel = langkah.tabelPengamatan;
+	if (tabel?.judul) {
+		text += `### ${tabel.judul}\n\n`;
+		if ((tabel.kolom || []).length > 0) {
+			text += `| ${tabel.kolom.join(' | ')} |\n`;
+			text += `| ${tabel.kolom.map(() => '---').join(' | ')} |\n`;
+			text += `| ${tabel.kolom.map(() => '').join(' | ')} |\n\n`;
+		}
+		if (tabel.keterangan) text += `*${tabel.keterangan}*\n\n`;
+	}
 
-	text += `## D. EVALUASI\n\n`;
-	(evaluasi.soalEvaluasi || []).forEach((s) => {
-		text += `**Soal ${s.nomor}** (Bobot ${s.bobot})\n${s.soal}\n\n`;
-		if (s.kunciJawaban) text += `*Kunci: ${s.kunciJawaban}*\n\n`;
-	});
-	if ((evaluasi.pertanyaanRefleksi || []).length > 0) {
-		text += `**Pertanyaan Refleksi:**\n`;
-		evaluasi.pertanyaanRefleksi.forEach((p) => text += `- ${p}\n`);
+	// ── D. PENILAIAN ──
+	text += `## D. PENILAIAN\n\n`;
+	if ((penilaian.rubrikPenilaian || []).length > 0) {
+		text += `**Rubrik Penilaian:**\n\n`;
+		text += `| Aspek | Sangat Baik | Baik | Cukup | Perlu Bimbingan | Bobot |\n`;
+		text += `|---|---|---|---|---|---|\n`;
+		penilaian.rubrikPenilaian.forEach((r) => {
+			const k = r.kriteria || {};
+			text += `| ${r.aspek} | ${k.sangat_baik || ''} | ${k.baik || ''} | ${k.cukup || ''} | ${k.perlu_bimbingan || ''} | ${r.bobot || ''} |\n`;
+		});
+		text += '\n';
+	}
+	if ((penilaian.evaluasiRefleksi || []).length > 0) {
+		text += `**Evaluasi & Refleksi Siswa:**\n`;
+		penilaian.evaluasiRefleksi.forEach((e, i) => text += `${i + 1}. ${e}\n`);
+		text += '\n';
 	}
 
 	return text;

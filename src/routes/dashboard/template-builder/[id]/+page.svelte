@@ -8,6 +8,7 @@
 	let initialName = $state('');
 	let initialDescription = $state('');
 	let initialSections = $state([]);
+	let templateJenis = $state('modul_ajar');
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -23,6 +24,7 @@
 			initialName = template.name || '';
 			initialDescription = template.description || '';
 			initialSections = template.sections || [];
+			templateJenis = template.jenis || 'modul_ajar';
 		} catch {
 			goto('/dashboard/template-builder');
 		} finally {
@@ -34,7 +36,7 @@
 		const res = await fetch(`/api/custom-templates/${$page.params.id}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name, description, sections })
+			body: JSON.stringify({ name, description, sections, jenis: templateJenis })
 		});
 
 		if (res.ok) {
@@ -91,6 +93,7 @@
 	{:else}
 		<TemplateBuilder
 			mode="edit"
+			jenis={templateJenis}
 			initialName={initialName}
 			initialDescription={initialDescription}
 			initialSections={initialSections}
