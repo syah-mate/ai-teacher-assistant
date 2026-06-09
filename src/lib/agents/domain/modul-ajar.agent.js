@@ -3,11 +3,50 @@ import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 import { modulAjarStandarTemplate } from '../../templates/modul-ajar-standar.template.js';
+import { getSectionDef } from '../../templates/section-registry.js';
 
 // Registry template — key = templateId yang dikirim dari frontend
 const TEMPLATE_REGISTRY = {
 	'modul-ajar-standar': modulAjarStandarTemplate
 };
+
+/**
+ * Resolve sectionDefs dari template.
+ * Untuk template sistem: sectionDef sudah ada di sections[].sectionDef.
+ * Untuk template kustom: resolve berdasarkan promptMode → default (registry) atau custom (user).
+ *
+ * @param {Object} template
+ * @returns {Object} { [agentKey]: sectionDef }
+ */
+function resolveSectionDefs(template) {
+	// Template sistem: sectionDefs sudah ada di sections[].sectionDef
+	if (!template.templateId?.startsWith('custom-')) {
+		return Object.fromEntries(
+			template.sections.map(s => [s.agentKey, s.sectionDef])
+		);
+	}
+
+	// Template kustom: resolve sectionDef berdasarkan promptMode
+	return Object.fromEntries(
+		template.sections.map(s => {
+			if (s.promptMode === 'custom') {
+				// Pakai instruksi & outputSchema dari user
+				return [s.agentKey, {
+					namaSection: s.title,
+					instruksi: s.customInstruksi || `Hasilkan konten untuk bagian ${s.title} dalam konteks modul ajar.`,
+					outputSchema: s.customOutputSchema || '{ "konten": "string" }'
+				}];
+			} else {
+				// Ambil dari section-registry default
+				return [s.agentKey, getSectionDef(s.agentKey) ?? {
+					namaSection: s.title,
+					instruksi: `Hasilkan konten untuk bagian ${s.title} dalam konteks modul ajar.`,
+					outputSchema: '{ "konten": "string" }'
+				}];
+			}
+		})
+	);
+}
 
 export class ModulAjarAgent extends BaseAgent {
 	constructor() {
@@ -52,7 +91,17 @@ export class ModulAjarAgent extends BaseAgent {
 			message: `ModulAjarAgent → memulai "${userInput.judul}"` });
 
 		// ── 1. Load template ──────────────────────────────────────────────
-		const template = TEMPLATE_REGISTRY[userInput.templateId] ?? modulAjarStandarTemplate;
+		let template = TEMPLATE_REGISTRY[userInput.templateId] ?? modulAjarStandarTemplate;
+
+		// Jika custom template, sections dikirim langsung dari frontend
+		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
+			template = {
+				templateId: userInput.templateId,
+				jenis: 'modul_ajar',
+				isSystemTemplate: false,
+				sections: userInput.customSections
+			};
+		}
 		this.log(`Template: ${template.templateId}`);
 
 		// ── 2. Build identitas (tidak berubah) ────────────────────────────
@@ -78,10 +127,14 @@ export class ModulAjarAgent extends BaseAgent {
 			const agentKeys = sectionsInBatch.map((s) => s.agentKey);
 			const criticalKeys = sectionsInBatch.filter((s) => s.critical).map((s) => s.agentKey);
 
-			// Build sectionDefs map: { agentKey: sectionDef }
-			const sectionDefs = {};
+			// Build sectionDefs map menggunakan resolver yang mendukung custom template
+			const sectionDefs = resolveSectionDefs(template);
+			// Filter hanya untuk agent yang ada di batch ini
+			const batchSectionDefs = {};
 			for (const section of sectionsInBatch) {
-				sectionDefs[section.agentKey] = section.sectionDef;
+				if (sectionDefs[section.agentKey]) {
+					batchSectionDefs[section.agentKey] = sectionDefs[section.agentKey];
+				}
 			}
 
 			onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_start',
@@ -93,7 +146,7 @@ export class ModulAjarAgent extends BaseAgent {
 				input: userInput,
 				context: mergedContext,
 				critical: criticalKeys,
-				sectionDefs,
+				sectionDefs: batchSectionDefs,
 				onProgress
 			});
 
@@ -144,7 +197,8 @@ export class ModulAjarAgent extends BaseAgent {
 		// ── 8. Simpan ke DB — fire-and-forget ─────────────────────────────
 		onProgress?.({ type: 'tool', name: 'write-db', action: 'start',
 			message: 'write-db → menyimpan ke database...' });
-		writeDB('modul_ajar', {
+
+		const dbRecord = {
 			userId: userInput.userId,
 			judul: userInput.judul,
 			mapel: userInput.mapel,
@@ -156,7 +210,14 @@ export class ModulAjarAgent extends BaseAgent {
 			alokasiPerPertemuan: userInput.alokasiPerPertemuan,
 			templateId: userInput.templateId || 'modul-ajar-standar',
 			schema: fullSchema
-		}).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done',
+		};
+
+		// Simpan templateSections untuk custom template agar renderer bisa membaca config
+		if (template.templateId?.startsWith('custom-')) {
+			dbRecord.templateSections = template.sections;
+		}
+
+		writeDB('modul_ajar', dbRecord).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done',
 			message: 'write-db → tersimpan ✓' })).catch(() => {});
 
 		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'completed',

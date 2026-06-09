@@ -1,4 +1,5 @@
 ﻿<script>
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { modulAjarStandarTemplate } from '$lib/templates/modul-ajar-standar.template.js';
 	import { modulAjarTabelTemplate } from '$lib/templates/modul-ajar-tabel.template.js';
@@ -6,6 +7,19 @@
 
 	let showModal = $state(false);
 	let selectedTemplate = $state(null);
+	let customTemplates = $state([]);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/custom-templates');
+			if (res.ok) {
+				const data = await res.json();
+				customTemplates = data.templates ?? [];
+			}
+		} catch {
+			// ignore
+		}
+	});
 
 	const templates = [
 		{
@@ -35,17 +49,6 @@
 				'Refleksi'
 			],
 			previewStyle: 'Tabel grid compact — cocok untuk dicetak'
-		},
-		{
-			templateId: 'modul-p5',
-			label: 'Modul Projek (P5)',
-			description:
-				'Projek Penguatan Profil Pelajar Pancasila — cocok untuk lintas mapel dan kegiatan projek',
-			available: false,
-			icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />`,
-			color: 'violet',
-			previewSections: ['Tema Projek', 'Dimensi PPP', 'Sub-elemen', 'Aktivitas', 'Asesmen'],
-			previewStyle: 'Coming soon'
 		}
 	];
 
@@ -74,9 +77,27 @@
 	};
 
 	function handlePilih(template) {
-		if (!template.available) return;
+		if (template.available === false) return;
 		selectedTemplate = template;
 		showModal = true;
+	}
+
+	function handleEdit(ct) {
+		goto(`/dashboard/template-builder/${ct._id}`);
+	}
+
+	async function handleHapus(ct) {
+		if (!confirm(`Hapus template "${ct.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
+		try {
+			const res = await fetch(`/api/custom-templates/${ct._id}`, { method: 'DELETE' });
+			if (res.ok) {
+				customTemplates = customTemplates.filter(t => t._id !== ct._id);
+			} else {
+				alert('Gagal menghapus template');
+			}
+		} catch {
+			alert('Gagal menghapus template');
+		}
 	}
 </script>
 
@@ -94,15 +115,27 @@
 		<span class="font-medium text-gray-700">RPP / Modul Ajar Generator</span>
 	</div>
 
-	<!-- Section header -->
-	<div class="mb-5 flex items-center gap-3">
-		<div class="h-5 w-1 rounded-full bg-blue-600"></div>
-		<h2 class="text-base font-bold text-gray-800">Pilih Template Modul Ajar</h2>
-		<span
-			class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-500"
+	<!-- Section header dengan tombol Buat Template Baru -->
+	<div class="mb-5 flex items-center justify-between gap-3">
+		<div class="flex items-center gap-3">
+			<div class="h-5 w-1 rounded-full bg-blue-600"></div>
+			<h2 class="text-base font-bold text-gray-800">Pilih Template Modul Ajar</h2>
+			<span
+				class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-500"
+			>
+				{templates.length} Template
+			</span>
+		</div>
+		<a
+			href="/dashboard/template-builder/new"
+			class="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300
+				px-4 py-2 text-sm font-medium text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all"
 		>
-			{templates.length} Template
-		</span>
+			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+			</svg>
+			Buat Template Baru
+		</a>
 	</div>
 
 	<!-- Template cards -->
@@ -182,6 +215,72 @@
 			</div>
 		{/each}
 	</div>
+
+	<!-- Section Template Kustom -->
+	{#if customTemplates.length > 0}
+		<div class="mt-8 mb-5 flex items-center gap-3">
+			<div class="h-5 w-1 rounded-full bg-purple-500"></div>
+			<h2 class="text-base font-bold text-gray-800">Template Saya</h2>
+			<span class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-500">
+				{customTemplates.length} Template
+			</span>
+		</div>
+		<div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+			{#each customTemplates as ct}
+				<div class="group relative flex flex-col rounded-2xl border border-purple-200 bg-white p-6 shadow-sm
+					transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-purple-50">
+					<div class="mb-4 flex items-start justify-between">
+						<div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100">
+							<svg class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+							</svg>
+						</div>
+						<span class="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+							Template Kustom
+						</span>
+					</div>
+					<h3 class="mb-1.5 text-base font-bold text-gray-800">{ct.name}</h3>
+					<p class="mb-4 text-sm text-gray-500">{ct.description || 'Tidak ada deskripsi'}</p>
+					<div class="mb-3 flex flex-wrap gap-1.5">
+						{#each ct.sections.slice(0, 5) as s}
+							<span class="rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">{s.title}</span>
+						{/each}
+						{#if ct.sections.length > 5}
+							<span class="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-400">+{ct.sections.length - 5} lagi</span>
+						{/if}
+					</div>
+					<div class="mt-auto border-t border-gray-100 pt-4 flex items-center justify-between gap-2">
+						<div class="flex items-center gap-1">
+							<button
+								onclick={() => handleEdit(ct)}
+								class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+							>
+								Edit
+							</button>
+							<button
+								onclick={() => handleHapus(ct)}
+								class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+							>
+								Hapus
+							</button>
+						</div>
+						<button
+							onclick={() => handlePilih(ct)}
+							class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600
+								px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-purple-200
+								transition-all hover:shadow-md hover:shadow-purple-300 active:scale-95"
+						>
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							Generate dengan AI
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <!-- Modal -->

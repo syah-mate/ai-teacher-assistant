@@ -1,7 +1,7 @@
-<script>
+﻿<script>
 	import { formatSchemaToText } from '$lib/utils/schema-formatter.js';
 	import { renderMarkdownWithImages } from '$lib/utils/markdown.js';
-	import { resolveRenderer } from '$lib/utils/template-renderer.js';
+	import { resolveRenderer, isCustomTemplate } from '$lib/utils/template-renderer.js';
 
 	let { data } = $props();
 	const item = $derived(data.item);
@@ -418,7 +418,11 @@
 				<!-- Render via komponen Svelte template (modul_ajar) -->
 				<div class="px-12 py-8">
 					{#key item.templateId}
-						<RendererComponent schema={item.schema} meta={item} />
+						{#if isCustomTemplate(item.templateId)}
+							<RendererComponent schema={item.schema} meta={item} sections={item.templateSections ?? []} />
+						{:else}
+							<RendererComponent schema={item.schema} meta={item} />
+						{/if}
 					{/key}
 				</div>
 			{:else}

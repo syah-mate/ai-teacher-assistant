@@ -10,6 +10,21 @@
 	let activeJobs = $state([]);
 	let jobPollInterval = null;
 
+	// Custom template names (templateId → name)
+	let customTemplateNames = $state({});
+
+	const BUILTIN_TEMPLATE_NAMES = {
+		'modul-ajar-standar': 'Modul Ajar Standar',
+		'modul-ajar-tabel': 'Modul Ajar — Layout Tabel Grid'
+	};
+
+	function getTemplateName(templateId) {
+		if (!templateId) return null;
+		if (BUILTIN_TEMPLATE_NAMES[templateId]) return BUILTIN_TEMPLATE_NAMES[templateId];
+		if (customTemplateNames[templateId]) return customTemplateNames[templateId];
+		return templateId.startsWith('custom-') ? 'Template Kustom' : templateId;
+	}
+
 	const filters = [
 		{ key: 'semua', label: 'Semua' },
 		{ key: 'modul_ajar', label: 'Modul Ajar' },
@@ -114,8 +129,23 @@
 		return Math.min(100, Math.max(minimum, percent));
 	}
 
+	async function fetchCustomTemplateNames() {
+		try {
+			const res = await fetch('/api/custom-templates');
+			if (!res.ok) return;
+			const data = await res.json();
+			const map = {};
+			for (const t of data.templates || []) {
+				if (t.templateId && t.name) map[t.templateId] = t.name;
+			}
+			customTemplateNames = map;
+		} catch {
+			// ignore
+		}
+	}
+
 	onMount(async () => {
-		await Promise.all([fetchHistory(), fetchActiveJobs()]);
+		await Promise.all([fetchHistory(), fetchActiveJobs(), fetchCustomTemplateNames()]);
 		startJobPolling();
 	});
 
@@ -251,7 +281,21 @@
 					</div>
 
 					<!-- Judul -->
-					<h3 class="mb-3 text-sm font-semibold text-gray-800 leading-snug">{item.judul}</h3>
+					<h3 class="mb-2 text-sm font-semibold text-gray-800 leading-snug">{item.judul}</h3>
+
+					<!-- Template name (untuk modul_ajar) -->
+					{#if item.templateId}
+						{@const tplName = getTemplateName(item.templateId)}
+						{#if tplName}
+							<div class="mb-2 inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">
+								<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+										d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm12 0a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+								</svg>
+								{tplName}
+							</div>
+						{/if}
+					{/if}
 
 					<!-- Metadata chips -->
 					<div class="flex flex-wrap gap-2">

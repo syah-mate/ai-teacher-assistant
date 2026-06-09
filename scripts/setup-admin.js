@@ -124,6 +124,13 @@ async function setupAdmin() {
 			console.log('✅ Admin user created successfully!\n');
 		}
 
+		// Setup indexes for custom_templates collection
+		console.log('📊 Setting up indexes...');
+		const customTemplatesCol = db.collection('custom_templates');
+		await customTemplatesCol.createIndex({ userId: 1, createdAt: -1 });
+		await customTemplatesCol.createIndex({ templateId: 1 }, { unique: true });
+		console.log('✅ Custom templates indexes created\n');
+
 		console.log('=' .repeat(50));
 		console.log('\n📋 User Details:');
 		console.log(`   Username: ${username}`);

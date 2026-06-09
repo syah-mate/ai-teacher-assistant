@@ -46,6 +46,7 @@ export async function GET({ locals, url }) {
 				mapel: doc.mapel || null,
 				kelas: doc.kelas || null,
 				jenjang: doc.jenjang || null,
+				templateId: doc.templateId || null,
 				// modul_ajar
 				metode: doc.metode || null,
 				modePembelajaran: doc.modePembelajaran || null,

@@ -52,6 +52,7 @@ export async function GET({ params, locals }) {
 					levelBloom: doc.levelBloom || null,
 					schema: doc.schema || null,
 					editedHtml: doc.editedHtml || null,
+					templateSections: doc.templateSections || null,
 					createdAt: doc.createdAt
 				}
 			});

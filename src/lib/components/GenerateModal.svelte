@@ -79,6 +79,11 @@
 			instansi: instansi.trim() || 'Sekolah'
 		};
 
+		// Untuk template kustom, sertakan sections config
+		if (template.templateId?.startsWith('custom-') && template.sections?.length > 0) {
+			userInput.customSections = template.sections;
+		}
+
 		try {
 			const model = get(selectedModel);
 			const thinkingEffort = get(selectedThinking);
@@ -134,7 +139,7 @@
 		<div class="relative flex items-start justify-between gap-3">
 			<div>
 				<p class="mb-0.5 text-xs font-semibold tracking-wider text-blue-200 uppercase">
-					{template.label}
+					{template.label || template.name || 'Template'}
 				</p>
 				<h2 class="text-lg font-bold">Generate Modul Ajar</h2>
 				<p class="mt-1 text-xs text-blue-100">Isi detail modul ajar yang ingin dibuat</p>

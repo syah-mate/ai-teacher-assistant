@@ -261,6 +261,10 @@ async function saveResult(jobId, userInput, result) {
 			jumlahPertemuan: userInput.jumlahPertemuan,
 			alokasiPerPertemuan: userInput.alokasiPerPertemuan
 		});
+		// Untuk template kustom, simpan sections config agar bisa dirender oleh CustomTemplateRenderer
+		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
+			baseData.templateSections = userInput.customSections;
+		}
 	} else if (tipe === 'lkpd') {
 		Object.assign(baseData, {
 			semester: userInput.semester,
