@@ -388,6 +388,16 @@
 								{/if}
 							</p>
 							<p class="mt-0.5 text-xs text-gray-500">{sec.description}</p>
+							<!-- Schema fields chips -->
+							{#if sec.schemaFields?.length}
+								<div class="mt-2 flex flex-wrap gap-1">
+									{#each sec.schemaFields as field}
+										<span class="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 leading-tight">
+											{field}
+										</span>
+									{/each}
+								</div>
+							{/if}
 							<div class="mt-1.5 flex items-center gap-2">
 								<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
 									Batch {sec.batch}

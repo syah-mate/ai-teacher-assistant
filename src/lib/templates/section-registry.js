@@ -15,10 +15,11 @@ export const SECTION_REGISTRY = {
 
 	capaian: {
 		agentKey: 'capaian',
-		label: 'Capaian & Tujuan Pembelajaran',
-		description: 'Tujuan pembelajaran, profil pelajar Pancasila, indikator pencapaian',
+		label: 'Kemampuan Prasyarat & Tujuan Pembelajaran',
+		description: 'Kemampuan prasyarat, tujuan pembelajaran, dan profil pelajar Pancasila',
 		batch: 1,
 		critical: true,
+		schemaFields: ['Kemampuan Prasyarat', 'Tujuan Pembelajaran', 'Profil Pelajar Pancasila'],
 		sectionDef: {
 			namaSection: 'Capaian & Tujuan Pembelajaran',
 			instruksi: `Rancang tujuan pembelajaran dan deskripsi umum modul sesuai Kurikulum Merdeka.
@@ -42,6 +43,7 @@ deskripsiUmum berisi 3–4 kalimat yang mencakup topik utama, pendekatan, dan re
 		description: 'Langkah pembelajaran per pertemuan: Pembuka, Inti, Penutup + diferensiasi',
 		batch: 2,
 		critical: true,
+		schemaFields: ['Pertanyaan Pemantik', 'Pembuka', 'Inti', 'Penutup', 'Diferensiasi'],
 		sectionDef: {
 			namaSection: 'Kegiatan Pembelajaran',
 			instruksi: `Rancang kegiatan pembelajaran lengkap per pertemuan sesuai Kurikulum Merdeka.
@@ -67,9 +69,10 @@ PENTING: Jangan gunakan tanda kutip ganda (") di dalam nilai string JSON. Ganti 
 	asesmen: {
 		agentKey: 'asesmen',
 		label: 'Asesmen Pembelajaran',
-		description: 'Asesmen diagnostik, formatif, sumatif, rubrik penilaian, refleksi guru',
+		description: 'Asesmen diagnostik, formatif per pertemuan, dan sumatif',
 		batch: 2,
 		critical: true,
+		schemaFields: ['Asesmen Diagnostik', 'Asesmen Formatif', 'Asesmen Sumatif'],
 		sectionDef: {
 			namaSection: 'Asesmen Pembelajaran',
 			instruksi: `Rancang instrumen asesmen lengkap: diagnostik (sebelum belajar), formatif (tiap pertemuan), dan sumatif (akhir).
@@ -96,9 +99,10 @@ Refleksi guru berupa pertanyaan reflektif (diawali kata tanya), bukan pernyataan
 	materi: {
 		agentKey: 'materi',
 		label: 'Materi Pembelajaran',
-		description: 'Ringkasan materi, konsep kunci, fakta penting, contoh aplikasi',
+		description: 'Kata pengantar dan materi pokok pembelajaran',
 		batch: 2,
 		critical: false,
+		schemaFields: ['Kata Pengantar', 'Materi Pokok'],
 		sectionDef: {
 			namaSection: 'Materi Pembelajaran',
 			instruksi: `Susun materi pembelajaran yang komprehensif dan relevan dengan topik.
@@ -117,9 +121,10 @@ Contoh aplikasi harus kontekstual dengan kehidupan nyata siswa.`,
 	evaluasi: {
 		agentKey: 'evaluasi',
 		label: 'Soal Evaluasi & Refleksi',
-		description: 'Soal evaluasi akhir dan pertanyaan refleksi siswa',
+		description: 'Soal evaluasi, rubrik penilaian, dan refleksi guru',
 		batch: 2,
 		critical: false,
+		schemaFields: ['Soal & Kunci Jawaban', 'Rubrik Penilaian', 'Refleksi Guru'],
 		sectionDef: {
 			namaSection: 'Soal Evaluasi & Refleksi',
 			instruksi: `Susun soal evaluasi yang mengukur ketercapaian tujuan pembelajaran.
@@ -139,6 +144,7 @@ Pertanyaan refleksi mendorong siswa berpikir tentang proses belajar mereka.`,
 		description: 'Langkah detail kegiatan siswa dan guru',
 		batch: 2,
 		critical: false,
+		schemaFields: ['Aktivitas Guru', 'Aktivitas Siswa', 'Durasi'],
 		sectionDef: {
 			namaSection: 'Langkah-Langkah Kegiatan',
 			instruksi: `Uraikan langkah-langkah kegiatan secara detail dan terstruktur.
