@@ -90,10 +90,10 @@
 
 	const images = $derived(extractImages(item.tipe, item.schema));
 
-	// Resolve komponen renderer untuk modul_ajar (template-aware)
-	// Untuk lkpd & soal tetap null → pakai pipeline markdown lama
+	// Resolve komponen renderer untuk modul_ajar & lkpd (template-aware)
+	// Soal tetap null → pakai pipeline markdown lama
 	const RendererComponent = $derived(
-		item.tipe === 'modul_ajar' && item.schema
+		(item.tipe === 'modul_ajar' || item.tipe === 'lkpd') && item.schema
 			? resolveRenderer(item.templateId)
 			: null
 	);
@@ -416,6 +416,16 @@
 
 		<!-- Content -->
 		<div class="document-content" style={cssVars}>
+			{#if RendererComponent}
+				<!-- ── Schema renderer (modul ajar & LKPD template-aware) ── -->
+				<div class="px-12 py-8">
+					<svelte:component
+						this={RendererComponent}
+						schema={item.schema}
+						meta={{ metode: item.metode, modePembelajaran: item.modePembelajaran, ...item.schema?.identitas?.identitas }}
+					/>
+				</div>
+			{:else}
 			{#each sections as section, i (section.id)}
 				<div class="section-block group/section relative px-12 {i === 0 ? 'pt-8' : ''} {i === sections.length - 1 ? 'pb-8' : ''}">
 					{#if section.editing}
@@ -473,6 +483,7 @@
 					{/if}
 				</div>
 			{/each}
+			{/if}
 		</div>
 
 		<!-- Footer -->
