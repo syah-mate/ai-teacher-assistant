@@ -7,13 +7,34 @@ marked.setOptions({
 });
 
 /**
- * Parse markdown string → HTML string
+ * Strip dangerous HTML tags/attributes from AI-generated content.
+ * Protects against XSS when rendering via {@html ...} in Svelte.
+ * @param {string} html
+ * @returns {string}
+ */
+function sanitizeHtml(html) {
+	if (!html) return '';
+	return html
+		// Remove <script>...</script> entirely
+		.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+		// Remove on* event handlers (onclick, onerror, onload, etc.)
+		.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+		// Remove javascript: URLs from href/src
+		.replace(/((?:href|src|action|formaction)\s*=\s*['"])javascript:[^'"]*/gi, '$1#')
+		// Remove <iframe> tags
+		.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+		// Remove <object> and <embed> tags
+		.replace(/<(?:object|embed)\b[^<]*(?:(?!<\/(?:object|embed)>)<[^<]*)*<\/(?:object|embed)>/gi, '');
+}
+
+/**
+ * Parse markdown string → sanitized HTML string
  * @param {string} text
  * @returns {string} HTML
  */
 export function renderMarkdown(text) {
 	if (!text) return '';
-	return marked.parse(text);
+	return sanitizeHtml(marked.parse(text));
 }
 
 /**
@@ -26,7 +47,7 @@ export function renderMarkdown(text) {
  */
 export function renderMarkdownWithImages(text, images) {
 	if (!text) return '';
-	if (!images || images.length === 0) return marked.parse(text);
+	if (!images || images.length === 0) return sanitizeHtml(marked.parse(text));
 
 	// Ganti placeholder dengan token unik sebelum markdown parse
 	// agar tidak terganggu oleh markdown renderer
@@ -57,7 +78,7 @@ export function renderMarkdownWithImages(text, images) {
 		html = html.replace(`<!--IMG_TOKEN_${i}-->`, imgHtml);
 	});
 
-	return html;
+	return sanitizeHtml(html);
 }
 
 /**

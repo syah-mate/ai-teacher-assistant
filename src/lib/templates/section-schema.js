@@ -41,7 +41,13 @@ export const SECTION_SCHEMAS = {
     "tujuanPertemuan": "string",
     "langkahPembelajaran": {
       "pembuka": [{ "aktivitas": "string", "durasi": "10 menit" }],
-      "inti": [{ "aktivitas": "string", "durasi": "60 menit" }],
+      "inti": [
+        { "aktivitas": "Orientasi peserta didik pada masalah: ...", "durasi": "15 menit" },
+        { "aktivitas": "Mengorganisasikan peserta didik: ...", "durasi": "10 menit" },
+        { "aktivitas": "Membimbing penyelidikan individu/kelompok: ...", "durasi": "15 menit" },
+        { "aktivitas": "Menyajikan hasil diskusi/presentasi: ...", "durasi": "15 menit" },
+        { "aktivitas": "Menganalisis dan mengevaluasi proses: ...", "durasi": "10 menit" }
+      ],
       "penutup": [{ "aktivitas": "string", "durasi": "10 menit" }]
     },
     "diferensiasi": { "konten": "string", "proses": "string", "produk": "string" },

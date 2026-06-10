@@ -10,17 +10,10 @@
  */
 
 import { env } from '$env/dynamic/private';
+import { ALLOWED_MODELS, DEFAULT_MODEL } from './model-config.js';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-const ALLOWED_MODELS = [
-	'google/gemini-3.5-flash',
-	'x-ai/grok-4.3',
-	'openai/gpt-5.5',
-	'openai/gpt-5.4-nano'
-];
-
-const DEFAULT_MODEL = 'google/gemini-3.5-flash';
+const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
 
 /**
  * Buat server-side AI client yang dikunci ke model & thinkingEffort tertentu.
@@ -59,7 +52,7 @@ export function createServerAIClient(model, thinkingEffort = null) {
 					headers: {
 						'Content-Type': 'application/json',
 						Authorization: `Bearer ${apiKey}`,
-						'HTTP-Referer': 'https://asisten-guru-ai.app',
+						'HTTP-Referer': HTTP_REFERER,
 						'X-Title': 'Asisten Guru AI'
 					},
 					body: JSON.stringify({

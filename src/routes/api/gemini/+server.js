@@ -9,25 +9,10 @@
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { getCollection } from '$lib/server/db.js';
+import { ALLOWED_MODELS, DEFAULT_MODEL, MODELS_SUPPORTING_REASONING, ALLOWED_THINKING_EFFORTS } from '$lib/server/model-config.js';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-const ALLOWED_MODELS = [
-	'google/gemini-3.5-flash',
-	'x-ai/grok-4.3',
-	'openai/gpt-5.5',
-	'openai/gpt-5.4-nano'
-];
-
-const MODELS_SUPPORTING_REASONING = new Set([
-	'google/gemini-3.5-flash',
-	'x-ai/grok-4.3',
-	'openai/gpt-5.4-nano'
-]);
-
-const ALLOWED_THINKING_EFFORTS = new Set(['low', 'medium', 'high']);
-
-const DEFAULT_MODEL = ALLOWED_MODELS[0];
+const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
 
 // Rate limit per user: 2 generate per jam
 const USER_RATE_LIMIT = 2;
@@ -118,7 +103,7 @@ async function callOpenRouter(apiKey, prompt, model, thinkingEffort = null) {
 			headers: {
 				'Content-Type': 'application/json',
 				Authorization: `Bearer ${apiKey}`,
-				'HTTP-Referer': 'https://asisten-guru-ai.app',
+				'HTTP-Referer': HTTP_REFERER,
 				'X-Title': 'Asisten Guru AI'
 			},
 			body: JSON.stringify({

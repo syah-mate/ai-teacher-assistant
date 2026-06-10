@@ -79,6 +79,13 @@ deskripsiUmum berisi 3–4 kalimat yang mencakup topik utama, pendekatan, dan re
 			namaSection: 'Kegiatan Pembelajaran',
 			instruksi: `Rancang kegiatan pembelajaran lengkap per pertemuan sesuai Kurikulum Merdeka.
 Setiap pertemuan WAJIB punya 3 fase: Pembuka → Inti → Penutup.
+Fase INTI WAJIB terdiri dari 5 langkah (sintak model pembelajaran):
+  1. Orientasi peserta didik pada masalah
+  2. Mengorganisasikan peserta didik
+  3. Membimbing penyelidikan individu/kelompok
+  4. Menyajikan hasil diskusi/presentasi
+  5. Menganalisis dan mengevaluasi proses pemecahan masalah
+Setiap langkah INTI adalah satu item array dengan aktivitas dan durasi masing-masing.
 Sertakan diferensiasi konten/proses/produk dan minimal 2 pertanyaan pemantik per pertemuan.
 PENTING: Jangan gunakan tanda kutip ganda (") di dalam nilai string JSON. Ganti dengan koma atau tanda lain.`,
 			outputSchema: `{
@@ -87,7 +94,13 @@ PENTING: Jangan gunakan tanda kutip ganda (") di dalam nilai string JSON. Ganti 
     "tujuanPertemuan": "string",
     "langkahPembelajaran": {
       "pembuka": [{ "aktivitas": "string", "durasi": "10 menit" }],
-      "inti": [{ "aktivitas": "string", "durasi": "60 menit" }],
+      "inti": [
+        { "aktivitas": "Orientasi peserta didik pada masalah: ...", "durasi": "15 menit" },
+        { "aktivitas": "Mengorganisasikan peserta didik: ...", "durasi": "10 menit" },
+        { "aktivitas": "Membimbing penyelidikan individu/kelompok: ...", "durasi": "15 menit" },
+        { "aktivitas": "Menyajikan hasil diskusi/presentasi: ...", "durasi": "15 menit" },
+        { "aktivitas": "Menganalisis dan mengevaluasi proses: ...", "durasi": "10 menit" }
+      ],
       "penutup": [{ "aktivitas": "string", "durasi": "10 menit" }]
     },
     "diferensiasi": { "konten": "string", "proses": "string", "produk": "string" },

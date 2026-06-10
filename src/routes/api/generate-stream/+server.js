@@ -10,11 +10,10 @@
 
 import { env } from '$env/dynamic/private';
 import { parseInterleavedResponse } from '$lib/utils/parseInterleavedResponse.js';
+import { ALLOWED_MODELS, DEFAULT_MODEL } from '$lib/server/model-config.js';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-const ALLOWED_MODELS = ['google/gemini-3.5-flash', 'x-ai/grok-4.3', 'openai/gpt-5.5', 'openai/gpt-5.4-nano'];
-const DEFAULT_MODEL = ALLOWED_MODELS[0];
+const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
 
 /** @param {import('@sveltejs/kit').RequestEvent} event */
 export async function POST({ request, locals, fetch: kitFetch }) {
@@ -58,7 +57,7 @@ export async function POST({ request, locals, fetch: kitFetch }) {
 					headers: {
 						'Content-Type': 'application/json',
 						Authorization: `Bearer ${apiKey}`,
-						'HTTP-Referer': 'https://asisten-guru-ai.app',
+						'HTTP-Referer': HTTP_REFERER,
 						'X-Title': 'Asisten Guru AI'
 					},
 					body: JSON.stringify({

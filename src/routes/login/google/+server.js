@@ -1,6 +1,7 @@
 import { google } from '$lib/server/oauth';
 import { redirect } from '@sveltejs/kit';
 import { generateState, generateCodeVerifier } from 'arctic';
+import { dev } from '$app/environment';
 
 export async function GET({ cookies }) {
 	// Generate state dan code verifier untuk PKCE
@@ -14,7 +15,7 @@ export async function GET({ cookies }) {
 	cookies.set('google_oauth_state', state, {
 		path: '/',
 		httpOnly: true,
-		secure: process.env.NODE_ENV === 'production',
+		secure: dev ? false : true,
 		maxAge: 60 * 10,
 		sameSite: 'lax'
 	});
@@ -22,7 +23,7 @@ export async function GET({ cookies }) {
 	cookies.set('google_code_verifier', codeVerifier, {
 		path: '/',
 		httpOnly: true,
-		secure: process.env.NODE_ENV === 'production',
+		secure: dev ? false : true,
 		maxAge: 60 * 10,
 		sameSite: 'lax'
 	});

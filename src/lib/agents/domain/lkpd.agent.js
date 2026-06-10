@@ -2,6 +2,7 @@ import { BaseAgent } from '../base-agent.js';
 import { OrchestratorAI } from '../orchestrator-ai.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
+import { buildIdentitasFromInput } from '../../utils/kelas-fase.js';
 import { lkpdStandarTemplate } from '../../templates/lkpd-standar.template.js';
 import { lkpdTabelTemplate } from '../../templates/lkpd-tabel.template.js';
 
@@ -16,29 +17,14 @@ export class LKPDAgent extends BaseAgent {
 	}
 
 	buildIdentitasFromInput(input) {
-		const kelasToFase = {
-			I: 'Fase A', II: 'Fase A', III: 'Fase B', IV: 'Fase B', V: 'Fase C', VI: 'Fase C',
-			VII: 'Fase D', VIII: 'Fase D', IX: 'Fase D', X: 'Fase E', XI: 'Fase F', XII: 'Fase F'
-		};
-		const fase = input.fase || kelasToFase[input.kelas] || '';
-
-		return {
-			judul: input.judul,
-			identitas: {
-				satuan: input.jenjang,
-				fase,
-				kelas: `Kelas ${input.kelas}`,
-				mataPelajaran: input.mapel,
-				penulis: input.penulis || 'Guru Mata Pelajaran',
-				instansi: input.instansi || 'Sekolah'
-			},
-			alokasiWaktu: input.alokasiWaktu || input.alokasiPerPertemuan || '2x40 menit',
-			jenisKegiatan: Array.isArray(input.jenisKegiatan)
-				? input.jenisKegiatan.join(', ')
-				: (input.jenisKegiatan || ''),
-			polaBelajar: input.polaBelajar || 'berkelompok',
-			deskripsiUmum: ''
-		};
+		const identitas = buildIdentitasFromInput(input);
+		// Override field spesifik LKPD
+		identitas.alokasiWaktu = input.alokasiWaktu || input.alokasiPerPertemuan || '2x40 menit';
+		identitas.jenisKegiatan = Array.isArray(input.jenisKegiatan)
+			? input.jenisKegiatan.join(', ')
+			: (input.jenisKegiatan || '');
+		identitas.polaBelajar = input.polaBelajar || 'berkelompok';
+		return identitas;
 	}
 
 	async run(userInput, onProgress) {
@@ -51,10 +37,13 @@ export class LKPDAgent extends BaseAgent {
 
 		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
 			// Normalisasi dari format lama (agentKey, title, batch, critical) ke format baru (key, label, critical)
+			// Pertahankan promptMode & customFieldInstruksi agar kustom prompt user di-inject ke alur generate
 			const normalizedSections = userInput.customSections.map(s => ({
 				key: s.key || s.agentKey,
 				label: s.label || s.title || s.agentKey,
-				critical: s.critical !== undefined ? s.critical : true
+				critical: s.critical !== undefined ? s.critical : true,
+				promptMode: s.promptMode ?? 'default',
+				customFieldInstruksi: s.customFieldInstruksi ?? {}
 			}));
 			template = {
 				templateId: userInput.templateId,

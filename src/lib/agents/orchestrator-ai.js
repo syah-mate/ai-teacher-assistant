@@ -66,11 +66,21 @@ export class OrchestratorAI extends BaseAgent {
       });
 
       // ── STEP A: AI generate brief untuk agent ini ──────────────────────
+      // Jika user mengaktifkan promptMode='custom' dan mengisi customFieldInstruksi,
+      // teruskan sebagai constraint tambahan ke brief generator
+      const customConstraints =
+        section.promptMode === 'custom' &&
+        section.customFieldInstruksi &&
+        Object.keys(section.customFieldInstruksi).length > 0
+          ? section.customFieldInstruksi
+          : null;
+
       const briefResult = await this._generateAgentBrief({
         section: sectionSchema,
         userInput,
         contextSoFar: mergedContext,
-        completedSections: sections.slice(0, i).map(s => s.key)
+        completedSections: sections.slice(0, i).map(s => s.key),
+        customConstraints
       });
 
       if (!briefResult.success) {
@@ -185,13 +195,34 @@ export class OrchestratorAI extends BaseAgent {
    * @param {string[]} params.completedSections - keys section yang sudah selesai
    * @returns {Promise<{ success: boolean, brief?: Object, tokenUsage?: Object, error?: string }>}
    */
-  async _generateAgentBrief({ section, userInput, contextSoFar, completedSections }) {
+  async _generateAgentBrief({ section, userInput, contextSoFar, completedSections, customConstraints = null }) {
     const hasContext = completedSections.length > 0;
 
     // Ringkas context agar tidak terlalu panjang
     const contextSummary = hasContext
       ? this._summarizeContext(contextSoFar, completedSections)
       : 'Ini adalah section pertama — belum ada context sebelumnya.';
+
+    // Format kustom prompt user sebagai constraint tambahan
+    let customConstraintsBlock = '';
+    if (customConstraints && Object.keys(customConstraints).length > 0) {
+      const entries = Object.entries(customConstraints)
+        .filter(([_, v]) => typeof v === 'string' && v.trim().length > 0)
+        .map(([key, value]) => `  - ${key}: ${value.trim()}`);
+
+      if (entries.length > 0) {
+        customConstraintsBlock = `
+
+KONSTRAIN TAMBAHAN DARI PENGGUNA:
+Pengguna memberikan instruksi spesifik untuk field-field tertentu di section ini.
+Instruksi ini WAJIB diakomodasi dalam prompt yang kamu buat — jadikan sebagai
+panduan prioritas, bukan menggantikan keseluruhan instruksi section:
+
+${entries.join('\n')}
+
+Pastikan prompt yang kamu hasilkan merefleksikan semua constraint pengguna di atas.`;
+      }
+    }
 
     const briefPrompt = `
 Kamu adalah meta-orchestrator yang bertugas membuat brief untuk seorang AI agent spesialis.
@@ -214,7 +245,7 @@ OUTPUT SCHEMA YANG HARUS DIHASILKAN AGENT:
 ${section.outputSchema}
 
 CONTEXT DARI SECTION SEBELUMNYA:
-${contextSummary}
+${contextSummary}${customConstraintsBlock}
 
 INSTRUKSI:
 Buat brief untuk agent ini dalam JSON. Brief harus:

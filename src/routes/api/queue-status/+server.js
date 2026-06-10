@@ -11,10 +11,9 @@ import { keyPool } from '$lib/server/key-pool.js';
 import { requestQueue } from '$lib/server/request-queue.js';
 
 export async function GET({ locals }) {
-	// Optional: Bisa ditambahkan auth check untuk admin only
-	// if (!locals.user) {
-	// 	return json({ error: 'Unauthorized' }, { status: 401 });
-	// }
+	if (!locals.user) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
 
 	try {
 		const poolStatus = keyPool.getStatus();

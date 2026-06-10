@@ -19,15 +19,7 @@ import { json } from '@sveltejs/kit';
 import { getCollection } from '$lib/server/db.js';
 import { startJob } from '$lib/server/job-runner.js';
 import { ObjectId } from 'mongodb';
-
-const ALLOWED_MODELS = [
-	'google/gemini-3.5-flash',
-	'x-ai/grok-4.3',
-	'openai/gpt-5.5',
-	'openai/gpt-5.4-nano'
-];
-const DEFAULT_MODEL = 'google/gemini-3.5-flash';
-const ALLOWED_THINKING = new Set(['low', 'medium', 'high']);
+import { ALLOWED_MODELS, DEFAULT_MODEL, ALLOWED_THINKING_EFFORTS } from '$lib/server/model-config.js';
 const ALLOWED_JENIS = new Set(['modul_ajar', 'lkpd', 'soal']);
 
 /**
@@ -92,7 +84,7 @@ export async function POST({ request, locals }) {
 	}
 
 	const model = ALLOWED_MODELS.includes(rawModel) ? rawModel : DEFAULT_MODEL;
-	const thinkingEffort = ALLOWED_THINKING.has(rawEffort) ? rawEffort : 'medium';
+	const thinkingEffort = ALLOWED_THINKING_EFFORTS.has(rawEffort) ? rawEffort : 'medium';
 
 	// Sertakan userId di userInput agar agent bisa menggunakannya saat menyimpan data
 	const enrichedInput = { ...userInput, userId };
