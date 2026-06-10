@@ -3,10 +3,12 @@ import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 import { lkpdStandarTemplate } from '../../templates/lkpd-standar.template.js';
+import { lkpdTabelTemplate } from '../../templates/lkpd-tabel.template.js';
 import { getSectionDef, SECTION_REGISTRY } from '../../templates/section-registry.js';
 
 const TEMPLATE_REGISTRY = {
-	'lkpd-standar': lkpdStandarTemplate
+	'lkpd-standar': lkpdStandarTemplate,
+	'lkpd-tabel':   lkpdTabelTemplate
 };
 
 /**

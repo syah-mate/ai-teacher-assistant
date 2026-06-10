@@ -9,6 +9,8 @@
 
 import ModulAjarStandar  from '$lib/templates/ModulAjarStandar.svelte';
 import ModulAjarTabel    from '$lib/templates/ModulAjarTabel.svelte';
+import LKPDStandar       from '$lib/templates/LKPDStandar.svelte';
+import LKPDTabel         from '$lib/templates/LKPDTabel.svelte';
 import CustomTemplateRenderer from '$lib/templates/CustomTemplateRenderer.svelte';
 
 /**
@@ -18,6 +20,8 @@ import CustomTemplateRenderer from '$lib/templates/CustomTemplateRenderer.svelte
 const RENDERER_REGISTRY = {
 	'modul-ajar-standar': ModulAjarStandar,
 	'modul-ajar-tabel':   ModulAjarTabel,
+	'lkpd-standar':       LKPDStandar,
+	'lkpd-tabel':         LKPDTabel,
 };
 
 /**

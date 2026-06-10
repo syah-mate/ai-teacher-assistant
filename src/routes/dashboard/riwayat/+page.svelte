@@ -15,7 +15,9 @@
 
 	const BUILTIN_TEMPLATE_NAMES = {
 		'modul-ajar-standar': 'Modul Ajar Standar',
-		'modul-ajar-tabel': 'Modul Ajar — Layout Tabel Grid'
+		'modul-ajar-tabel': 'Modul Ajar — Layout Tabel Grid',
+		'lkpd-standar': 'LKPD Standar',
+		'lkpd-tabel': 'LKPD — Layout Tabel Compact'
 	};
 
 	function getTemplateName(templateId) {
