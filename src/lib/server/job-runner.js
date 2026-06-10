@@ -267,10 +267,14 @@ async function saveResult(jobId, userInput, result) {
 		}
 	} else if (tipe === 'lkpd') {
 		Object.assign(baseData, {
+			templateId: userInput.templateId || 'lkpd-standar',
 			semester: userInput.semester,
 			jenisKegiatan: userInput.jenisKegiatan,
 			alokasiWaktu: userInput.alokasiWaktu
 		});
+		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
+			baseData.templateSections = userInput.customSections;
+		}
 	} else if (tipe === 'soal') {
 		Object.assign(baseData, {
 			jenisSoal: userInput.jenisSoal,
