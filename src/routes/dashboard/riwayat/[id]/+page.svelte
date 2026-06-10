@@ -422,6 +422,7 @@
 					<svelte:component
 						this={RendererComponent}
 						schema={item.schema}
+						sections={item.templateSections || []}
 						meta={{ metode: item.metode, modePembelajaran: item.modePembelajaran, ...item.schema?.identitas?.identitas }}
 					/>
 				</div>
