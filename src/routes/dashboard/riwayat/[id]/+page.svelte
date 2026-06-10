@@ -91,6 +91,8 @@
 	const images = $derived(extractImages(item.tipe, item.schema));
 
 	// Resolve komponen renderer untuk modul_ajar & lkpd (template-aware)
+	// DEBUG — hapus setelah confirmed
+	$inspect('templateId', item?.templateId);
 	// Soal tetap null → pakai pipeline markdown lama
 	const RendererComponent = $derived(
 		(item.tipe === 'modul_ajar' || item.tipe === 'lkpd') && item.schema
