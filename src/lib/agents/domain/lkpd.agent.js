@@ -1,59 +1,14 @@
 import { BaseAgent } from '../base-agent.js';
-import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
+import { OrchestratorAI } from '../orchestrator-ai.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 import { lkpdStandarTemplate } from '../../templates/lkpd-standar.template.js';
 import { lkpdTabelTemplate } from '../../templates/lkpd-tabel.template.js';
-import { getSectionDef, SECTION_REGISTRY } from '../../templates/section-registry.js';
 
 const TEMPLATE_REGISTRY = {
 	'lkpd-standar': lkpdStandarTemplate,
 	'lkpd-tabel':   lkpdTabelTemplate
 };
-
-/**
- * Resolve sectionDefs dari template LKPD.
- * Logika identik dengan modul-ajar.agent.js — jangan ubah polanya.
- */
-function resolveSectionDefs(template) {
-	if (!template.templateId?.startsWith('custom-')) {
-		return Object.fromEntries(
-			template.sections.map(s => [s.agentKey, s.sectionDef])
-		);
-	}
-
-	return Object.fromEntries(
-		template.sections.map(s => {
-			const defaultDef = getSectionDef(s.agentKey);
-
-			if (s.promptMode !== 'custom' || !defaultDef) {
-				return [s.agentKey, defaultDef ?? {
-					namaSection: s.title,
-					instruksi: `Hasilkan konten untuk bagian ${s.title} dalam konteks LKPD.`,
-					outputSchema: '{ "konten": "string" }'
-				}];
-			}
-
-			const customFieldInstruksi = s.customFieldInstruksi ?? {};
-			const registryFields = SECTION_REGISTRY[s.agentKey]?.customPromptFields ?? [];
-
-			const fieldOverrides = registryFields
-				.filter(f => customFieldInstruksi[f.key]?.trim())
-				.map(f => `- ${f.label}: ${customFieldInstruksi[f.key].trim()}`)
-				.join('\n');
-
-			const instruksiFinal = fieldOverrides
-				? `${defaultDef.instruksi}\n\nINSTRUKSI KHUSUS DARI GURU:\n${fieldOverrides}`
-				: defaultDef.instruksi;
-
-			return [s.agentKey, {
-				namaSection: defaultDef.namaSection,
-				instruksi: instruksiFinal,
-				outputSchema: defaultDef.outputSchema
-			}];
-		})
-	);
-}
 
 export class LKPDAgent extends BaseAgent {
 	constructor() {
@@ -91,100 +46,55 @@ export class LKPDAgent extends BaseAgent {
 		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'start',
 			message: `LKPDAgent → memulai "${userInput.judul}"` });
 
-		// ── 1. Load template ──
+		// ── 1. Load template ──────────────────────────────────────────────────
 		let template = TEMPLATE_REGISTRY[userInput.templateId] ?? lkpdStandarTemplate;
 
 		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
+			// Normalisasi dari format lama (agentKey, title, batch, critical) ke format baru (key, label, critical)
+			const normalizedSections = userInput.customSections.map(s => ({
+				key: s.key || s.agentKey,
+				label: s.label || s.title || s.agentKey,
+				critical: s.critical !== undefined ? s.critical : true
+			}));
 			template = {
 				templateId: userInput.templateId,
 				jenis: 'lkpd',
 				isSystemTemplate: false,
-				sections: userInput.customSections
+				sections: normalizedSections
 			};
 		}
 		this.log(`Template: ${template.templateId}`);
 
-		// ── 2. Build identitas ──
-		onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'info',
-			message: 'LKPDAgent → membangun identitas dari userInput (no AI call)' });
+		// ── 2. Build identitas (no AI call) ───────────────────────────────────
 		const identitasSchema = this.buildIdentitasFromInput(userInput);
 
-		// ── 3. Group sections per batch ──
-		const batchMap = {};
-		for (const section of template.sections) {
-			if (!batchMap[section.batch]) batchMap[section.batch] = [];
-			batchMap[section.batch].push(section);
-		}
-		const batchNumbers = Object.keys(batchMap).map(Number).sort((a, b) => a - b);
+		// ── 3. Delegasi ke OrchestratorAI ─────────────────────────────────────
+		const orchestratorAI = new OrchestratorAI();
+		const pipelineResult = await orchestratorAI.runPipeline(template, userInput, onProgress);
 
-		// ── 4. Akumulasi context & token ──
-		let mergedContext = { identitas: identitasSchema };
-		const totalTokenUsage = { input: 0, cached: 0, output: 0 };
-
-		// ── 5. Jalankan tiap batch sequential ──
-		for (const batchNum of batchNumbers) {
-			const sectionsInBatch = batchMap[batchNum];
-			const agentKeys = sectionsInBatch.map((s) => s.agentKey);
-			const criticalKeys = sectionsInBatch.filter((s) => s.critical).map((s) => s.agentKey);
-
-			const sectionDefs = resolveSectionDefs(template);
-			const batchSectionDefs = {};
-			for (const section of sectionsInBatch) {
-				if (sectionDefs[section.agentKey]) {
-					batchSectionDefs[section.agentKey] = sectionDefs[section.agentKey];
-				}
-			}
-
-			onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_start',
-				batch: batchNum, agents: agentKeys,
-				message: `Batch ${batchNum} → ${agentKeys.join(', ')}` });
-
-			const batchResult = await runSubAgents({
-				agents: agentKeys,
-				input: userInput,
-				context: mergedContext,
-				critical: criticalKeys,
-				sectionDefs: batchSectionDefs,
-				onProgress
-			});
-
-			if (!batchResult.success) {
-				return this.fail(`Batch ${batchNum} gagal: ${Object.values(batchResult.errors).join(', ')}`);
-			}
-
-			mergedContext = { ...mergedContext, ...batchResult.merged };
-
-			if (batchResult.tokenUsage) {
-				totalTokenUsage.input  += batchResult.tokenUsage.input  || 0;
-				totalTokenUsage.cached += batchResult.tokenUsage.cached || 0;
-				totalTokenUsage.output += batchResult.tokenUsage.output || 0;
-			}
-
-			onProgress?.({ type: 'agent', name: 'LKPDAgent', action: 'batch_done',
-				batch: batchNum, message: `Batch ${batchNum} selesai ✓` });
+		if (!pipelineResult.success) {
+			return this.fail(pipelineResult.error);
 		}
 
-		// ── 6. Build fullSchema ──
-		const { identitas: _dup, ...restContext } = mergedContext;
-		const fullSchema = { identitas: identitasSchema, ...restContext };
+		// ── 4. Build fullSchema ───────────────────────────────────────────────
+		const fullSchema = {
+			identitas: identitasSchema,
+			...pipelineResult.merged
+		};
 
-		// ── 7. Generate DOCX ──
+		// ── 5. Generate DOCX ──────────────────────────────────────────────────
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start',
 			message: 'generate-docx → membuat file .docx LKPD...' });
 		const docxResult = await generateDocx({ jenis: 'lkpd', schema: fullSchema, input: userInput });
 
 		if (!docxResult.success) {
-			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error',
-				message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
+
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done',
 			message: 'generate-docx → selesai ✓' });
 
-		// ── 8. Simpan ke DB ──
-		onProgress?.({ type: 'tool', name: 'write-db', action: 'start',
-			message: 'write-db → menyimpan ke database...' });
-
+		// ── 6. Simpan ke DB — fire-and-forget ─────────────────────────────────
 		const dbRecord = {
 			userId: userInput.userId,
 			judul: userInput.judul,
@@ -216,7 +126,7 @@ export class LKPDAgent extends BaseAgent {
 			fileBuffer: docxResult.buffer,
 			fileName: `LKPD_${userInput.judul}.docx`,
 			qualityScore: null,
-			tokenUsage: totalTokenUsage,
+			tokenUsage: pipelineResult.tokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

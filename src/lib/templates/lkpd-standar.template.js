@@ -1,5 +1,7 @@
 // Template LKPD Standar — layout heading dengan bullets
-import { SECTION_REGISTRY } from './section-registry.js';
+//
+// Sections tidak perlu sectionDef lagi — schema ada di section-schema.js.
+// Urutan array = urutan eksekusi sequential oleh OrchestratorAI.
 
 export const lkpdStandarTemplate = {
 	templateId: 'lkpd-standar',
@@ -9,37 +11,11 @@ export const lkpdStandarTemplate = {
 	jenis: 'lkpd',
 	isSystemTemplate: true,
 
+	// Urutan array = urutan eksekusi sequential oleh OrchestratorAI
 	sections: [
-		// Batch 1 — sequential (harus selesai duluan, hasilnya jadi context batch 2)
-		{
-			id: 'capaian_lkpd',
-			agentKey: 'capaian_lkpd',
-			batch: 1,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.capaian_lkpd.sectionDef
-		},
-
-		// Batch 2 — paralel
-		{
-			id: 'ringkasan_materi',
-			agentKey: 'ringkasan_materi',
-			batch: 2,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.ringkasan_materi.sectionDef
-		},
-		{
-			id: 'langkah_kerja',
-			agentKey: 'langkah_kerja',
-			batch: 2,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.langkah_kerja.sectionDef
-		},
-		{
-			id: 'penilaian_lkpd',
-			agentKey: 'penilaian_lkpd',
-			batch: 2,
-			critical: false,
-			sectionDef: SECTION_REGISTRY.penilaian_lkpd.sectionDef
-		}
+		{ key: 'capaian_lkpd',     label: 'Capaian Pembelajaran LKPD', critical: true },
+		{ key: 'ringkasan_materi', label: 'Ringkasan Materi',          critical: true },
+		{ key: 'langkah_kerja',    label: 'Langkah Kerja',             critical: true },
+		{ key: 'penilaian_lkpd',   label: 'Penilaian LKPD',            critical: false }
 	]
 };

@@ -1,5 +1,8 @@
 // src/lib/templates/modul-ajar-standar.template.js
-import { SECTION_REGISTRY } from './section-registry.js';
+//
+// Template Modul Ajar Standar — Kurikulum Merdeka
+// Sections tidak perlu sectionDef lagi — schema ada di section-schema.js.
+// Urutan array = urutan eksekusi sequential oleh OrchestratorAI.
 
 export const modulAjarStandarTemplate = {
 	templateId: 'modul-ajar-standar',
@@ -7,32 +10,12 @@ export const modulAjarStandarTemplate = {
 	description: 'Template standar Kurikulum Merdeka — cocok untuk semua mata pelajaran',
 	kurikulum: 'Kurikulum Merdeka',
 	jenis: 'modul_ajar',
-	isSystemTemplate: true, // ← flag: tidak bisa diedit user
+	isSystemTemplate: true,
 
+	// Urutan array = urutan eksekusi sequential oleh OrchestratorAI
 	sections: [
-		// ── BATCH 1 ──────────────────────────────────────────────────────
-		{
-			id: 'capaian',
-			agentKey: 'capaian',
-			batch: 1,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.capaian.sectionDef
-		},
-
-		// ── BATCH 2 — paralel ────────────────────────────────────────────
-		{
-			id: 'kegiatan',
-			agentKey: 'kegiatan',
-			batch: 2,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.kegiatan.sectionDef
-		},
-		{
-			id: 'asesmen',
-			agentKey: 'asesmen',
-			batch: 2,
-			critical: true,
-			sectionDef: SECTION_REGISTRY.asesmen.sectionDef
-		}
+		{ key: 'capaian',  label: 'Capaian & Tujuan Pembelajaran', critical: true },
+		{ key: 'kegiatan', label: 'Kegiatan Pembelajaran',          critical: true },
+		{ key: 'asesmen',  label: 'Asesmen Pembelajaran',           critical: true }
 	]
 };

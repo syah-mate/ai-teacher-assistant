@@ -1,69 +1,13 @@
 import { BaseAgent } from '../base-agent.js';
-import { runSubAgents } from '../../tools/run-sub-agents.tool.js';
+import { OrchestratorAI } from '../orchestrator-ai.js';
 import { generateDocx } from '../../tools/generate-docx.tool.js';
 import { writeDB } from '../../tools/write-db.tool.js';
 import { modulAjarStandarTemplate } from '../../templates/modul-ajar-standar.template.js';
-import { getSectionDef, SECTION_REGISTRY } from '../../templates/section-registry.js';
 
 // Registry template — key = templateId yang dikirim dari frontend
 const TEMPLATE_REGISTRY = {
 	'modul-ajar-standar': modulAjarStandarTemplate
 };
-
-/**
- * Resolve sectionDefs dari template.
- * Untuk template sistem: sectionDef sudah ada di sections[].sectionDef.
- * Untuk template kustom: resolve berdasarkan promptMode → default (registry) atau custom (user).
- *
- * @param {Object} template
- * @returns {Object} { [agentKey]: sectionDef }
- */
-function resolveSectionDefs(template) {
-	// Template sistem: sectionDefs sudah ada di sections[].sectionDef
-	if (!template.templateId?.startsWith('custom-')) {
-		return Object.fromEntries(
-			template.sections.map(s => [s.agentKey, s.sectionDef])
-		);
-	}
-
-	// Template kustom: resolve sectionDef berdasarkan promptMode
-	return Object.fromEntries(
-		template.sections.map(s => {
-			// Ambil sectionDef default dari registry — SELALU, baik default maupun custom
-			const defaultDef = getSectionDef(s.agentKey);
-
-			if (s.promptMode !== 'custom' || !defaultDef) {
-				// promptMode: 'default' atau agentKey tidak dikenal → pakai sectionDef apa adanya
-				return [s.agentKey, defaultDef ?? {
-					namaSection: s.title,
-					instruksi: `Hasilkan konten untuk bagian ${s.title} dalam konteks modul ajar.`,
-					outputSchema: '{ "konten": "string" }'
-				}];
-			}
-
-			// promptMode: 'custom' — schema TETAP dari registry, instruksi digabung per-field
-			const customFieldInstruksi = s.customFieldInstruksi ?? {};
-			const registryFields = SECTION_REGISTRY[s.agentKey]?.customPromptFields ?? [];
-
-			// Bangun instruksi tambahan dari field yang diisi user
-			const fieldOverrides = registryFields
-				.filter(f => customFieldInstruksi[f.key]?.trim())
-				.map(f => `- ${f.label}: ${customFieldInstruksi[f.key].trim()}`)
-				.join('\n');
-
-			// Gabungkan instruksi default + override user
-			const instruksiFinal = fieldOverrides
-				? `${defaultDef.instruksi}\n\nINSTRUKSI KHUSUS DARI GURU:\n${fieldOverrides}`
-				: defaultDef.instruksi;
-
-			return [s.agentKey, {
-				namaSection: defaultDef.namaSection,
-				instruksi: instruksiFinal,   // instruksi gabungan
-				outputSchema: defaultDef.outputSchema  // TETAP dari registry — tidak berubah
-			}];
-		})
-	);
-}
 
 export class ModulAjarAgent extends BaseAgent {
 	constructor() {
@@ -107,114 +51,63 @@ export class ModulAjarAgent extends BaseAgent {
 		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'start',
 			message: `ModulAjarAgent → memulai "${userInput.judul}"` });
 
-		// ── 1. Load template ──────────────────────────────────────────────
+		// ── 1. Load template ──────────────────────────────────────────────────
 		let template = TEMPLATE_REGISTRY[userInput.templateId] ?? modulAjarStandarTemplate;
 
 		// Jika custom template, sections dikirim langsung dari frontend
 		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
+			// Normalisasi dari format lama (agentKey, title, batch, critical) ke format baru (key, label, critical)
+			const normalizedSections = userInput.customSections.map(s => ({
+				key: s.key || s.agentKey,
+				label: s.label || s.title || s.agentKey,
+				critical: s.critical !== undefined ? s.critical : true
+			}));
 			template = {
 				templateId: userInput.templateId,
 				jenis: 'modul_ajar',
 				isSystemTemplate: false,
-				sections: userInput.customSections
+				sections: normalizedSections
 			};
 		}
 		this.log(`Template: ${template.templateId}`);
 
-		// ── 2. Build identitas (tidak berubah) ────────────────────────────
-		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'info',
-			message: 'ModulAjarAgent → membangun identitas dari userInput (no AI call)' });
+		// ── 2. Build identitas (no AI call) ───────────────────────────────────
 		const identitasSchema = this.buildIdentitasFromInput(userInput);
 
-		// ── 3. Grouping sections per batch number ─────────────────────────
-		const batchMap = {};
-		for (const section of template.sections) {
-			if (!batchMap[section.batch]) batchMap[section.batch] = [];
-			batchMap[section.batch].push(section);
-		}
-		const batchNumbers = Object.keys(batchMap).map(Number).sort((a, b) => a - b);
+		// ── 3. Delegasi ke OrchestratorAI ─────────────────────────────────────
+		const orchestratorAI = new OrchestratorAI();
+		const pipelineResult = await orchestratorAI.runPipeline(template, userInput, onProgress);
 
-		// ── 4. Akumulasi context & tokenUsage lintas batch ────────────────
-		let mergedContext = { identitas: identitasSchema };
-		const totalTokenUsage = { input: 0, cached: 0, output: 0 };
-
-		// ── 5. Jalankan tiap batch secara sequential ──────────────────────
-		for (const batchNum of batchNumbers) {
-			const sectionsInBatch = batchMap[batchNum];
-			const agentKeys = sectionsInBatch.map((s) => s.agentKey);
-			const criticalKeys = sectionsInBatch.filter((s) => s.critical).map((s) => s.agentKey);
-
-			// Build sectionDefs map menggunakan resolver yang mendukung custom template
-			const sectionDefs = resolveSectionDefs(template);
-			// Filter hanya untuk agent yang ada di batch ini
-			const batchSectionDefs = {};
-			for (const section of sectionsInBatch) {
-				if (sectionDefs[section.agentKey]) {
-					batchSectionDefs[section.agentKey] = sectionDefs[section.agentKey];
-				}
-			}
-
-			onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_start',
-				batch: batchNum, agents: agentKeys,
-				message: `Batch ${batchNum} → ${agentKeys.join(', ')}` });
-
-			const batchResult = await runSubAgents({
-				agents: agentKeys,
-				input: userInput,
-				context: mergedContext,
-				critical: criticalKeys,
-				sectionDefs: batchSectionDefs,
-				onProgress
-			});
-
-			if (!batchResult.success) {
-				return this.fail(`Batch ${batchNum} gagal: ${Object.values(batchResult.errors).join(', ')}`);
-			}
-
-			// Angkat deskripsiUmum ke identitas
-			if (batchResult.merged.capaian?.deskripsiUmum) {
-				identitasSchema.deskripsiUmum = batchResult.merged.capaian.deskripsiUmum;
-				delete batchResult.merged.capaian.deskripsiUmum;
-			}
-
-			// Merge hasil ke context untuk batch berikutnya
-			mergedContext = { ...mergedContext, ...batchResult.merged };
-
-			// Akumulasi token
-			if (batchResult.tokenUsage) {
-				totalTokenUsage.input  += batchResult.tokenUsage.input  || 0;
-				totalTokenUsage.cached += batchResult.tokenUsage.cached || 0;
-				totalTokenUsage.output += batchResult.tokenUsage.output || 0;
-			}
-
-			onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'batch_done',
-				batch: batchNum, message: `Batch ${batchNum} selesai ✓` });
+		if (!pipelineResult.success) {
+			return this.fail(pipelineResult.error);
 		}
 
-		// ── 6. Build fullSchema ───────────────────────────────────────────
-		const { identitas: _identitasDuplikat, ...restContext } = mergedContext;
+		// ── 4. Angkat deskripsiUmum dari capaian ke identitas ─────────────────
+		if (pipelineResult.merged.capaian?.deskripsiUmum) {
+			identitasSchema.deskripsiUmum = pipelineResult.merged.capaian.deskripsiUmum;
+			delete pipelineResult.merged.capaian.deskripsiUmum;
+		}
+
+		// ── 5. Build fullSchema ───────────────────────────────────────────────
 		const fullSchema = {
 			identitas: identitasSchema,
-			...restContext
+			...pipelineResult.merged
 		};
 
-		// ── 7. Generate DOCX ──────────────────────────────────────────────
+		// ── 6. Generate DOCX ──────────────────────────────────────────────────
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'start',
 			message: 'generate-docx → membuat file .docx modul ajar...' });
+
 		const docxResult = await generateDocx({ jenis: 'modul_ajar', schema: fullSchema, input: userInput });
 
 		if (!docxResult.success) {
-			onProgress?.({ type: 'tool', name: 'generate-docx', action: 'error',
-				message: 'generate-docx → gagal ✗' });
 			return this.fail('Gagal generate dokumen DOCX');
 		}
+
 		onProgress?.({ type: 'tool', name: 'generate-docx', action: 'done',
 			message: 'generate-docx → selesai ✓' });
 
-		// ── 8. Simpan ke DB — fire-and-forget ─────────────────────────────
-		onProgress?.({ type: 'tool', name: 'write-db', action: 'start',
-			message: 'write-db → menyimpan ke database...' });
-
+		// ── 7. Simpan ke DB — fire-and-forget ─────────────────────────────────
 		const dbRecord = {
 			userId: userInput.userId,
 			judul: userInput.judul,
@@ -234,8 +127,10 @@ export class ModulAjarAgent extends BaseAgent {
 			dbRecord.templateSections = template.sections;
 		}
 
-		writeDB('modul_ajar', dbRecord).then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done',
-			message: 'write-db → tersimpan ✓' })).catch(() => {});
+		writeDB('modul_ajar', dbRecord)
+			.then(() => onProgress?.({ type: 'tool', name: 'write-db', action: 'done',
+				message: 'write-db → tersimpan ✓' }))
+			.catch(() => {});
 
 		onProgress?.({ type: 'agent', name: 'ModulAjarAgent', action: 'completed',
 			message: 'ModulAjarAgent → selesai ✓' });
@@ -246,7 +141,7 @@ export class ModulAjarAgent extends BaseAgent {
 			fileBuffer: docxResult.buffer,
 			fileName: `Modul_Ajar_${userInput.judul}.docx`,
 			qualityScore: null,
-			tokenUsage: totalTokenUsage,
+			tokenUsage: pipelineResult.tokenUsage,
 			metadata: this.getMetadata()
 		};
 	}

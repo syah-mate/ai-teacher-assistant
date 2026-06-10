@@ -31,6 +31,14 @@
 	function getEntryStyle(entry) {
 		const { type, action } = entry;
 		if (type === 'orchestrator') return { color: 'text-purple-400', icon: '🎯', dot: 'bg-purple-500' };
+		if (type === 'orchestrator-ai') {
+			if (action === 'pipeline_start' || action === 'pipeline_done') return { color: 'text-purple-400', icon: '🎯', dot: 'bg-purple-500' };
+			if (action === 'briefing') return { color: 'text-fuchsia-400', icon: '🧠', dot: 'bg-fuchsia-500' };
+			if (action === 'spawning') return { color: 'text-indigo-400', icon: '🚀', dot: 'bg-indigo-500' };
+			if (action === 'section_done') return { color: 'text-purple-300', icon: '✓', dot: 'bg-purple-400' };
+			if (action === 'warn') return { color: 'text-yellow-300', icon: '⚠', dot: 'bg-yellow-400' };
+			return { color: 'text-purple-400', icon: '◆', dot: 'bg-purple-500' };
+		}
 		if (type === 'agent') {
 			if (action === 'batch_start') return { color: 'text-blue-400', icon: '📦', dot: 'bg-blue-500' };
 			if (action === 'batch_done') return { color: 'text-blue-300', icon: '✓', dot: 'bg-blue-400' };
