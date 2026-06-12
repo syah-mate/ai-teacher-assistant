@@ -67,6 +67,7 @@ export function createServerAIClient(model, thinkingEffort = null) {
 
 				if (!response.ok) {
 					const errData = await response.json().catch(() => ({}));
+					const errMsg = errData.error?.message || '';
 
 					if (response.status === 429) {
 						if (attempt < maxRetries) {
@@ -77,13 +78,25 @@ export function createServerAIClient(model, thinkingEffort = null) {
 						return { success: false, error: 'Rate limit OpenRouter. Coba lagi nanti.' };
 					}
 
+					// Provider errors (502/503 dari upstream model provider) — retry lebih agresif
+					const isProviderError =
+						(response.status === 502 || response.status === 503 || response.status === 504) ||
+						/provider|upstream|overloaded|currently unavailable/i.test(errMsg);
+
+					if (isProviderError && attempt < maxRetries) {
+						const delay = Math.min(3000 * Math.pow(2, attempt), 30000);
+						console.warn(`[AI-Client] Provider error (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms: ${errMsg}`);
+						await sleep(delay);
+						continue;
+					}
+
 					if (response.status >= 500 && attempt < maxRetries) {
 						const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
 						await sleep(delay);
 						continue;
 					}
 
-					lastError = errData.error?.message || `OpenRouter API error ${response.status}`;
+					lastError = errMsg || `OpenRouter API error ${response.status}`;
 					return { success: false, error: lastError };
 				}
 

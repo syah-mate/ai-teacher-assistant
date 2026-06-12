@@ -20,11 +20,17 @@ export const SECTION_SCHEMAS = {
     label: 'Capaian & Tujuan Pembelajaran',
     jenis: 'modul_ajar',
     contextHint: 'Gunakan tujuanPembelajaran dan profilPelajarPancasila sebagai acuan section berikutnya.',
+    fields: [
+      { key: 'deskripsiUmum',          schema: 'string' },
+      { key: 'kemampuanPrasyarat',     schema: 'string' },
+      { key: 'tujuanPembelajaran',     schema: '[{ "nomor": 1, "tujuan": "string", "levelBloom": "C4" }]' },
+      { key: 'profilPelajarPancasila', schema: '[{ "dimensi": "string", "implementasi": "string" }]' },
+      { key: 'indikatorPencapaian',    schema: '["string"]' },
+    ],
     outputSchema: `{
   "deskripsiUmum": "string",
   "kemampuanPrasyarat": "string",
   "tujuanPembelajaran": [{ "nomor": 1, "tujuan": "string", "levelBloom": "C4" }],
-  "alurTujuanPembelajaran": [{ "tahap": 1, "judulTahap": "string", "deskripsi": "string" }],
   "profilPelajarPancasila": [{ "dimensi": "string", "implementasi": "string" }],
   "indikatorPencapaian": ["string"]
 }`
@@ -35,6 +41,9 @@ export const SECTION_SCHEMAS = {
     label: 'Kegiatan Pembelajaran',
     jenis: 'modul_ajar',
     contextHint: 'Gunakan jumlah pertemuan dan metode pembelajaran dari kegiatan sebagai acuan asesmen.',
+    fields: [
+      { key: 'pertemuan', schema: '[{ "ke": 1, "tujuanPertemuan": "string", "langkahPembelajaran": { "pembuka": [...], "inti": [...], "penutup": [...] }, "diferensiasi": {...}, "pertanyaanPemantik": [...] }]' },
+    ],
     outputSchema: `{
   "pertemuan": [{
     "ke": 1,
@@ -61,6 +70,13 @@ export const SECTION_SCHEMAS = {
     label: 'Asesmen Pembelajaran',
     jenis: 'modul_ajar',
     contextHint: 'Asesmen harus selaras dengan tujuan pembelajaran dan jumlah pertemuan yang sudah dibuat.',
+    fields: [
+      { key: 'asesmenDiagnostik', schema: '{ "tujuan": "string", "instrumen": ["string"] }' },
+      { key: 'asesmenFormatif',   schema: '[{ "pertemuan": 1, "teknik": "string", "instrumen": "string" }]' },
+      { key: 'asesmenSumatif',    schema: '{ "bentuk": "string", "bobot": "string", "instrumen": "string" }' },
+      { key: 'rubrikPenilaian',   schema: '[{ "aspek": "string", "kriteria": { "sangat_baik": "string", "baik": "string", "cukup": "string", "perlu_bimbingan": "string" } }]' },
+      { key: 'refleksiGuru',      schema: '["string"]' },
+    ],
     outputSchema: `{
   "asesmenDiagnostik": { "tujuan": "string", "instrumen": ["string"] },
   "asesmenFormatif": [{ "pertemuan": 1, "teknik": "string", "instrumen": "string" }],
@@ -75,6 +91,13 @@ export const SECTION_SCHEMAS = {
     label: 'Materi Pembelajaran',
     jenis: 'modul_ajar',
     contextHint: 'Ringkasan materi dan konsep kunci untuk referensi section berikutnya.',
+    fields: [
+      { key: 'ringkasanMateri', schema: 'string' },
+      { key: 'konsepKunci',     schema: '[{ "konsep": "string", "definisi": "string" }]' },
+      { key: 'faktaPenting',    schema: '["string"]' },
+      { key: 'contohAplikasi',  schema: '["string"]' },
+      { key: 'sumberReferensi', schema: '["string"]' },
+    ],
     outputSchema: `{
   "ringkasanMateri": "string",
   "konsepKunci": [{ "konsep": "string", "definisi": "string" }],
@@ -91,6 +114,10 @@ export const SECTION_SCHEMAS = {
     label: 'Capaian Pembelajaran LKPD',
     jenis: 'lkpd',
     contextHint: 'Tujuan pembelajaran LKPD menjadi acuan langkah kerja dan penilaian.',
+    fields: [
+      { key: 'tujuanPembelajaran',     schema: '[{ "nomor": 1, "tujuan": "string", "levelBloom": "C3" }]' },
+      { key: 'indikatorKetercapaian',  schema: '["string"]' },
+    ],
     outputSchema: `{
   "tujuanPembelajaran": [{ "nomor": 1, "tujuan": "string", "levelBloom": "C3" }],
   "indikatorKetercapaian": ["string"]
@@ -102,6 +129,11 @@ export const SECTION_SCHEMAS = {
     label: 'Ringkasan Materi',
     jenis: 'lkpd',
     contextHint: 'Materi singkat ini dibaca siswa — konsep kunci jadi acuan langkah kerja.',
+    fields: [
+      { key: 'materiSingkat', schema: 'string' },
+      { key: 'konsepKunci',   schema: '[{ "konsep": "string", "definisi": "string" }]' },
+      { key: 'faktaPenting',  schema: '["string"]' },
+    ],
     outputSchema: `{
   "materiSingkat": "string",
   "konsepKunci": [{ "konsep": "string", "definisi": "string" }],
@@ -114,6 +146,12 @@ export const SECTION_SCHEMAS = {
     label: 'Langkah Kerja',
     jenis: 'lkpd',
     contextHint: 'Langkah kerja dan jenis kegiatan aktif menjadi acuan rubrik penilaian.',
+    fields: [
+      { key: 'jenisKegiatanAktif', schema: '["string"]' },
+      { key: 'alatBahan',          schema: '["string"]' },
+      { key: 'langkahKerja',       schema: '[{ "bagian": "string", "tujuanBagian": "string", "langkah": [...] }]' },
+      { key: 'tabelPengamatan',    schema: '{ "judul": "string", "kolom": ["string"], "keterangan": "string" }' },
+    ],
     outputSchema: `{
   "jenisKegiatanAktif": ["string"],
   "alatBahan": ["string"],
@@ -131,6 +169,11 @@ export const SECTION_SCHEMAS = {
     label: 'Penilaian LKPD',
     jenis: 'lkpd',
     contextHint: '',
+    fields: [
+      { key: 'rubrikPenilaian',   schema: '[{ "aspek": "string", "bobot": 25, "kriteria": {...} }]' },
+      { key: 'evaluasiRefleksi',  schema: '["string"]' },
+      { key: 'totalBobot',        schema: '100' },
+    ],
     outputSchema: `{
   "rubrikPenilaian": [{
     "aspek": "string",
@@ -149,6 +192,9 @@ export const SECTION_SCHEMAS = {
     label: 'Soal Pilihan Ganda',
     jenis: 'soal',
     contextHint: '',
+    fields: [
+      { key: 'soalPilihanGanda', schema: '[{ "nomor": 1, "soal": "string", "pilihan": {...}, "kunciJawaban": "A", "pembahasan": "string", "levelBloom": "C3" }]' },
+    ],
     outputSchema: `{
   "soalPilihanGanda": [{
     "nomor": 1,
@@ -166,6 +212,9 @@ export const SECTION_SCHEMAS = {
     label: 'Soal Esai',
     jenis: 'soal',
     contextHint: '',
+    fields: [
+      { key: 'soalEsai', schema: '[{ "nomor": 1, "soal": "string", "petunjukMenjawab": "string", "kunciJawaban": "string", "rubrikPenilaian": "string", "bobot": 20 }]' },
+    ],
     outputSchema: `{
   "soalEsai": [{
     "nomor": 1,

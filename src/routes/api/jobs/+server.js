@@ -36,6 +36,7 @@ export async function GET({ locals, url }) {
 			.project({
 				status: 1,
 				progress: 1,
+				log: 1,
 				resultId: 1,
 				resultTipe: 1,
 				error: 1,
@@ -55,6 +56,7 @@ export async function GET({ locals, url }) {
 				_id: j._id.toString(),
 				status: j.status,
 				progress: j.progress || {},
+				log: j.log || [],
 				resultId: j.resultId || null,
 				resultTipe: j.resultTipe || null,
 				error: j.error || null,

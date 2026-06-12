@@ -44,6 +44,10 @@ function formatModulAjarSchema(schema, input) {
 	(capaian.profilPelajarPancasila || []).forEach((p) => {
 		text += `• ${p.dimensi}: ${p.implementasi}\n`;
 	});
+	text += `\nIndikator Pencapaian:\n`;
+	(capaian.indikatorPencapaian || []).forEach((ind) => {
+		text += `• ${ind}\n`;
+	});
 	text += '\n';
 
 	// C. Kegiatan Pembelajaran

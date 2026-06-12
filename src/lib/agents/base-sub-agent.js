@@ -64,7 +64,7 @@ INSTRUKSI OUTPUT KRITIS:
 				`${userPrompt}\n\nUlangi jawaban sekarang dalam JSON valid dari awal hingga akhir.`,
 				{
 					timeout: 90000,
-					maxRetries: 2,
+					maxRetries: 3,
 					...options
 				}
 			);

@@ -1,17 +1,24 @@
 // src/lib/agents/orchestrator-ai.js
 //
-// Orchestrator AI-driven — sequential pipeline dengan AI-generated agent briefs.
+// Orchestrator AI-driven — hierarchical 3-level pipeline dengan AI-generated agent briefs.
 //
-// Alur:
-// 1. Baca sections dari template
-// 2. Loop sequential per section
-// 3. Sebelum spawn tiap agent → panggil AI untuk generate brief agent tersebut
-// 4. Spawn GenericSubAgent dengan brief itu
-// 5. Jalankan, simpan hasil ke context
-// 6. Lanjut ke section berikutnya
+// Alur 3-Level:
+//   Orchestrator (sequential per section)
+//     └─ SectionAgent (per section, di-spawn orchestrator)
+//          └─ SchemaSubAgent (per field schema, parallel, di-spawn SectionAgent)
+//
+// Detail per loop:
+// 1. Orchestrator call AI → generate brief SectionAgent
+// 2. Orchestrator spawn SectionAgent dengan brief tadi
+// 3. SectionAgent call AI → generate N brief SchemaSubAgent (satu per field)
+// 4. SectionAgent spawn semua SchemaSubAgent secara PARALEL (Promise.allSettled)
+// 5. SchemaSubAgent generate konten untuk 1 field schema saja
+// 6. SectionAgent collect + call AI merge → JSON valid sesuai outputSchema
+// 7. Orchestrator simpan hasil ke mergedContext, lanjut section berikutnya
 
 import { BaseAgent } from './base-agent.js';
 import { GenericSubAgent } from './generic-sub-agent.js';
+import { SectionAgent } from './section-agent.js';
 import { getSectionSchema } from '../templates/section-schema.js';
 import { callGeminiAPI } from '../utils/gemini-client.js';
 
@@ -37,6 +44,7 @@ export class OrchestratorAI extends BaseAgent {
     const mergedContext = {};
     const totalTokenUsage = { input: 0, cached: 0, output: 0 };
 
+    console.log('%cOrchestrator start', 'color: blue;');
     this.log(`Pipeline dimulai: ${sections.length} sections`);
     onProgress?.({
       type: 'orchestrator-ai',
@@ -112,29 +120,47 @@ export class OrchestratorAI extends BaseAgent {
         message: `OrchestratorAI → spawn ${name} untuk "${section.label}"`
       });
 
-      // ── STEP B: Spawn GenericSubAgent dengan brief ──────────────────────
-      const agent = new GenericSubAgent(name, role, expertise, prompt, sectionSchema.outputSchema);
+      // ── STEP B: Spawn SectionAgent (menggantikan GenericSubAgent) ──────────
+      const sectionAgent = new SectionAgent(
+        name,
+        role,
+        expertise,
+        prompt,      // brief dari AI (context-aware)
+        sectionSchema
+      );
 
       onProgress?.({
-        type: 'sub-agent',
+        type: 'section-agent',
         name,
         action: 'start',
+        section: section.key,
         message: `${name} → memulai section "${section.label}"...`
       });
 
       const startTime = Date.now();
-      const result = await agent.execute(userInput, mergedContext);
+
+      console.log(`%cOrchestrator spawn ${name}`, 'color: blue;');
+
+      // SectionAgent.execute menerima: userInput, accumulatedContext, onProgress
+      const result = await sectionAgent.execute(userInput, mergedContext, onProgress);
+
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-      // Akumulasi token dari sub-agent
-      const agentTokens = agent.getTokenUsage();
+      // Akumulasi token dari SectionAgent (sudah include token SchemaSubAgents)
+      const agentTokens = sectionAgent.getTokenUsage();
       totalTokenUsage.input  += agentTokens.input  || 0;
       totalTokenUsage.cached += agentTokens.cached || 0;
       totalTokenUsage.output += agentTokens.output || 0;
 
+      // Tambah token dari _generateSchemaBriefs dan _mergeFieldsToSchema
+      if (result.tokenUsage) {
+        totalTokenUsage.input  += result.tokenUsage.input  || 0;
+        totalTokenUsage.output += result.tokenUsage.output || 0;
+      }
+
       if (!result.success) {
         onProgress?.({
-          type: 'sub-agent',
+          type: 'section-agent',
           name,
           action: 'error',
           message: `${name} → gagal: ${result.error}`
@@ -154,7 +180,7 @@ export class OrchestratorAI extends BaseAgent {
       }
 
       onProgress?.({
-        type: 'sub-agent',
+        type: 'section-agent',
         name,
         action: 'done',
         message: `${name} → selesai (${duration}s)`
@@ -170,6 +196,8 @@ export class OrchestratorAI extends BaseAgent {
         message: `Section "${section.label}" selesai — context di-update untuk section berikutnya`
       });
     }
+
+    console.log('%cOrchestrator finished', 'color: blue;');
 
     onProgress?.({
       type: 'orchestrator-ai',
@@ -268,7 +296,8 @@ OUTPUT: JSON valid saja, tidak ada teks lain.
 }
 `.trim();
 
-    const result = await callGeminiAPI(briefPrompt, { timeout: 60000, maxRetries: 2 });
+    const t0 = Date.now();
+    const result = await callGeminiAPI(briefPrompt, { timeout: 90000, maxRetries: 4 });
 
     if (!result.success) {
       return { success: false, error: result.error };
@@ -282,6 +311,8 @@ OUTPUT: JSON valid saja, tidak ada teks lain.
     const tokenUsage = result.usage
       ? { input: result.usage.promptTokenCount || 0, output: result.usage.candidatesTokenCount || 0 }
       : null;
+
+    console.log(`%cOrchestrator get prompt for ${brief.name}`, 'color: blue;');
 
     return { success: true, brief, tokenUsage };
   }

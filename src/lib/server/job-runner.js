@@ -99,7 +99,14 @@ async function runJob(jobId) {
 		// Tandai sebagai running
 		await col.updateOne(
 			{ _id: new ObjectId(jobId) },
-			{ $set: { status: 'running', startedAt: new Date(), progress: { step: 0, total: 6, message: 'Memulai proses generate...' } } }
+			{
+				$set: {
+					status: 'running',
+					startedAt: new Date(),
+					progress: { step: 0, total: 10, message: 'Memulai proses generate...' },
+					log: [{ timestamp: new Date(), message: '🚀 Memulai proses generate...', type: 'info' }]
+				}
+			}
 		);
 
 		// Buat AI client dikunci ke pilihan model user
@@ -123,17 +130,24 @@ async function runJob(jobId) {
 					const step = resolveProgressStep(progressData, lastProgressStep);
 					lastProgressStep = Math.max(lastProgressStep, step);
 
+					const logEntry = {
+						timestamp: new Date(),
+						message: progressData.message || '',
+						type: progressData.type || 'info'
+					};
+
 					await col.updateOne(
 						{ _id: new ObjectId(jobId) },
 						{
 							$set: {
 								progress: {
 									step: lastProgressStep,
-									total: 6,
+									total: 10,
 									message: progressData.message || '',
 									phase: progressData.name || ''
 								}
-							}
+							},
+							$push: { log: logEntry }
 						}
 					);
 				} catch {
@@ -153,8 +167,9 @@ async function runJob(jobId) {
 							completedAt: new Date(),
 							resultId,
 							resultTipe: job.userInput.jenis,
-							progress: { step: 6, total: 6, message: 'Selesai ✓' }
-						}
+							progress: { step: 10, total: 10, message: 'Selesai ✓' }
+						},
+						$push: { log: { timestamp: new Date(), message: '✅ Generate selesai — hasil disimpan', type: 'success' } }
 					}
 				);
 			} else {
@@ -165,8 +180,9 @@ async function runJob(jobId) {
 							status: 'failed',
 							completedAt: new Date(),
 							error: result.error || 'Generate gagal',
-							progress: { step: 0, total: 6, message: '❌ ' + (result.error || 'Generate gagal') }
-						}
+							progress: { step: 0, total: 10, message: '❌ ' + (result.error || 'Generate gagal') }
+						},
+						$push: { log: { timestamp: new Date(), message: '❌ ' + (result.error || 'Generate gagal'), type: 'error' } }
 					}
 				);
 			}
@@ -182,7 +198,8 @@ async function runJob(jobId) {
 						completedAt: new Date(),
 						error: err.message || 'Kesalahan tidak terduga',
 						progress: { message: '❌ ' + (err.message || 'Kesalahan tidak terduga') }
-					}
+					},
+					$push: { log: { timestamp: new Date(), message: '❌ ' + (err.message || 'Kesalahan tidak terduga'), type: 'error' } }
 				}
 			);
 		} catch {
@@ -191,40 +208,71 @@ async function runJob(jobId) {
 	}
 }
 
+/**
+ * Map setiap progress event ke step numerik (0–10).
+ *
+ * Progress bar bergerak inkremental setiap ada log baru:
+ * - Event milestone besar → lompat ke threshold tertentu
+ * - Event kecil lainnya → increment +0.5 agar bar tetap bergerak "sedikit demi sedikit"
+ * - Cap di 9.7 agar tidak pernah 100% sebelum benar-benar completed
+ */
 function resolveProgressStep(progressData, lastStep = 0) {
+	// Explicit step dari agent (jika ada)
 	if (Number.isFinite(progressData?.step)) {
 		return progressData.step;
 	}
 
-	if (progressData?.type === 'orchestrator') {
+	const { type, action } = progressData;
+	const INC = 0.5; // increment default per event kecil
+
+	// ── Milestone: Orchestrator handoff ──────────────────────────────
+	if (type === 'orchestrator') {
 		return 1;
 	}
 
-	if (progressData?.action === 'start' || progressData?.action === 'info') {
-		return Math.max(lastStep, 1);
+	// ── Domain agent start ───────────────────────────────────────────
+	if (type === 'agent') {
+		if (action === 'start') return Math.max(lastStep, 1.5);
+		if (action === 'completed') return 10; // final
+		return Math.max(lastStep, lastStep + INC);
 	}
 
-	if (progressData?.action === 'batch_start') {
-		return Math.max(lastStep, Math.min((progressData.batch ?? 1) + 1, 4));
+	// ── OrchestratorAI hierarchical pipeline ─────────────────────────
+	if (type === 'orchestrator-ai') {
+		if (action === 'pipeline_start') return Math.max(lastStep, 2);
+		if (action === 'briefing')          return Math.max(lastStep, 2.5);
+		if (action === 'spawning')          return Math.max(lastStep, 3);
+		if (action === 'section_done')      return Math.max(lastStep, 8);
+		if (action === 'pipeline_done')     return Math.max(lastStep, 9);
+		if (action === 'warn')              return lastStep;
+		return Math.max(lastStep, lastStep + INC);
 	}
 
-	if (progressData?.action === 'batch_done') {
-		return Math.max(lastStep, Math.min((progressData.batch ?? 1) + 2, 5));
+	// ── SectionAgent (Level 2) ───────────────────────────────────────
+	if (type === 'section-agent') {
+		if (action === 'start')              return Math.max(lastStep, 3);
+		if (action === 'briefing_schemas')   return Math.max(lastStep, 4);
+		if (action === 'spawning_sub_agents') return Math.max(lastStep, 5);
+		if (action === 'merging')            return Math.max(lastStep, 7);
+		if (action === 'done')               return Math.max(lastStep, 8);
+		if (action === 'error')              return lastStep;
+		return Math.max(lastStep, lastStep + INC);
 	}
 
-	if (progressData?.type === 'sub-agent' && progressData?.action === 'done') {
-		return Math.max(lastStep, 3);
+	// ── SchemaSubAgent (Level 3) ─────────────────────────────────────
+	if (type === 'schema-sub-agent') {
+		if (action === 'done')  return Math.max(lastStep, 6);
+		if (action === 'error') return lastStep;
+		return Math.max(lastStep, lastStep + INC);
 	}
 
-	if (progressData?.type === 'tool') {
-		return Math.max(lastStep, 5);
+	// ── Tool operations (DOCX, DB write) ────────────────────────────
+	if (type === 'tool') {
+		return Math.max(lastStep, 9.5);
 	}
 
-	if (progressData?.action === 'completed') {
-		return 5;
-	}
-
-	return lastStep;
+	// ── Fallback: setiap event yang belum dikenali tetap naik sedikit ─
+	return Math.min(9.7, lastStep + INC);
 }
 
 /**

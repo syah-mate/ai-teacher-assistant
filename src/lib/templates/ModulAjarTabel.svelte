@@ -66,6 +66,15 @@
       </tbody>
     </table>
   {/if}
+
+  {#if (capaian.indikatorPencapaian || []).length > 0}
+    <p class="sub-label">Indikator Pencapaian</p>
+    <ul class="indikator-list">
+      {#each capaian.indikatorPencapaian as ind}
+        <li>{ind}</li>
+      {/each}
+    </ul>
+  {/if}
 </section>
 
 <!-- ── SECTION C: KEGIATAN ── -->

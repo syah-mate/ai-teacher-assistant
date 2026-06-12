@@ -67,6 +67,17 @@
       </ul>
     </div>
   {/if}
+
+  {#if (capaian.indikatorPencapaian || []).length > 0}
+    <div class="field-block">
+      <p class="field-label">Indikator Pencapaian</p>
+      <ul>
+        {#each capaian.indikatorPencapaian as ind}
+          <li>{ind}</li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 </section>
 
 <!-- ── SECTION C: KEGIATAN PEMBELAJARAN ── -->

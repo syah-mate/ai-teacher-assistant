@@ -108,6 +108,16 @@
 						</table>
 					{/if}
 
+					<!-- Indikator Pencapaian -->
+					{#if data.indikatorPencapaian?.length}
+						<h3>Indikator Pencapaian</h3>
+						<ul>
+							{#each data.indikatorPencapaian as ind}
+								<li>{ind}</li>
+							{/each}
+						</ul>
+					{/if}
+
 				{:else}
 					<!-- BULLETS mode -->
 
@@ -130,6 +140,16 @@
 						<ul>
 							{#each data.profilPelajarPancasila as p}
 								<li><strong>{p.dimensi}:</strong> {p.implementasi}</li>
+							{/each}
+						</ul>
+					{/if}
+
+					<!-- Indikator Pencapaian -->
+					{#if data.indikatorPencapaian?.length}
+						<h3>Indikator Pencapaian</h3>
+						<ul>
+							{#each data.indikatorPencapaian as ind}
+								<li>{ind}</li>
 							{/each}
 						</ul>
 					{/if}
