@@ -213,6 +213,13 @@ KONTEKS DOKUMEN:
 - Kelas: ${userInput.kelas} / Fase: ${userInput.fase || '-'}
 - Jenjang: ${userInput.jenjang || '-'}
 - Metode: ${userInput.metode || 'Problem Based Learning'}
+${userInput.jenisSoal ? `- Jenis Soal: ${userInput.jenisSoal}` : ''}
+${userInput.jumlahSoal != null ? `- Jumlah Soal: ${userInput.jumlahSoal}` : ''}
+${userInput.jumlahSoalPg != null ? `- Jumlah Soal PG: ${userInput.jumlahSoalPg}` : ''}
+${userInput.jumlahSoalEsai != null ? `- Jumlah Soal Esai: ${userInput.jumlahSoalEsai}` : ''}
+${userInput.levelBloom ? `- Level Kognitif Bloom: ${userInput.levelBloom}` : ''}
+${userInput.tingkat ? `- Tingkat Kesulitan: ${userInput.tingkat}` : ''}
+${userInput.materiText ? `\nMATERI REFERENSI:\n${userInput.materiText.substring(0, 800)}${userInput.materiText.length > 800 ? '\n... (dipotong)' : ''}` : ''}
 
 INSTRUKSI SECTION DARI ORCHESTRATOR:
 ${this.sectionPrompt}
@@ -233,10 +240,15 @@ Buat brief untuk SETIAP field di atas. Setiap brief harus:
 - expertise: keahlian teknis dalam 5-10 kata  
 - prompt: instruksi LENGKAP untuk sub-agent ini. Prompt WAJIB:
   * Menjelaskan PERSIS konten yang harus dihasilkan untuk field ini
+  * ${userInput.jumlahSoalPg != null || userInput.jumlahSoalEsai != null || userInput.jumlahSoal != null ? `* MENYEBUTKAN JUMLAH ITEM YANG HARUS DIHASILKAN (WAJIB exact count)` : ''}
   * Menyebut relasi/konsistensi dengan field lain dalam section yang sama
   * Menyebut context dari section sebelumnya yang relevan (jika ada)
   * Menggunakan terminologi Kurikulum Merdeka Indonesia yang tepat
   * TIDAK menyebut format JSON (itu dihandle sistem)
+
+${userInput.jumlahSoalPg != null ? `PENTING: Field "soalPilihanGanda" WAJIB menghasilkan EXACT ${userInput.jumlahSoalPg} soal pilihan ganda.` : ''}
+${userInput.jumlahSoalEsai != null ? `PENTING: Field "soalEsai" WAJIB menghasilkan EXACT ${userInput.jumlahSoalEsai} soal esai.` : ''}
+${userInput.jumlahSoal != null && userInput.jumlahSoalPg == null && userInput.jumlahSoalEsai == null ? `PENTING: Setiap field soal WAJIB menghasilkan EXACT ${userInput.jumlahSoal} soal.` : ''}
 
 KRITIS: Semua brief HARUS saling relate — output setiap field harus konsisten dengan field lain
 dalam section yang sama. Embed informasi lintas-field dalam setiap prompt agar hasilnya kohesif.

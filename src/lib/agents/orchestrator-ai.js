@@ -268,6 +268,13 @@ INFORMASI DOKUMEN:
 - Jumlah Pertemuan: ${userInput.jumlahPertemuan || 1}
 - Alokasi Waktu: ${userInput.alokasiPerPertemuan || userInput.alokasiWaktu || '2x45 menit'}
 - Metode: ${userInput.metode || 'Problem Based Learning'}
+${userInput.jenisSoal ? `- Jenis Soal: ${userInput.jenisSoal}` : ''}
+${userInput.jumlahSoal != null ? `- Total Jumlah Soal: ${userInput.jumlahSoal}` : ''}
+${userInput.jumlahSoalPg != null ? `- Jumlah Soal PG: ${userInput.jumlahSoalPg}` : ''}
+${userInput.jumlahSoalEsai != null ? `- Jumlah Soal Esai: ${userInput.jumlahSoalEsai}` : ''}
+${userInput.levelBloom ? `- Level Kognitif Bloom: ${userInput.levelBloom}` : ''}
+${userInput.tingkat ? `- Tingkat Kesulitan: ${userInput.tingkat}` : ''}
+${userInput.materiText ? `\nMATERI REFERENSI:\n${userInput.materiText.substring(0, 600)}${userInput.materiText.length > 600 ? '\n... (dipotong)' : ''}` : ''}
 
 OUTPUT SCHEMA YANG HARUS DIHASILKAN AGENT:
 ${section.outputSchema}
@@ -286,6 +293,11 @@ Buat brief untuk agent ini dalam JSON. Brief harus:
   * Memastikan output konsisten dan berkesinambungan dengan section yang sudah ada
   * Spesifik untuk konteks Kurikulum Merdeka Indonesia
   * Tidak menyebutkan format JSON — itu sudah dihandle sistem
+${userInput.jumlahSoalPg != null || userInput.jumlahSoalEsai != null || userInput.jumlahSoal != null ? `  * MENYEBUTKAN JUMLAH ITEM YANG HARUS DIHASILKAN SECARA EKSPLISIT (exact count)` : ''}
+
+${userInput.jumlahSoalPg != null ? `\nPENTING — JUMLAH SOAL PG: Agent untuk section "${section.label}" WAJIB menghasilkan EXACT ${userInput.jumlahSoalPg} soal pilihan ganda. Pastikan prompt yang kamu buat menyebutkan angka ini secara eksplisit.` : ''}
+${userInput.jumlahSoalEsai != null ? `\nPENTING — JUMLAH SOAL ESAI: Agent untuk section "${section.label}" WAJIB menghasilkan EXACT ${userInput.jumlahSoalEsai} soal esai. Pastikan prompt yang kamu buat menyebutkan angka ini secara eksplisit.` : ''}
+${userInput.jumlahSoal != null && userInput.jumlahSoalPg == null && userInput.jumlahSoalEsai == null ? `\nPENTING — JUMLAH SOAL: Agent untuk section "${section.label}" WAJIB menghasilkan EXACT ${userInput.jumlahSoal} soal. Pastikan prompt yang kamu buat menyebutkan angka ini secara eksplisit.` : ''}
 
 OUTPUT: JSON valid saja, tidak ada teks lain.
 {

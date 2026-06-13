@@ -428,7 +428,85 @@ Skor total rubrik harus 100.`,
   "totalBobot": 100
 }`
 		}
+	},
+
+	// ── SECTION SOAL ─────────────────────────────────────────────────────────
+
+	'soal-pg': {
+		jenis: 'soal',
+		agentKey: 'soal-pg',
+		label: 'Soal Pilihan Ganda',
+		description: 'Soal pilihan ganda dengan 4 opsi jawaban, kunci, dan pembahasan',
+		batch: 1,
+		critical: true,
+		schemaFields: ['Soal Pilihan Ganda'],
+		customPromptFields: [
+			{
+				key: 'soalPilihanGanda',
+				label: 'Soal Pilihan Ganda',
+				placeholder: 'Contoh: Fokus pada level kognitif C3-C5, soal harus kontekstual',
+				defaultInstruksi: 'Setiap soal harus punya 4 opsi (A-D), kunci jawaban, pembahasan, dan level Taksonomi Bloom.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Soal Pilihan Ganda',
+			instruksi: `Buat soal pilihan ganda sesuai Kurikulum Merdeka dengan ketentuan:
+1. Setiap soal memiliki 4 opsi jawaban (A, B, C, D)
+2. Sertakan kunci jawaban yang benar
+3. Berikan pembahasan singkat untuk setiap soal
+4. Tentukan level Taksonomi Bloom (C1-C6) yang sesuai
+5. Soal harus kontekstual dan relevan dengan kehidupan siswa
+6. Gunakan bahasa yang jelas dan tidak ambigu`,
+			outputSchema: `{
+  "soalPilihanGanda": [{
+    "nomor": 1,
+    "soal": "string",
+    "pilihan": { "A": "string", "B": "string", "C": "string", "D": "string" },
+    "kunciJawaban": "A",
+    "pembahasan": "string",
+    "levelBloom": "C3"
+  }]
+}`
+		}
+	},
+
+	'soal-esai': {
+		jenis: 'soal',
+		agentKey: 'soal-esai',
+		label: 'Soal Esai',
+		description: 'Soal esai dengan petunjuk menjawab, kunci jawaban, dan rubrik penilaian',
+		batch: 2,
+		critical: true,
+		schemaFields: ['Soal Esai'],
+		customPromptFields: [
+			{
+				key: 'soalEsai',
+				label: 'Soal Esai',
+				placeholder: 'Contoh: Soal harus mendorong analisis dan evaluasi, bukan sekadar hafalan',
+				defaultInstruksi: 'Setiap soal harus punya petunjuk menjawab, kunci jawaban, rubrik penilaian, dan bobot.'
+			}
+		],
+		sectionDef: {
+			namaSection: 'Soal Esai',
+			instruksi: `Buat soal esai sesuai Kurikulum Merdeka dengan ketentuan:
+1. Soal harus mendorong analisis, evaluasi, atau kreasi (C4-C6)
+2. Sertakan petunjuk menjawab yang jelas
+3. Berikan kunci jawaban lengkap
+4. Sertakan rubrik penilaian yang terukur
+5. Tentukan bobot per soal`,
+			outputSchema: `{
+  "soalEsai": [{
+    "nomor": 1,
+    "soal": "string",
+    "petunjukMenjawab": "string",
+    "kunciJawaban": "string",
+    "rubrikPenilaian": "string",
+    "bobot": 20
+  }]
+}`
+		}
 	}
+
 };
 
 /**
@@ -441,7 +519,7 @@ export function getSectionRegistryList() {
 
 /**
  * Ambil array section registry yang difilter berdasarkan jenis.
- * @param {'modul_ajar'|'lkpd'} jenis
+ * @param {'modul_ajar'|'lkpd'|'soal'} jenis
  * @returns {Array} list section yang sesuai jenis
  */
 export function getSectionRegistryByJenis(jenis) {

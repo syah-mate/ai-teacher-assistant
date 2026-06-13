@@ -206,7 +206,9 @@ function formatSoal(schema) {
 			text += `**${s.nomor}.** ${s.soal}\n\n`;
 			const p = s.pilihan || {};
 			text += `A. ${p.A || ''}  \nB. ${p.B || ''}  \nC. ${p.C || ''}  \nD. ${p.D || ''}\n\n`;
-			text += `**Kunci:** ${s.kunci || ''} | **Level Bloom:** ${s.levelBloom || ''}\n\n`;
+			text += `**Kunci:** ${s.kunciJawaban || s.kunci || ''}`;
+			if (s.levelBloom) text += ` | **Level Bloom:** ${s.levelBloom}`;
+			text += `\n\n`;
 			if (s.pembahasan) text += `> *Pembahasan: ${s.pembahasan}*\n\n`;
 			text += `---\n\n`;
 		});
@@ -216,12 +218,10 @@ function formatSoal(schema) {
 		text += `# SOAL ESAI\n\n`;
 		esai.soalEsai.forEach((s) => {
 			text += `**${s.nomor}.** ${s.soal} *(Bobot: ${s.bobot})*\n\n`;
+			if (s.petunjukMenjawab) text += `*Petunjuk: ${s.petunjukMenjawab}*\n\n`;
 			if (s.kunciJawaban) text += `**Kunci Jawaban:**\n${s.kunciJawaban}\n\n`;
-			const r = s.rubrik || {};
-			text += `**Rubrik:**\n`;
-			text += `| Skor 4 | Skor 3 | Skor 2 | Skor 1 |\n|---|---|---|---|\n`;
-			text += `| ${r.skor_4 || ''} | ${r.skor_3 || ''} | ${r.skor_2 || ''} | ${r.skor_1 || ''} |\n\n`;
-			text += `**Level Bloom:** ${s.levelBloom || ''}\n\n---\n\n`;
+			if (s.rubrikPenilaian) text += `**Rubrik Penilaian:**\n${s.rubrikPenilaian}\n\n`;
+			text += `---\n\n`;
 		});
 	}
 

@@ -1,386 +1,279 @@
 <script>
-	import { get } from 'svelte/store';
-	import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
-	import { onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { soalStandarTemplate } from '$lib/templates/soal-standar.template.js';
+	import SoalGenerateModal from '$lib/components/SoalGenerateModal.svelte';
 
-	let form = $state({
-		mapel: '',
-		kelas: 'X',
-		topik: '',
-		kurikulum: 'Kurikulum Merdeka',
-		jenis: 'Pilihan Ganda',
-		jumlah: 10,
-		tingkat: 'Sedang',
-		level: 'C2 – Memahami'
+	let showModal = $state(false);
+	let selectedTemplate = $state(null);
+	let customTemplates = $state([]);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/custom-templates');
+			if (res.ok) {
+				const data = await res.json();
+				customTemplates = (data.templates ?? []).filter(t => t.jenis === 'soal');
+			}
+		} catch {
+			// ignore
+		}
 	});
 
-	let isSubmitting = $state(false);
-	let jobId = $state(null);
-	let jobStatus = $state(null);
-	let jobProgress = $state({ step: 0, total: 6, message: '', phase: '' });
-	let jobResultId = $state(null);
-	let error = $state('');
-
-	let pollInterval = null;
-
-	const isGenerating = $derived(jobStatus === 'queued' || jobStatus === 'running');
-	const isCompleted = $derived(jobStatus === 'completed');
-	const isFailed = $derived(jobStatus === 'failed');
-
-	async function handleGenerate(e) {
-		e.preventDefault();
-		if (!form.mapel || !form.topik) {
-			error = 'Harap isi Mata Pelajaran dan Topik/Materi';
-			return;
+	const templates = [
+		{
+			...soalStandarTemplate,
+			available: true,
+			icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />`,
+			color: 'blue',
+			previewSections: ['Soal Pilihan Ganda', 'Soal Esai', 'Kunci Jawaban', 'Pembahasan'],
+			previewStyle: 'Soal lengkap dengan kunci & pembahasan — siap cetak'
 		}
+	];
 
-		isSubmitting = true;
-		error = '';
-		jobId = null;
-		jobStatus = null;
-		jobResultId = null;
-		jobProgress = { step: 0, total: 6, message: 'Mengirim permintaan...', phase: '' };
+	const colorMap = {
+		blue: {
+			bg: 'bg-blue-100', icon: 'text-blue-600',
+			badge: 'bg-blue-50 text-blue-700 border-blue-100',
+			border: 'border-blue-200 shadow-blue-50',
+			chip: 'bg-blue-50 text-blue-700'
+		},
+		indigo: {
+			bg: 'bg-indigo-100', icon: 'text-indigo-600',
+			badge: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+			border: 'border-indigo-200 shadow-indigo-50',
+			chip: 'bg-indigo-50 text-indigo-700'
+		},
+		violet: {
+			bg: 'bg-violet-100',
+			icon: 'text-violet-600',
+			badge: 'bg-gray-100 text-gray-500 border-gray-200',
+			border: 'border-gray-200',
+			chip: 'bg-gray-100 text-gray-500'
+		}
+	};
 
-		const userInput = {
-			jenis: 'soal',
-			judul: form.topik,
-			mapel: form.mapel,
-			kelas: form.kelas,
-			jenisSoal: form.jenis,
-			jumlahSoal: form.jumlah,
-			tingkat: form.tingkat,
-			levelBloom: form.level
-		};
+	function handlePilih(template) {
+		if (template.available === false) return;
+		selectedTemplate = template;
+		showModal = true;
+	}
 
+	function handleEdit(ct) {
+		goto(`/dashboard/template-builder/${ct._id}`);
+	}
+
+	async function handleHapus(ct) {
+		if (!confirm(`Hapus template "${ct.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
 		try {
-			const res = await fetch('/api/generate-async', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ userInput, model: get(selectedModel), thinkingEffort: get(selectedThinking) })
-			});
-
-			const data = await res.json();
-			if (!res.ok) { error = data.error || 'Gagal memulai generate'; return; }
-
-			jobId = data.jobId;
-			jobStatus = 'queued';
-			jobProgress = { step: 0, total: 6, message: 'Job antri, segera diproses...', phase: '' };
-			savePendingJob(jobId, 'soal', form.topik, form.mapel);
-			startPolling();
-		} catch (err) {
-			error = 'Gagal terhubung ke server: ' + err.message;
-		} finally {
-			isSubmitting = false;
+			const res = await fetch(`/api/custom-templates/${ct._id}`, { method: 'DELETE' });
+			if (res.ok) {
+				customTemplates = customTemplates.filter(t => t._id !== ct._id);
+			} else {
+				alert('Gagal menghapus template');
+			}
+		} catch {
+			alert('Gagal menghapus template');
 		}
 	}
-
-	function startPolling() {
-		stopPolling();
-		pollInterval = setInterval(async () => {
-			if (!jobId) return;
-			try {
-				const res = await fetch(`/api/jobs/${jobId}`);
-				if (!res.ok) return;
-				const data = await res.json();
-				jobStatus = data.status;
-				if (data.progress) jobProgress = data.progress;
-				if (data.status === 'completed') {
-					jobResultId = data.resultId;
-					stopPolling();
-					removePendingJob(jobId);
-						window.dispatchEvent(new CustomEvent('quota-updated'));
-				} else if (data.status === 'failed') {
-					error = data.error || 'Generate gagal di server';
-					stopPolling();
-					removePendingJob(jobId);
-				}
-			} catch {}
-		}, 2500);
-	}
-
-	function stopPolling() {
-		if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-	}
-
-	function savePendingJob(id, jenis, judul, mapel) {
-		try {
-			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
-			stored.push({ jobId: id, jenis, judul, mapel, createdAt: new Date().toISOString() });
-			localStorage.setItem('pending_jobs', JSON.stringify(stored.slice(-10)));
-		} catch {}
-	}
-
-	function removePendingJob(id) {
-		try {
-			const stored = JSON.parse(localStorage.getItem('pending_jobs') || '[]');
-			localStorage.setItem('pending_jobs', JSON.stringify(stored.filter((j) => j.jobId !== id)));
-		} catch {}
-	}
-
-	onDestroy(stopPolling);
 </script>
 
 <svelte:head>
-	<title>Generator Soal — Asisten Guru AI</title>
+	<title>Soal Generator — Asisten Guru AI</title>
 </svelte:head>
 
 <div class="p-6">
 	<!-- Breadcrumb -->
-	<div class="mb-4 flex items-center gap-2 text-sm text-gray-500">
-		<a href="/dashboard" class="hover:text-violet-600">Dashboard</a>
-		<span>/</span>
-		<span class="font-medium text-gray-800">Generator Soal Otomatis</span>
+	<div class="mb-5 flex items-center gap-2 text-sm text-gray-400">
+		<a href="/dashboard" class="transition-colors hover:text-blue-600">Dashboard</a>
+		<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+		</svg>
+		<span class="font-medium text-gray-700">Soal Generator</span>
 	</div>
 
-	<!-- Page header -->
-	<div class="mb-6 flex items-center gap-4">
-		<div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100">
-			<svg class="h-6 w-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-				/>
+	<!-- Section header dengan tombol Buat Template Baru -->
+	<div class="mb-5 flex items-center justify-between gap-3">
+		<div class="flex items-center gap-3">
+			<div class="h-5 w-1 rounded-full bg-blue-600"></div>
+			<h2 class="text-base font-bold text-gray-800">Pilih Template Soal</h2>
+			<span
+				class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-500"
+			>
+				{templates.length} Template
+			</span>
+		</div>
+		<a
+			href="/dashboard/template-builder/new?jenis=soal"
+			class="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300
+				px-4 py-2 text-sm font-medium text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all"
+		>
+			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 			</svg>
-		</div>
-		<div>
-			<h1 class="text-2xl font-bold text-gray-800">Generator Soal Otomatis</h1>
-			<p class="text-sm text-gray-500">
-				Buat soal ujian pilihan ganda, esai, atau campuran secara otomatis
-			</p>
-		</div>
+			Buat Template Baru
+		</a>
 	</div>
 
-	<div class="mx-auto max-w-3xl space-y-4">
-			<!-- Info Card -->
-			<div class="rounded-xl border border-violet-100 bg-violet-50 p-4">
-				<div class="mb-2 flex items-center gap-2">
-					<svg
-						class="h-5 w-5 text-violet-600"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
+	<!-- Template cards -->
+	<div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+		{#each templates as template}
+			{@const c = colorMap[template.color]}
+			<div
+				class="group relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm transition-all duration-200
+{template.available
+					? `${c.border} hover:-translate-y-0.5 hover:shadow-md`
+					: 'border-gray-200 opacity-60'}"
+			>
+				<!-- Top row: icon + badge -->
+				<div class="mb-4 flex items-start justify-between">
+					<div
+						class="flex h-12 w-12 items-center justify-center rounded-2xl {c.bg} transition-transform group-hover:scale-105"
 					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M13 10V3L4 14h7v7l9-11h-7z"
-						/>
-					</svg>
-					<h3 class="font-semibold text-violet-900">Fitur AI Powered</h3>
-				</div>
-				<p class="text-xs leading-relaxed text-violet-700">
-					Generator soal ini menggunakan <strong>Agentic AI System</strong> dengan specialized agent:
-					<br />
-					🤖 <strong>Soal Generator Agent</strong> - Menyusun soal sesuai standar Kurikulum Merdeka
-				</p>
-			</div>
-
-			<div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-				<h2 class="mb-5 text-base font-semibold text-gray-700">Konfigurasi Soal</h2>
-			<form onsubmit={handleGenerate} class="space-y-4">
-				<div class="grid grid-cols-2 gap-4">
-					<div class="col-span-2">
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Mata Pelajaran *</label>
-						<input
-							type="text"
-							bind:value={form.mapel}
-							placeholder="cth: Biologi, Sejarah Indonesia..."
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-							required
-						/>
+						<svg class="h-6 w-6 {c.icon}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							{@html template.icon}
+						</svg>
 					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Kelas</label>
-						<select
-							bind:value={form.kelas}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-						>
-							{#each ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'] as k}
-								<option value={k} selected={form.kelas === k}>{k}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Kurikulum</label>
-						<select
-							bind:value={form.kurikulum}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-						>
-							<option>Kurikulum Merdeka</option>
-							<option>Kurikulum 2013 (K13)</option>
-						</select>
-					</div>
-					<div class="col-span-2">
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Topik / Materi *</label>
-						<input
-							type="text"
-							bind:value={form.topik}
-							placeholder="cth: Sel dan Organel, Reformasi 1998..."
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-							required
-						/>
-					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Jenis Soal</label>
-						<select
-							bind:value={form.jenis}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-						>
-							<option>Pilihan Ganda</option>
-							<option>Esai</option>
-							<option>Campuran</option>
-						</select>
-					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700"
-							>Jumlah Soal ({form.jumlah})</label
-						>
-						<input
-							type="range"
-							bind:value={form.jumlah}
-							min="5"
-							max="30"
-							step="5"
-							class="w-full accent-violet-600"
-						/>
-						<div class="mt-1 flex justify-between text-xs text-gray-400">
-							<span>5</span><span>15</span><span>25</span><span>30</span>
-						</div>
-					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Tingkat Kesulitan</label>
-						<div class="flex gap-2">
-							{#each ['Mudah', 'Sedang', 'Sulit'] as t}
-								<button
-									type="button"
-									onclick={() => (form.tingkat = t)}
-									class="flex-1 rounded-lg border py-2 text-xs font-medium transition-colors {form.tingkat ===
-									t
-										? 'border-violet-600 bg-violet-600 text-white'
-										: 'border-gray-200 text-gray-600 hover:border-violet-300'}"
-								>
-									{t}
-								</button>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<!-- svelte-ignore a11y_label_has_associated_control -->
-						<label class="mb-1 block text-sm font-medium text-gray-700">Level Kognitif (Bloom)</label>
-						<select
-							bind:value={form.level}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 focus:outline-none"
-						>
-							<option>C1 – Mengingat</option>
-							<option>C2 – Memahami</option>
-							<option>C3 – Mengaplikasikan</option>
-							<option>C4 – Menganalisis</option>
-							<option>C5 – Mengevaluasi</option>
-							<option>C6 – Mencipta</option>
-						</select>
-					</div>
+					<span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold {c.badge}">
+						{template.available ? '✓ Tersedia' : '🔒 Segera Hadir'}
+					</span>
 				</div>
 
-				<button
-					type="submit"
-					disabled={isSubmitting || isGenerating}
-					class="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 py-3 font-semibold text-white transition-colors hover:bg-violet-700 disabled:bg-violet-400"
-				>
-					{#if isSubmitting}
-						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						Mengirim...
-					{:else if isGenerating}
-						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						Sedang Dibuat di Background...
+				<!-- Title + description -->
+				<h3 class="mb-1.5 text-base font-bold text-gray-800">{template.label}</h3>
+				<p class="mb-4 text-sm leading-relaxed text-gray-500">{template.description}</p>
+
+				<!-- Section chips -->
+				<div class="mb-3 flex flex-wrap gap-1.5">
+					{#each template.previewSections as s}
+						<span class="rounded-md px-2 py-0.5 text-xs font-medium {c.chip}">{s}</span>
+					{/each}
+				</div>
+
+				{#if template.previewStyle && template.available}
+					<p class="mb-4 text-xs italic text-gray-400">{template.previewStyle}</p>
+				{:else}
+					<div class="mb-4"></div>
+				{/if}
+
+				<!-- Divider -->
+				<div class="mb-4 border-t border-gray-100"></div>
+
+				<!-- Footer: section count + CTA -->
+				<div class="mt-auto flex items-center justify-between gap-3">
+					<span class="text-xs text-gray-400">
+						{template.previewSections.length} Bagian Dokumen
+					</span>
+					{#if template.available}
+						<button
+							onclick={() => handlePilih(template)}
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600
+       px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-200
+       transition-all duration-150 hover:shadow-md hover:shadow-blue-300 active:scale-95"
+						>
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M13 10V3L4 14h7v7l9-11h-7z"
+								/>
+							</svg>
+							Generate dengan AI
+						</button>
 					{:else}
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-						</svg>
-						Generate Soal (AI Powered)
+						<span
+							class="inline-flex items-center gap-1.5 rounded-xl bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-400"
+						>
+							🔒 Segera Hadir
+						</span>
 					{/if}
-				</button>
-
-				<!-- Job Status indicator -->
-				{#if jobId}
-					<div class="mt-4 rounded-lg border {isCompleted ? 'border-green-200 bg-green-50' : isFailed ? 'border-red-200 bg-red-50' : 'border-violet-200 bg-violet-50'} p-4">
-						<div class="mb-2 flex items-center justify-between text-sm">
-							<span class="font-medium {isCompleted ? 'text-green-700' : isFailed ? 'text-red-700' : 'text-violet-700'}">
-								{jobProgress.phase || (isCompleted ? 'Selesai' : isFailed ? 'Gagal' : 'Memproses...')}
-							</span>
-							<span class="{isCompleted ? 'text-green-600' : isFailed ? 'text-red-600' : 'text-violet-600'}">
-								Step {jobProgress.step ?? 0}/{jobProgress.total ?? 6}
-							</span>
-						</div>
-						{#if !isFailed}
-						<div class="mb-2 h-2 overflow-hidden rounded-full {isCompleted ? 'bg-green-200' : 'bg-violet-200'}">
-							<div class="h-full transition-all duration-300 {isCompleted ? 'bg-green-600' : 'bg-violet-600'}"
-								style="width: {((jobProgress.step ?? 0) / (jobProgress.total ?? 6)) * 100}%"></div>
-						</div>
-						{/if}
-						<p class="text-xs {isCompleted ? 'text-green-600' : isFailed ? 'text-red-600' : 'text-violet-600'}">
-							{jobProgress.message || ''}
-						</p>
-						{#if isGenerating}
-						<p class="mt-1 text-xs text-violet-500">Berjalan di latar belakang — Anda boleh menutup halaman ini</p>
-						{/if}
-					</div>
-				{/if}
-
-				<!-- Error message -->
-				{#if error}
-					<div class="mt-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
-						<p class="flex-1 text-sm text-red-700">❌ {error}</p>
-						<button onclick={() => { error = ''; }} class="shrink-0 rounded p-1 text-red-400 hover:bg-red-100">✕</button>
-					</div>
-				{/if}
-			</form>
-		</div>
-
-	<!-- Success notification -->
-	{#if isCompleted && jobResultId}
-		<div class="rounded-2xl border border-violet-200 bg-violet-50 p-5">
-			<div class="flex items-center gap-4">
-				<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-100">
-					<svg class="h-6 w-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-					</svg>
 				</div>
-				<div class="flex-1">
-					<p class="font-semibold text-violet-900">Soal berhasil dibuat!</p>
-					<p class="mt-0.5 text-sm text-violet-700">
-						Tersimpan di riwayat. Klik tombol untuk membuka hasilnya.
-					</p>
-				</div>
-				<a
-					href="/dashboard/riwayat/{jobResultId}"
-					target="_blank"
-					class="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-				>
-					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-					</svg>
-					Buka Hasil
-				</a>
 			</div>
+		{/each}
+	</div>
+
+	<!-- Section Template Kustom -->
+	{#if customTemplates.length > 0}
+		<div class="mt-8 mb-5 flex items-center gap-3">
+			<div class="h-5 w-1 rounded-full bg-purple-500"></div>
+			<h2 class="text-base font-bold text-gray-800">Template Saya</h2>
+			<span class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-500">
+				{customTemplates.length} Template
+			</span>
+		</div>
+		<div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+			{#each customTemplates as ct}
+				<div class="group relative flex flex-col rounded-2xl border border-purple-200 bg-white p-6 shadow-sm
+					transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-purple-50">
+					<div class="mb-4 flex items-start justify-between">
+						<div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100">
+							<svg class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+							</svg>
+						</div>
+						<span class="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+							Template Kustom
+						</span>
+					</div>
+					<h3 class="mb-1.5 text-base font-bold text-gray-800">{ct.name}</h3>
+					<p class="mb-4 text-sm text-gray-500">{ct.description || 'Tidak ada deskripsi'}</p>
+					<div class="mb-3 flex flex-wrap gap-1.5">
+						{#each ct.sections.slice(0, 5) as s}
+							<span class="rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">{s.title}</span>
+						{/each}
+						{#if ct.sections.length > 5}
+							<span class="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-400">+{ct.sections.length - 5} lagi</span>
+						{/if}
+					</div>
+					<div class="mt-auto border-t border-gray-100 pt-4 flex items-center justify-between gap-2">
+						<div class="flex items-center gap-1">
+							<button
+								onclick={() => handleEdit(ct)}
+								class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+							>
+								Edit
+							</button>
+							<button
+								onclick={() => handleHapus(ct)}
+								class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+							>
+								Hapus
+							</button>
+						</div>
+						<button
+							onclick={() => handlePilih(ct)}
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-purple-500 to-indigo-600
+								px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-purple-200
+								transition-all hover:shadow-md hover:shadow-purple-300 active:scale-95"
+						>
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							Generate dengan AI
+						</button>
+					</div>
+				</div>
+			{/each}
 		</div>
 	{/if}
-
-	<!-- Agent Console Monitor -->
-	</div>
 </div>
+
+<!-- Modal -->
+{#if showModal && selectedTemplate}
+	<SoalGenerateModal
+		template={selectedTemplate}
+		onClose={() => {
+			showModal = false;
+			selectedTemplate = null;
+		}}
+		onSuccess={(jobId) => {
+			void jobId;
+			showModal = false;
+			selectedTemplate = null;
+			window.dispatchEvent(new CustomEvent('quota-updated'));
+			goto('/dashboard/riwayat');
+		}}
+	/>
+{/if}

@@ -27,8 +27,11 @@ export class SchemaSubAgent extends BaseSubAgent {
 
     console.log(`%cSub-Agent ${this.name} start`, 'color: green;');
 
+    // ── Bangun constraint jumlah item untuk soal ──────────────────────────
+    const countConstraint = this._buildCountConstraint(userInput);
+
     const systemPrompt = this.buildSystemPrompt(
-      `${this.taskPrompt}\n\nOUTPUT FORMAT JSON (field "${this.fieldKey}" saja):\n{ "${this.fieldKey}": ${this.fieldSchema} }\n\nOutput HANYA JSON valid dengan 1 key "${this.fieldKey}". Tidak ada field lain.`
+      `${this.taskPrompt}\n\n${countConstraint}OUTPUT FORMAT JSON (field "${this.fieldKey}" saja):\n{ "${this.fieldKey}": ${this.fieldSchema} }\n\nOutput HANYA JSON valid dengan 1 key "${this.fieldKey}". Tidak ada field lain.`
     );
 
     const userPrompt = this._buildUserPrompt(userInput);
@@ -57,6 +60,28 @@ export class SchemaSubAgent extends BaseSubAgent {
     return { success: true, fieldKey: this.fieldKey, content: result.schema[this.fieldKey] };
   }
 
+  /**
+   * Bangun constraint jumlah item untuk field soal (PG/Esai).
+   * Pastikan AI generate jumlah soal yang diminta user, bukan jumlah default.
+   */
+  _buildCountConstraint(input) {
+    // Hanya untuk field soal
+    if (this.fieldKey === 'soalPilihanGanda' && input.jumlahSoalPg != null) {
+      return `JUMLAH ITEM WAJIB: Kamu HARUS menghasilkan EXACT ${input.jumlahSoalPg} item dalam array "${this.fieldKey}". Tidak boleh kurang, tidak boleh lebih.\n\n`;
+    }
+    if (this.fieldKey === 'soalEsai' && input.jumlahSoalEsai != null) {
+      return `JUMLAH ITEM WAJIB: Kamu HARUS menghasilkan EXACT ${input.jumlahSoalEsai} item dalam array "${this.fieldKey}". Tidak boleh kurang, tidak boleh lebih.\n\n`;
+    }
+    // Fallback: untuk field soal dengan jenis non-campuran
+    if (this.fieldKey === 'soalPilihanGanda' && input.jumlahSoal != null && (!input.jenisSoal || input.jenisSoal.toLowerCase() !== 'esai')) {
+      return `JUMLAH ITEM WAJIB: Kamu HARUS menghasilkan EXACT ${input.jumlahSoal} item dalam array "${this.fieldKey}". Tidak boleh kurang, tidak boleh lebih.\n\n`;
+    }
+    if (this.fieldKey === 'soalEsai' && input.jumlahSoal != null && input.jenisSoal?.toLowerCase() === 'esai') {
+      return `JUMLAH ITEM WAJIB: Kamu HARUS menghasilkan EXACT ${input.jumlahSoal} item dalam array "${this.fieldKey}". Tidak boleh kurang, tidak boleh lebih.\n\n`;
+    }
+    return '';
+  }
+
   _buildUserPrompt(input) {
     return [
       `Judul Modul            : ${input.judul}`,
@@ -73,8 +98,12 @@ export class SchemaSubAgent extends BaseSubAgent {
       input.polaBelajar   ? `Pola Belajar           : ${input.polaBelajar}` : '',
       input.jenisSoal     ? `Jenis Soal             : ${input.jenisSoal}` : '',
       input.jumlahSoal    != null ? `Jumlah Soal            : ${input.jumlahSoal}` : '',
+      input.jumlahSoalPg  != null ? `Jumlah Soal PG         : ${input.jumlahSoalPg}` : '',
+      input.jumlahSoalEsai != null ? `Jumlah Soal Esai       : ${input.jumlahSoalEsai}` : '',
       input.tingkat       ? `Tingkat Kesulitan      : ${input.tingkat}` : '',
       input.levelBloom    ? `Level Kognitif Bloom   : ${input.levelBloom}` : '',
+      input.selectedTingkat ? `Level Kognitif Dipilih : ${Array.isArray(input.selectedTingkat) ? input.selectedTingkat.join(', ') : input.selectedTingkat}` : '',
+      input.materiText    ? `\n─── MATERI REFERENSI ───\n${input.materiText}\n─── END MATERI ───` : '',
     ].filter(Boolean).join('\n');
   }
 }

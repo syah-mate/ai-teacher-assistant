@@ -203,9 +203,10 @@ function formatSoalSchema(schema) {
 			text += `   B. ${p.B || ''}\n`;
 			text += `   C. ${p.C || ''}\n`;
 			text += `   D. ${p.D || ''}\n`;
-			text += `   Kunci: ${s.kunci || ''}\n`;
+			text += `   Kunci: ${s.kunciJawaban || s.kunci || ''}\n`;
 			if (s.pembahasan) text += `   Pembahasan: ${s.pembahasan}\n`;
-			text += `   Level Bloom: ${s.levelBloom || ''}\n\n`;
+			if (s.levelBloom) text += `   Level Bloom: ${s.levelBloom}\n`;
+			text += '\n';
 		});
 	}
 
@@ -213,14 +214,10 @@ function formatSoalSchema(schema) {
 		text += `\nSOAL ESAI\n${'─'.repeat(40)}\n\n`;
 		esai.soalEsai.forEach((s) => {
 			text += `${s.nomor}. ${s.soal} (Bobot: ${s.bobot})\n`;
-			text += `Kunci Jawaban: ${s.kunciJawaban || ''}\n`;
-			const r = s.rubrik || {};
-			text += `Rubrik:\n`;
-			text += `  Skor 4: ${r.skor_4 || ''}\n`;
-			text += `  Skor 3: ${r.skor_3 || ''}\n`;
-			text += `  Skor 2: ${r.skor_2 || ''}\n`;
-			text += `  Skor 1: ${r.skor_1 || ''}\n`;
-			text += `Level Bloom: ${s.levelBloom || ''}\n\n`;
+			if (s.petunjukMenjawab) text += `Petunjuk: ${s.petunjukMenjawab}\n`;
+			if (s.kunciJawaban) text += `Kunci Jawaban: ${s.kunciJawaban}\n`;
+			if (s.rubrikPenilaian) text += `Rubrik Penilaian: ${s.rubrikPenilaian}\n`;
+			text += '\n';
 		});
 	}
 
