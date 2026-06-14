@@ -13,36 +13,6 @@
 	// Custom template names (templateId → name)
 	let customTemplateNames = $state({});
 
-	// Auto-scroll action untuk console monitor
-	function autoScroll(node) {
-		const scroll = () => { node.scrollTop = node.scrollHeight; };
-		scroll();
-		const observer = new MutationObserver(scroll);
-		observer.observe(node, { childList: true, subtree: true, characterData: true });
-		return {
-			destroy() { observer.disconnect(); },
-			update() { scroll(); }
-		};
-	}
-
-	function formatLogTime(ts) {
-		if (!ts) return '';
-		const d = new Date(ts);
-		return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-	}
-
-	function logColorClass(type) {
-		switch (type) {
-			case 'error': return 'text-red-400';
-			case 'success': return 'text-green-400';
-			case 'progress': return 'text-cyan-400';
-			case 'orchestrator': return 'text-yellow-400';
-			case 'sub-agent': return 'text-purple-400';
-			case 'tool': return 'text-blue-400';
-			default: return 'text-gray-300';
-		}
-	}
-
 	const BUILTIN_TEMPLATE_NAMES = {
 		'modul-ajar-standar': 'Modul Ajar Standar',
 		'modul-ajar-tabel': 'Modul Ajar — Layout Tabel Grid',
@@ -230,19 +200,20 @@
 							<p class="mt-1 text-xs text-amber-700">{job.progress.message}</p>
 						</div>
 						{/if}
-					<!-- Console Monitor -->
+					<!-- Console Monitor button -->
 					{#if job.log?.length > 0}
-						<div
-							class="mt-2 rounded-lg bg-gray-900 px-3 py-2 font-mono text-[11px] leading-relaxed max-h-48 overflow-y-auto border border-gray-700"
-							use:autoScroll
+						<a
+							href="/dashboard/riwayat/{job._id}/console"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors border border-gray-700"
 						>
-							{#each job.log as entry}
-								<div class="flex gap-2 py-px">
-									<span class="text-gray-500 shrink-0 select-none">{formatLogTime(entry.timestamp)}</span>
-									<span class="break-all {logColorClass(entry.type)}">{entry.message}</span>
-								</div>
-							{/each}
-						</div>
+							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+							</svg>
+							Lihat Console ({job.log.length} log)
+						</a>
 					{/if}
 					</div>
 				{/each}

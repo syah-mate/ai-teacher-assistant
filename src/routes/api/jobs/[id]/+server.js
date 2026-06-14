@@ -40,6 +40,7 @@ export async function GET({ params, locals }) {
 				projection: {
 					status: 1,
 					progress: 1,
+					log: 1,
 					resultId: 1,
 					resultTipe: 1,
 					error: 1,
@@ -48,7 +49,8 @@ export async function GET({ params, locals }) {
 					completedAt: 1,
 					'userInput.jenis': 1,
 					'userInput.judul': 1,
-					'userInput.mapel': 1
+					'userInput.mapel': 1,
+					'userInput.kelas': 1
 				}
 			}
 		);
@@ -61,6 +63,7 @@ export async function GET({ params, locals }) {
 			success: true,
 			status: job.status,
 			progress: job.progress || {},
+			log: job.log || [],
 			resultId: job.resultId || null,
 			resultTipe: job.resultTipe || null,
 			error: job.error || null,
@@ -70,7 +73,8 @@ export async function GET({ params, locals }) {
 			userInput: {
 				jenis: job.userInput?.jenis,
 				judul: job.userInput?.judul,
-				mapel: job.userInput?.mapel
+				mapel: job.userInput?.mapel,
+				kelas: job.userInput?.kelas
 			}
 		});
 	} catch (err) {

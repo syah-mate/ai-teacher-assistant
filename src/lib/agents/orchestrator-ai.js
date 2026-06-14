@@ -112,6 +112,15 @@ export class OrchestratorAI extends BaseAgent {
         totalTokenUsage.output += briefResult.tokenUsage.output || 0;
       }
 
+      // Log brief prompt ke console monitor
+      onProgress?.({
+        type: 'orchestrator',
+        action: 'brief_prompt',
+        section: section.key,
+        agentName: name,
+        message: `OrchestratorAI → brief prompt untuk ${name}:\n\n${prompt}`
+      });
+
       onProgress?.({
         type: 'orchestrator-ai',
         action: 'spawning',

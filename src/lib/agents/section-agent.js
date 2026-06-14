@@ -66,6 +66,18 @@ export class SectionAgent extends BaseAgent {
 
     const schemaBriefs = briefsResult.briefs; // Array<{ fieldKey, name, role, expertise, prompt }>
 
+    // Log setiap brief prompt ke console monitor
+    for (const brief of schemaBriefs) {
+      onProgress?.({
+        type: 'sub-agent',
+        action: 'brief_prompt',
+        section: this.sectionSchema.key,
+        agentName: brief.name,
+        fieldKey: brief.fieldKey,
+        message: `${this.name} → brief prompt untuk ${brief.name} (field: ${brief.fieldKey}):\n\n${brief.prompt}`
+      });
+    }
+
     onProgress?.({
       type: 'section-agent',
       name: this.name,
