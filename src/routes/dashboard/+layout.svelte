@@ -24,13 +24,8 @@
 		}
 	}
 
-	const navItems = [
-		{
-			href: '/dashboard/template-builder',
-			label: 'Template Saya',
-			dotColor: 'bg-blue-500'
-		}
-	];
+	const navItems = [];
+
 
 	const settingsItems = [
 		{
@@ -111,20 +106,30 @@
 			</a>
 
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-				Tools Mengajar
+				Data Master
 			</p>
-			{#each navItems as item}
-				<a
-					href={item.href}
-					class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page
-						.url.pathname === item.href
-						? 'border border-blue-100 bg-blue-50 text-blue-700'
-						: 'text-gray-600 hover:bg-gray-100'}"
-				>
-					<span class="h-1.5 w-1.5 shrink-0 rounded-full {item.dotColor}"></span>
-					<span class="truncate">{item.label}</span>
-				</a>
-			{/each}
+			<a
+				href="/dashboard/data-master/kategori"
+				class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page.url.pathname.startsWith('/dashboard/data-master/kategori')
+					? 'border border-blue-100 bg-blue-50 text-blue-700'
+					: 'text-gray-600 hover:bg-gray-100'}"
+			>
+				<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+				</svg>
+				<span class="truncate">Kategori</span>
+			</a>
+			<a
+				href="/dashboard/template-builder"
+				class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page.url.pathname.startsWith('/dashboard/template-builder')
+					? 'border border-blue-100 bg-blue-50 text-blue-700'
+					: 'text-gray-600 hover:bg-gray-100'}"
+			>
+				<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+				</svg>
+				<span class="truncate">Template</span>
+			</a>
 
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
 				Riwayat

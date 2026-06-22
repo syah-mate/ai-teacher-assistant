@@ -4,14 +4,23 @@
 	import FlexGenerateModal from '$lib/components/FlexGenerateModal.svelte';
 
 	let templates = $state([]);
+	let kategoriList = $state([]);
 	let loading = $state(true);
 	let error = $state('');
 	let showGenerateModal = $state(false);
 	let selectedTemplate = $state(null);
 	let deleteConfirmId = $state(null);
+	let filterKategoriId = $state('');
 
 	onMount(async () => {
 		try {
+			// Load kategori
+			const katRes = await fetch('/api/kategori');
+			if (katRes.ok) {
+				const katData = await katRes.json();
+				kategoriList = katData.kategori || [];
+			}
+
 			const res = await fetch('/api/user-templates');
 			if (res.ok) {
 				const data = await res.json();
@@ -25,6 +34,16 @@
 			loading = false;
 		}
 	});
+
+	function getKategoriNama(kategoriId) {
+		if (!kategoriId) return null;
+		const kat = kategoriList.find((k) => k._id === kategoriId);
+		return kat ? kat.nama : null;
+	}
+
+	let filteredTemplates = $derived(filterKategoriId
+		? templates.filter((t) => t.kategoriId === filterKategoriId)
+		: templates);
 
 	async function handleDelete(id) {
 		try {
@@ -61,17 +80,30 @@
 </svelte:head>
 
 <div class="p-6">
-	<div class="mb-6 flex items-center justify-between">
+	<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-800">Template Saya</h1>
 			<p class="mt-1 text-sm text-gray-500">Kelola template generate dokumen Anda sendiri</p>
 		</div>
-		<button
-			onclick={() => goto('/dashboard/template-builder/new')}
-			class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-		>
-			+ Template Baru
-		</button>
+		<div class="flex items-center gap-3">
+			{#if kategoriList.length > 0}
+				<select
+					bind:value={filterKategoriId}
+					class="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-600 shadow-sm transition-colors hover:border-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none"
+				>
+					<option value="">Semua Kategori</option>
+					{#each kategoriList as kat}
+						<option value={kat._id}>{kat.nama}</option>
+					{/each}
+				</select>
+			{/if}
+			<button
+				onclick={() => goto('/dashboard/template-builder/new')}
+				class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+			>
+				+ Template Baru
+			</button>
+		</div>
 	</div>
 
 	{#if error}
@@ -84,7 +116,7 @@
 		<div class="flex items-center justify-center py-20">
 			<div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
 		</div>
-	{:else if templates.length === 0}
+	{:else if filteredTemplates.length === 0}
 		<div class="flex flex-col items-center justify-center py-20 text-center">
 			<div class="mb-4 rounded-full bg-blue-50 p-4">
 				<svg class="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -92,7 +124,7 @@
 				</svg>
 			</div>
 			<h3 class="mb-1 text-lg font-semibold text-gray-700">Belum ada template</h3>
-			<p class="mb-6 text-sm text-gray-500">Buat template pertama Anda untuk mulai generate dokumen</p>
+			<p class="mb-6 text-sm text-gray-500">{filterKategoriId ? 'Tidak ada template di kategori ini' : 'Buat template pertama Anda untuk mulai generate dokumen'}</p>
 			<button
 				onclick={() => goto('/dashboard/template-builder/new')}
 				class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
@@ -102,9 +134,16 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{#each templates as template}
+			{#each filteredTemplates as template}
 				<div class="group rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:border-gray-200 hover:shadow-md">
-					<h3 class="mb-1 text-base font-bold text-gray-800">{template.name}</h3>
+					<div class="mb-2 flex items-center gap-2">
+						<h3 class="text-base font-bold text-gray-800">{template.name}</h3>
+						{#if getKategoriNama(template.kategoriId)}
+							<span class="shrink-0 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600">
+								{getKategoriNama(template.kategoriId)}
+							</span>
+						{/if}
+					</div>
 					<p class="mb-3 line-clamp-2 text-sm text-gray-500">
 						{template.description || 'Tanpa deskripsi'}
 					</p>

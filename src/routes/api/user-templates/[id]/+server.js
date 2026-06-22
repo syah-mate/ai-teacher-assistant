@@ -73,7 +73,7 @@ export async function PUT({ params, request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { name, description, templatePrompt, sections, inputSchema } = body;
+	const { name, description, templatePrompt, sections, inputSchema, kategoriId } = body;
 
 	const updateFields = { updatedAt: new Date() };
 
@@ -90,6 +90,10 @@ export async function PUT({ params, request, locals }) {
 
 	if (templatePrompt !== undefined) {
 		updateFields.templatePrompt = templatePrompt?.trim() ?? '';
+	}
+
+	if (kategoriId !== undefined) {
+		updateFields.kategoriId = kategoriId?.trim() || null;
 	}
 
 	if (inputSchema !== undefined) {

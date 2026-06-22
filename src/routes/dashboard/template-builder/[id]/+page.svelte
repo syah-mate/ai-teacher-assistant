@@ -23,10 +23,12 @@
 		name: '',
 		description: '',
 		templatePrompt: '',
+		kategoriId: '',
 		inputSchema: [],
 		sections: []
 	});
 
+	let kategoriList = $state([]);
 	let saving = $state(false);
 	let error = $state('');
 	let success = $state('');
@@ -41,6 +43,15 @@
 	});
 
 	onMount(async () => {
+		// Load kategori list
+		try {
+			const katRes = await fetch('/api/kategori');
+			if (katRes.ok) {
+				const katData = await katRes.json();
+				kategoriList = katData.kategori || [];
+			}
+		} catch { /* silent */ }
+
 		if (!isNew && templateId) {
 			try {
 				const res = await fetch(`/api/user-templates/${templateId}`);
@@ -50,6 +61,7 @@
 						name: data.template.name || '',
 						description: data.template.description || '',
 						templatePrompt: data.template.templatePrompt || '',
+						kategoriId: data.template.kategoriId || '',
 						inputSchema: (data.template.inputSchema || []).map((f) => ({
 							id: f.id,
 							key: f.key || '',
@@ -276,6 +288,7 @@
 				name: template.name.trim(),
 				description: template.description.trim(),
 				templatePrompt: template.templatePrompt.trim(),
+				kategoriId: template.kategoriId || null,
 				inputSchema: template.inputSchema
 					.filter((f) => f.key.trim() && f.label.trim())
 					.map((f) => ({
@@ -390,6 +403,22 @@
 					placeholder="Deskripsi singkat template ini"
 					class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
+			</div>
+
+			<div class="mb-4">
+				<label class="mb-1.5 block text-sm font-medium text-gray-700">Kategori</label>
+				<select
+					bind:value={template.kategoriId}
+					class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				>
+					<option value="">-- Tanpa Kategori --</option>
+					{#each kategoriList as kat}
+						<option value={kat._id}>{kat.nama}</option>
+					{/each}
+				</select>
+				<p class="mt-1 text-xs text-gray-400">
+					<a href="/dashboard/data-master/kategori" class="text-blue-600 hover:underline">Kelola kategori</a> untuk mengelompokkan template
+				</p>
 			</div>
 
 			<div>

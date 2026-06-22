@@ -28,6 +28,7 @@ export async function GET({ locals }) {
 						description: 1,
 						templatePrompt: 1,
 						inputSchema: 1,
+						kategoriId: 1,
 						sectionCount: { $size: '$sections' },
 						createdAt: 1
 					}
@@ -42,6 +43,7 @@ export async function GET({ locals }) {
 			description: doc.description || '',
 			templatePrompt: doc.templatePrompt || '',
 			inputSchema: doc.inputSchema || [],
+			kategoriId: doc.kategoriId || null,
 			sectionCount: doc.sectionCount || 0,
 			createdAt: doc.createdAt
 		}));
@@ -70,7 +72,7 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { name, description, templatePrompt, sections, inputSchema } = body;
+	const { name, description, templatePrompt, sections, inputSchema, kategoriId } = body;
 
 	// Validasi name
 	if (!name || typeof name !== 'string' || !name.trim()) {
@@ -159,6 +161,7 @@ export async function POST({ request, locals }) {
 			name: name.trim(),
 			description: description?.trim() ?? '',
 			templatePrompt: templatePrompt?.trim() ?? '',
+			kategoriId: kategoriId?.trim() || null,
 			inputSchema: (inputSchema ?? []).map((f, i) => ({
 				id: crypto.randomUUID(),
 				order: i,
