@@ -13,11 +13,6 @@ export async function GET({ params, locals }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const userId = locals.user.id || locals.user._id?.toString() || null;
-	if (!userId) {
-		return json({ error: 'User ID tidak ditemukan' }, { status: 400 });
-	}
-
 	const { id } = params;
 
 	let objectId;
@@ -29,7 +24,7 @@ export async function GET({ params, locals }) {
 
 	try {
 		const col = await getCollection('user_templates');
-		const doc = await col.findOne({ _id: objectId, userId });
+		const doc = await col.findOne({ _id: objectId });
 
 		if (!doc) {
 			return json({ error: 'Template tidak ditemukan' }, { status: 404 });

@@ -45,6 +45,8 @@ export class FlexFieldAgent {
 				return `OUTPUT: JSON valid saja, format: { "${key}": ["string", "string", ...] }`;
 			case 'array-object':
 				return `OUTPUT: JSON valid saja, format: { "${key}": [{ ... }, { ... }] } — struktur object sesuai instruksi di atas`;
+			case 'keyvalue':
+				return `OUTPUT: JSON valid saja, format: { "${key}": [{"nama": "...", "value": "..."}, ...] } — array of object dengan 2 key: "nama" (nama field/baris) dan "value" (nilainya). Jumlah baris fleksibel sesuai kebutuhan.`;
 			case 'richtext':
 				return `OUTPUT: JSON valid saja, format: { "${key}": "<p>HTML string...</p>" }`;
 			case 'number':

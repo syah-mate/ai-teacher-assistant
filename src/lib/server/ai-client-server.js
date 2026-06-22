@@ -60,6 +60,7 @@ export function createServerAIClient(model, thinkingEffort = null) {
 					body: JSON.stringify({
 						model: resolvedModel,
 						messages: [{ role: 'user', content: prompt }],
+						max_tokens: 8192,
 						...reasoningParam
 					}),
 					signal: controller.signal

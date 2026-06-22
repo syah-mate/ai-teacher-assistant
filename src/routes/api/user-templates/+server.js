@@ -11,16 +11,11 @@ export async function GET({ locals }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const userId = locals.user.id || locals.user._id?.toString() || null;
-	if (!userId) {
-		return json({ error: 'User ID tidak ditemukan' }, { status: 400 });
-	}
-
 	try {
 		const col = await getCollection('user_templates');
 		const docs = await col
 			.find(
-				{ userId },
+				{},
 				{
 					projection: {
 						_id: 1,
@@ -29,6 +24,7 @@ export async function GET({ locals }) {
 						templatePrompt: 1,
 						inputSchema: 1,
 						kategoriId: 1,
+						userId: 1,
 						sectionCount: { $size: '$sections' },
 						createdAt: 1
 					}
@@ -44,6 +40,7 @@ export async function GET({ locals }) {
 			templatePrompt: doc.templatePrompt || '',
 			inputSchema: doc.inputSchema || [],
 			kategoriId: doc.kategoriId || null,
+			userId: doc.userId || null,
 			sectionCount: doc.sectionCount || 0,
 			createdAt: doc.createdAt
 		}));
@@ -147,7 +144,7 @@ export async function POST({ request, locals }) {
 				return json({ error: `Section "${s.title}", field "${f.key}": label wajib diisi` }, { status: 400 });
 			}
 
-			const allowedTypes = ['text', 'array', 'array-object', 'richtext', 'number'];
+			const allowedTypes = ['text', 'array', 'array-object', 'keyvalue', 'richtext', 'number'];
 			if (f.type && !allowedTypes.includes(f.type)) {
 				return json({ error: `Section "${s.title}", field "${f.key}": type tidak valid. Pilih: ${allowedTypes.join(', ')}` }, { status: 400 });
 			}

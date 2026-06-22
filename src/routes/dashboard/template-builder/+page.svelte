@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let templates = $state([]);
 	let kategoriList = $state([]);
@@ -8,6 +9,8 @@
 	let error = $state('');
 	let deleteConfirmId = $state(null);
 	let filterKategoriId = $state('');
+
+	let currentUserId = $derived($page.data.user?.id || $page.data.user?._id?.toString() || null);
 
 	onMount(async () => {
 		try {
@@ -31,6 +34,10 @@
 			loading = false;
 		}
 	});
+
+	function isOwner(template) {
+		return template.userId === currentUserId;
+	}
 
 	function getKategoriNama(kategoriId) {
 		if (!kategoriId) return null;
@@ -125,6 +132,11 @@
 								{getKategoriNama(template.kategoriId)}
 							</span>
 						{/if}
+						{#if !isOwner(template)}
+							<span class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600" title="Dibuat oleh pengguna lain">
+								Bersama
+							</span>
+						{/if}
 					</div>
 					<p class="mb-3 line-clamp-2 text-sm text-gray-500">
 						{template.description || 'Tanpa deskripsi'}
@@ -141,21 +153,30 @@
 						</span>
 					</div>
 					<div class="flex items-center gap-2">
-						<button
-							onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
-							class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-						>
-							Edit
-						</button>
-						<button
-							onclick={() => (deleteConfirmId = template._id)}
-							class="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50"
-							title="Hapus template"
-						>
-							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-							</svg>
-						</button>
+						{#if isOwner(template)}
+							<button
+								onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
+								class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+							>
+								Edit
+							</button>
+							<button
+								onclick={() => (deleteConfirmId = template._id)}
+								class="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50"
+								title="Hapus template"
+							>
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
+							</button>
+						{:else}
+							<button
+								onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
+								class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50"
+							>
+								Lihat
+							</button>
+						{/if}
 					</div>
 				</div>
 			{/each}

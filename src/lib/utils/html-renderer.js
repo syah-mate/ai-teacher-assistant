@@ -60,6 +60,9 @@ function renderFieldValue(type, value) {
 		case 'array-object':
 			if (!Array.isArray(value)) return `<p>${escapeHtml(JSON.stringify(value))}</p>`;
 			return renderObjectArray(value);
+		case 'keyvalue':
+			if (!Array.isArray(value)) return `<p>${escapeHtml(JSON.stringify(value))}</p>`;
+			return renderKeyValue(value);
 		case 'richtext':
 			return value; // HTML langsung, no escaping
 		case 'number':
@@ -71,14 +74,62 @@ function renderFieldValue(type, value) {
 
 function renderObjectArray(items) {
 	if (items.length === 0) return '';
-	const keys = Object.keys(items[0]);
+	// Kumpulkan SEMUA key dari SEMUA objek — bukan cuma objek pertama
+	// Ini mencegah baris kosong ketika AI menghasilkan objek dengan struktur tidak konsisten
+	const allKeys = new Set();
+	for (const item of items) {
+		if (item && typeof item === 'object') {
+			for (const k of Object.keys(item)) {
+				allKeys.add(k);
+			}
+		}
+	}
+	const keys = [...allKeys];
+	if (keys.length === 0) return '';
 	return [
 		'<table class="doc-table">',
 		`  <thead><tr>${keys.map((k) => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead>`,
 		'  <tbody>',
 		...items.map(
 			(item) =>
-				`    <tr>${keys.map((k) => `<td>${escapeHtml(String(item[k] ?? ''))}</td>`).join('')}</tr>`
+				`    <tr>${keys.map((k) => `<td>${escapeHtml(String((item && typeof item === 'object' ? item[k] : '') ?? ''))}</td>`).join('')}</tr>`
+		),
+		'  </tbody>',
+		'</table>'
+	].join('\n');
+}
+
+function renderKeyValue(items) {
+	if (items.length === 0) return '';
+	// Deteksi nama kolom dari item pertama (fleksibel: bisa "nama"/"name"/"label"/"key" dan "value"/"nilai"/"isi")
+	const firstItem = items[0];
+	let nameKey = 'nama';
+	let valueKey = 'value';
+	if (firstItem && typeof firstItem === 'object') {
+		const keys = Object.keys(firstItem);
+		if (keys.length === 2) {
+			// Ambil key pertama sebagai nama, key kedua sebagai value
+			nameKey = keys[0];
+			valueKey = keys[1];
+		} else if (keys.length > 2) {
+			// Cari key yang menyerupai "nama" atau "name"
+			const nameCandidates = keys.filter(k => /nama|name|label|key|field/i.test(k));
+			const valueCandidates = keys.filter(k => /value|nilai|isi|content/i.test(k));
+			if (nameCandidates.length > 0) nameKey = nameCandidates[0];
+			if (valueCandidates.length > 0) valueKey = valueCandidates[0];
+		}
+	}
+
+	return [
+		'<table class="doc-table doc-kv-table">',
+		'  <thead><tr><th>Nama Field</th><th>Value</th></tr></thead>',
+		'  <tbody>',
+		...items.map(
+			(item) => {
+				const nameVal = (item && typeof item === 'object') ? (item[nameKey] ?? '') : '';
+				const valueVal = (item && typeof item === 'object') ? (item[valueKey] ?? '') : '';
+				return `    <tr><td>${escapeHtml(String(nameVal))}</td><td>${escapeHtml(String(valueVal))}</td></tr>`;
+			}
 		),
 		'  </tbody>',
 		'</table>'
@@ -109,6 +160,9 @@ function getDocStyles() {
     .doc-table th { background: #1d4ed8; color: white; padding: 8px 12px; text-align: left; }
     .doc-table td { border: 1px solid #e5e7eb; padding: 8px 12px; }
     .doc-table tr:nth-child(even) td { background: #f8faff; }
+    .doc-kv-table { width: auto; min-width: 50%; }
+    .doc-kv-table th:first-child { width: 40%; }
+    .doc-kv-table td:first-child { font-weight: 600; color: #1e3a8a; }
     @media print {
       body { font-size: 11pt; }
       .doc-container { max-width: 100%; padding: 0; }

@@ -11,15 +11,10 @@ export async function GET({ locals }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const userId = locals.user.id || locals.user._id?.toString() || null;
-	if (!userId) {
-		return json({ error: 'User ID tidak ditemukan' }, { status: 400 });
-	}
-
 	try {
 		const col = await getCollection('kategori');
 		const docs = await col
-			.find({ userId })
+			.find({})
 			.sort({ createdAt: -1 })
 			.toArray();
 
@@ -27,6 +22,7 @@ export async function GET({ locals }) {
 			_id: doc._id.toString(),
 			nama: doc.nama,
 			deskripsi: doc.deskripsi || '',
+			userId: doc.userId || null,
 			templateCount: doc.templateCount || 0,
 			createdAt: doc.createdAt
 		}));

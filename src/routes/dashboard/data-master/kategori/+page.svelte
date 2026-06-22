@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let kategori = $state([]);
 	let loading = $state(true);
@@ -11,6 +12,8 @@
 	let formDeskripsi = $state('');
 	let saving = $state(false);
 	let deleteConfirmId = $state(null);
+
+	let currentUserId = $derived($page.data.user?.id || $page.data.user?._id?.toString() || null);
 
 	onMount(loadKategori);
 
@@ -29,6 +32,10 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function isOwner(kat) {
+		return kat.userId === currentUserId;
 	}
 
 	function openCreate() {
@@ -162,7 +169,12 @@
 				<tbody>
 					{#each kategori as kat (kat._id)}
 						<tr class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-							<td class="px-5 py-3.5 font-medium text-gray-800">{kat.nama}</td>
+							<td class="px-5 py-3.5 font-medium text-gray-800">
+								{kat.nama}
+								{#if !isOwner(kat)}
+									<span class="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600" title="Dibuat oleh pengguna lain">Bersama</span>
+								{/if}
+							</td>
 							<td class="px-5 py-3.5 text-gray-500">{kat.deskripsi || '-'}</td>
 							<td class="px-5 py-3.5 text-center">
 								<span class="inline-flex items-center justify-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
@@ -171,21 +183,23 @@
 							</td>
 							<td class="px-5 py-3.5 text-right">
 								<div class="flex items-center justify-end gap-2">
-									<button
-										onclick={() => openEdit(kat)}
-										class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-									>
-										Edit
-									</button>
-									<button
-										onclick={() => (deleteConfirmId = kat._id)}
-										class="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
-										title="Hapus"
-									>
-										<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-										</svg>
-									</button>
+									{#if isOwner(kat)}
+										<button
+											onclick={() => openEdit(kat)}
+											class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+										>
+											Edit
+										</button>
+										<button
+											onclick={() => (deleteConfirmId = kat._id)}
+											class="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
+											title="Hapus"
+										>
+											<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+											</svg>
+										</button>
+									{/if}
 								</div>
 							</td>
 						</tr>
