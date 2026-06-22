@@ -27,6 +27,7 @@ export async function GET({ locals }) {
 						name: 1,
 						description: 1,
 						templatePrompt: 1,
+						inputSchema: 1,
 						sectionCount: { $size: '$sections' },
 						createdAt: 1
 					}
@@ -40,6 +41,7 @@ export async function GET({ locals }) {
 			name: doc.name,
 			description: doc.description || '',
 			templatePrompt: doc.templatePrompt || '',
+			inputSchema: doc.inputSchema || [],
 			sectionCount: doc.sectionCount || 0,
 			createdAt: doc.createdAt
 		}));

@@ -112,15 +112,34 @@
 	}
 
 	function getTitle() {
-		return item.userContext?.judul || item.templateName || 'Dokumen';
+		const ctx = item.userContext || {};
+		const titleKeys = ['judul', 'nama', 'topik', 'tema', 'judul_modul', 'nama_modul', 'mata_pelajaran', 'mapel'];
+		for (const k of titleKeys) {
+			if (ctx[k]) return ctx[k];
+		}
+		// Fallback: first non-empty text value
+		for (const [, val] of Object.entries(ctx)) {
+			if (val && !Array.isArray(val) && typeof val === 'string' && val.trim()) {
+				return val.trim();
+			}
+		}
+		return item.templateName || 'Dokumen';
 	}
 
 	function getSubtitle() {
 		const ctx = item.userContext || {};
 		const parts = [];
-		if (ctx.mapel) parts.push(ctx.mapel);
-		if (ctx.kelas) parts.push(`Kelas ${ctx.kelas}`);
-		if (ctx.jenjang) parts.push(ctx.jenjang);
+		const descKeys = ['mapel', 'mata_pelajaran', 'kelas', 'fase', 'jenjang'];
+		for (const k of descKeys) {
+			if (ctx[k]) parts.push(k === 'kelas' ? `Kelas ${ctx[k]}` : ctx[k]);
+		}
+		// Also add any other non-title values for context
+		const titleKeys = new Set(['judul', 'nama', 'topik', 'tema', 'judul_modul', 'nama_modul']);
+		for (const [k, v] of Object.entries(ctx)) {
+			if (!titleKeys.has(k) && !descKeys.includes(k) && v && !Array.isArray(v) && typeof v === 'string' && v.trim()) {
+				if (parts.length < 3) parts.push(v.trim());
+			}
+		}
 		return parts.join(' · ') || '';
 	}
 </script>

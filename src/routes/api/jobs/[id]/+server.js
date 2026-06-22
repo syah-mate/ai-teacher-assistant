@@ -47,6 +47,8 @@ export async function GET({ params, locals }) {
 					createdAt: 1,
 					startedAt: 1,
 					completedAt: 1,
+					templateId: 1,
+					userContext: 1,
 					'userInput.jenis': 1,
 					'userInput.judul': 1,
 					'userInput.mapel': 1,
@@ -70,6 +72,8 @@ export async function GET({ params, locals }) {
 			createdAt: job.createdAt,
 			startedAt: job.startedAt || null,
 			completedAt: job.completedAt || null,
+			templateId: job.templateId || null,
+			userContext: job.userContext || {},
 			userInput: {
 				jenis: job.userInput?.jenis,
 				judul: job.userInput?.judul,

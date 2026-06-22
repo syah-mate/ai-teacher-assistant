@@ -75,11 +75,22 @@
 
 	function getUserContextSummary(ctx) {
 		if (!ctx) return '-';
-		const parts = [];
-		if (ctx.judul) parts.push(ctx.judul);
-		if (ctx.mapel) parts.push(ctx.mapel);
-		if (ctx.kelas) parts.push(`Kelas ${ctx.kelas}`);
-		return parts.join(' · ') || '-';
+		const titleKeys = ['judul', 'nama', 'topik', 'tema', 'judul_modul', 'nama_modul', 'mata_pelajaran', 'mapel'];
+		const descKeys = ['kelas', 'fase', 'jenjang'];
+
+		const title = titleKeys.find((k) => ctx[k]) || '';
+		const desc = descKeys.filter((k) => ctx[k]).map((k) => ctx[k]).join(' · ');
+
+		if (title) return desc ? `${title} · ${desc}` : title;
+		if (desc) return desc;
+
+		// Fallback: first non-empty text value
+		for (const [, val] of Object.entries(ctx)) {
+			if (val && !Array.isArray(val) && typeof val === 'string' && val.trim()) {
+				return val.trim();
+			}
+		}
+		return '-';
 	}
 
 	onMount(async () => {
@@ -111,7 +122,7 @@
 					<div class="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
 						<div class="mb-2 flex items-center justify-between">
 							<p class="text-sm font-semibold text-gray-700">
-								{job.userContext?.judul || 'Generate Dokumen'}
+								{getUserContextSummary(job.userContext) || 'Generate Dokumen'}
 							</p>
 							<span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
 								{job.status === 'running' ? 'Processing' : 'Queued'}

@@ -10,7 +10,7 @@
  */
 
 import { env } from '$env/dynamic/private';
-import { ALLOWED_MODELS, DEFAULT_MODEL } from './model-config.js';
+import { ALLOWED_MODELS, DEFAULT_MODEL, MODELS_SUPPORTING_REASONING } from './model-config.js';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
@@ -44,8 +44,10 @@ export function createServerAIClient(model, thinkingEffort = null) {
 			const timeoutId = setTimeout(() => controller.abort(), timeout);
 
 			try {
+				// Only send reasoning param to models that support it
+				const supportsReasoning = MODELS_SUPPORTING_REASONING.has(resolvedModel);
 				const reasoningParam =
-					thinkingEffort ? { reasoning: { effort: thinkingEffort } } : {};
+					thinkingEffort && supportsReasoning ? { reasoning: { effort: thinkingEffort } } : {};
 
 				const response = await fetch(OPENROUTER_BASE_URL, {
 					method: 'POST',
@@ -68,10 +70,12 @@ export function createServerAIClient(model, thinkingEffort = null) {
 				if (!response.ok) {
 					const errData = await response.json().catch(() => ({}));
 					const errMsg = errData.error?.message || '';
+					const errMeta = errData.error?.metadata || {};
 
 					if (response.status === 429) {
 						if (attempt < maxRetries) {
 							const delay = Math.min(2000 * Math.pow(2, attempt), 30000);
+							console.warn(`[AI-Client] Rate limited (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms`);
 							await sleep(delay);
 							continue;
 						}
@@ -85,16 +89,20 @@ export function createServerAIClient(model, thinkingEffort = null) {
 
 					if (isProviderError && attempt < maxRetries) {
 						const delay = Math.min(3000 * Math.pow(2, attempt), 30000);
-						console.warn(`[AI-Client] Provider error (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms: ${errMsg}`);
+						console.warn(`[AI-Client] Provider error (attempt ${attempt}/${maxRetries}), status=${response.status}, model=${resolvedModel}, retrying in ${delay}ms: ${errMsg || '(no message)'}`, errMeta ? JSON.stringify(errMeta) : '');
 						await sleep(delay);
 						continue;
 					}
 
 					if (response.status >= 500 && attempt < maxRetries) {
 						const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+						console.warn(`[AI-Client] Server error (attempt ${attempt}/${maxRetries}), status=${response.status}, retrying in ${delay}ms: ${errMsg || '(no message)'}`);
 						await sleep(delay);
 						continue;
 					}
+
+					// Log non-retryable errors with full details
+					console.error(`[AI-Client] Non-retryable error: status=${response.status}, model=${resolvedModel}, message=${errMsg || '(no message)'}`, JSON.stringify(errData));
 
 					lastError = errMsg || `OpenRouter API error ${response.status}`;
 					return { success: false, error: lastError };

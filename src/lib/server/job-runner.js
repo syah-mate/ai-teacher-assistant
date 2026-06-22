@@ -148,7 +148,7 @@ async function runJob(jobId) {
 
 			if (result.success) {
 				// Simpan hasil ke collection generated_docs
-				const resultId = await saveFlexResult(jobId, job.templateId, job.userContext, result);
+				const resultId = await saveFlexResult(jobId, job.userId, job.templateId, job.userContext, result);
 
 				await col.updateOne(
 					{ _id: new ObjectId(jobId) },
@@ -240,7 +240,7 @@ function resolveProgressStep(progressData, lastStep = 0) {
 /**
  * Simpan hasil FlexOrchestrator ke collection `generated_docs`.
  */
-async function saveFlexResult(jobId, templateId, userContext, result) {
+async function saveFlexResult(jobId, userId, templateId, userContext, result) {
 	const col = await getCollection('generated_docs');
 
 	// Idempotensi per job
@@ -250,7 +250,7 @@ async function saveFlexResult(jobId, templateId, userContext, result) {
 	}
 
 	const doc = {
-		userId: userContext.userId,
+		userId,
 		templateId,
 		templateName: result.templateName || 'Unknown',
 		userContext,

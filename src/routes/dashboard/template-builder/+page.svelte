@@ -176,7 +176,7 @@
 {#if showGenerateModal && selectedTemplate}
 	<FlexGenerateModal
 		template={selectedTemplate}
-		on:close={closeGenerate}
-		on:success={handleGenerateSuccess}
+		onClose={closeGenerate}
+		onSuccess={handleGenerateSuccess}
 	/>
 {/if}

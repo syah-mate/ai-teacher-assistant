@@ -28,7 +28,7 @@ export class FlexFieldAgent {
 			outputInstruction
 		].join('\n');
 
-		const result = await callGeminiAPI(prompt, { timeout: 90000, maxRetries: 2 });
+		const result = await callGeminiAPI(prompt, { timeout: 120000, maxRetries: 3 });
 
 		if (!result.success) {
 			return { success: false, error: result.error, fieldKey: this.field.key };
