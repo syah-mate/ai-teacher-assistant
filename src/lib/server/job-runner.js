@@ -1,14 +1,14 @@
 /**
  * job-runner.js — Background Job Runner
  *
- * Menjalankan proses generate (modul ajar, LKPD, soal) di sisi server
- * sebagai background job, terlepas dari koneksi browser user.
+ * Menjalankan proses generate di sisi server sebagai background job,
+ * terlepas dari koneksi browser user. Menggunakan sistem flexible template.
  *
  * Cara kerja:
  * 1. startJob(jobId) dipanggil setelah job dibuat di MongoDB
- * 2. Job runner mengambil data job dari DB, menjalankan orchestrator server-side
+ * 2. Job runner mengambil data job dari DB, menjalankan FlexOrchestrator server-side
  * 3. Progress disimpan ke MongoDB secara berkala
- * 4. Hasil (schema) disimpan ke koleksi modul_ajar/lkpd/soal lalu status job → 'completed'
+ * 4. Hasil disimpan ke koleksi `generated_docs` lalu status job → 'completed'
  * 5. Jika error → status job → 'failed'
  *
  * Untuk isolasi per-job (agar concurrent jobs tidak bentrok):
@@ -25,32 +25,22 @@ import { ObjectId } from 'mongodb';
 import { createServerAIClient } from '$lib/server/ai-client-server.js';
 
 // ---------- AsyncLocalStorage Setup ----------
-// Menyimpan context per-job (AI client, DB writer) secara aman di async tree
 const jobStorage = new AsyncLocalStorage();
 
-// Pasang resolver global — dibaca oleh gemini-client.js & write-db.tool.js
-// tanpa perlu import server-only module dari sana
 // Always reassign globals to the current module's jobStorage.
-// This handles hot-reload in dev: each module evaluation creates a new jobStorage,
-// so the globals must always point to the latest instance.
+// This handles hot-reload in dev.
 globalThis.__getJobAIClient = () => jobStorage.getStore()?.aiClient ?? null;
 globalThis.__getJobDBWriter = () => jobStorage.getStore()?.dbWriter ?? null;
 globalThis.__getJobQuotaFns = () => jobStorage.getStore()?.quotaFns ?? null;
-// Skip DOCX generation in server-side jobs — schema is saved directly to MongoDB;
-// DOCX is generated on-demand from the export endpoints when user downloads.
 globalThis.__isJobServerContext = () => jobStorage.getStore() != null;
 
 // Set in-process tracker agar tidak start job yang sama dua kali
 const activeJobs = new Set();
-let ensureResultIndexesPromise = null;
 
 // ---------- Public API ----------
 
 /**
  * Mulai memproses satu job di background (fire & forget).
- * Aman dipanggil berkali-kali dengan jobId yang sama — job ke-2 dst diabaikan.
- *
- * @param {string} jobId - MongoDB ObjectId string dari koleksi 'jobs'
  */
 export function startJob(jobId) {
 	if (activeJobs.has(jobId)) return;
@@ -61,9 +51,7 @@ export function startJob(jobId) {
 }
 
 /**
- * Cari semua job yang berstatus 'queued' atau 'running' (bisa terjadi jika
- * server restart di tengah proses) lalu restart.
- * Dipanggil sekali saat server boot dari hooks.server.js.
+ * Cari semua job yang berstatus 'queued' atau 'running' lalu restart.
  */
 export async function recoverStaleJobs() {
 	try {
@@ -124,40 +112,43 @@ async function runJob(jobId) {
 			const orchestrator = new Orchestrator();
 			let lastProgressStep = 0;
 
-			const result = await orchestrator.generate(job.userInput, async (progressData) => {
-				// Update progress di MongoDB (throttled — tiap perubahan message)
-				try {
-					const step = resolveProgressStep(progressData, lastProgressStep);
-					lastProgressStep = Math.max(lastProgressStep, step);
+			const result = await orchestrator.generate(
+				job.templateId,
+				job.userContext,
+				async (progressData) => {
+					try {
+						const step = resolveProgressStep(progressData, lastProgressStep);
+						lastProgressStep = Math.max(lastProgressStep, step);
 
-					const logEntry = {
-						timestamp: new Date(),
-						message: progressData.message || '',
-						type: progressData.type || 'info'
-					};
+						const logEntry = {
+							timestamp: new Date(),
+							message: progressData.message || '',
+							type: progressData.type || 'info'
+						};
 
-					await col.updateOne(
-						{ _id: new ObjectId(jobId) },
-						{
-							$set: {
-								progress: {
-									step: lastProgressStep,
-									total: 10,
-									message: progressData.message || '',
-									phase: progressData.name || ''
-								}
-							},
-							$push: { log: logEntry }
-						}
-					);
-				} catch {
-					// Jangan sampai gagal update progress menghentikan generate
+						await col.updateOne(
+							{ _id: new ObjectId(jobId) },
+							{
+								$set: {
+									progress: {
+										step: lastProgressStep,
+										total: 10,
+										message: progressData.message || '',
+										phase: progressData.name || ''
+									}
+								},
+								$push: { log: logEntry }
+							}
+						);
+					} catch {
+						// Jangan sampai gagal update progress menghentikan generate
+					}
 				}
-			});
+			);
 
 			if (result.success) {
-				// Simpan hasil ke koleksi tipe (modul_ajar / lkpd / soal)
-				const resultId = await saveResult(jobId, job.userInput, result);
+				// Simpan hasil ke collection generated_docs
+				const resultId = await saveFlexResult(jobId, job.templateId, job.userContext, result);
 
 				await col.updateOne(
 					{ _id: new ObjectId(jobId) },
@@ -166,7 +157,6 @@ async function runJob(jobId) {
 							status: 'completed',
 							completedAt: new Date(),
 							resultId,
-							resultTipe: job.userInput.jenis,
 							progress: { step: 10, total: 10, message: 'Selesai ✓' }
 						},
 						$push: { log: { timestamp: new Date(), message: '✅ Generate selesai — hasil disimpan', type: 'success' } }
@@ -210,134 +200,72 @@ async function runJob(jobId) {
 
 /**
  * Map setiap progress event ke step numerik (0–10).
- *
- * Progress bar bergerak inkremental setiap ada log baru:
- * - Event milestone besar → lompat ke threshold tertentu
- * - Event kecil lainnya → increment +0.5 agar bar tetap bergerak "sedikit demi sedikit"
- * - Cap di 9.7 agar tidak pernah 100% sebelum benar-benar completed
+ * Hanya mengenali event type baru: orchestrator, section, field
  */
 function resolveProgressStep(progressData, lastStep = 0) {
-	// Explicit step dari agent (jika ada)
 	if (Number.isFinite(progressData?.step)) {
 		return progressData.step;
 	}
 
 	const { type, action } = progressData;
-	const INC = 0.5; // increment default per event kecil
+	const INC = 0.5;
 
-	// ── Milestone: Orchestrator handoff ──────────────────────────────
+	// ── Orchestrator events ─────────────────────────────────
 	if (type === 'orchestrator') {
-		return 1;
-	}
-
-	// ── Domain agent start ───────────────────────────────────────────
-	if (type === 'agent') {
-		if (action === 'start') return Math.max(lastStep, 1.5);
-		if (action === 'completed') return 10; // final
+		if (action === 'start') return Math.max(lastStep, 1);
+		if (action === 'refining_prompts') return Math.max(lastStep, lastStep + INC);
+		if (action === 'rendering') return Math.max(lastStep, 9);
+		if (action === 'done') return 10;
 		return Math.max(lastStep, lastStep + INC);
 	}
 
-	// ── OrchestratorAI hierarchical pipeline ─────────────────────────
-	if (type === 'orchestrator-ai') {
-		if (action === 'pipeline_start') return Math.max(lastStep, 2);
-		if (action === 'briefing')          return Math.max(lastStep, 2.5);
-		if (action === 'spawning')          return Math.max(lastStep, 3);
-		if (action === 'section_done')      return Math.max(lastStep, 8);
-		if (action === 'pipeline_done')     return Math.max(lastStep, 9);
-		if (action === 'warn')              return lastStep;
+	// ── Section events ──────────────────────────────────────
+	if (type === 'section') {
+		if (action === 'start') return Math.max(lastStep, 2);
+		if (action === 'done') return Math.max(lastStep, 8);
 		return Math.max(lastStep, lastStep + INC);
 	}
 
-	// ── SectionAgent (Level 2) ───────────────────────────────────────
-	if (type === 'section-agent') {
-		if (action === 'start')              return Math.max(lastStep, 3);
-		if (action === 'briefing_schemas')   return Math.max(lastStep, 4);
-		if (action === 'spawning_sub_agents') return Math.max(lastStep, 5);
-		if (action === 'merging')            return Math.max(lastStep, 7);
-		if (action === 'done')               return Math.max(lastStep, 8);
-		if (action === 'error')              return lastStep;
-		return Math.max(lastStep, lastStep + INC);
-	}
-
-	// ── SchemaSubAgent (Level 3) ─────────────────────────────────────
-	if (type === 'schema-sub-agent') {
-		if (action === 'done')  return Math.max(lastStep, 6);
+	// ── Field events ────────────────────────────────────────
+	if (type === 'field') {
+		if (action === 'done') return Math.max(lastStep, lastStep + INC);
 		if (action === 'error') return lastStep;
 		return Math.max(lastStep, lastStep + INC);
 	}
 
-	// ── Tool operations (DOCX, DB write) ────────────────────────────
-	if (type === 'tool') {
-		return Math.max(lastStep, 9.5);
-	}
-
-	// ── Fallback: setiap event yang belum dikenali tetap naik sedikit ─
+	// ── Fallback ────────────────────────────────────────────
 	return Math.min(9.7, lastStep + INC);
 }
 
 /**
- * Simpan schema hasil ke koleksi yang sesuai dan kembalikan ID-nya.
+ * Simpan hasil FlexOrchestrator ke collection `generated_docs`.
  */
-async function saveResult(jobId, userInput, result) {
-	const tipe = userInput.jenis; // modul_ajar | lkpd | soal
-	await ensureResultIndexes();
-	const col = await getCollection(tipe);
+async function saveFlexResult(jobId, templateId, userContext, result) {
+	const col = await getCollection('generated_docs');
 
-	// Idempotensi per job: satu job hanya boleh menghasilkan satu dokumen hasil.
+	// Idempotensi per job
 	const existing = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
 	if (existing?._id) {
 		return existing._id.toString();
 	}
 
-	const baseData = {
-		userId: userInput.userId,
-		judul: userInput.judul,
-		mapel: userInput.mapel,
-		kelas: userInput.kelas,
-		jenjang: userInput.jenjang,
+	const doc = {
+		userId: userContext.userId,
+		templateId,
+		templateName: result.templateName || 'Unknown',
+		userContext,
+		result: {
+			sections: result.sections || [],
+			htmlOutput: result.htmlOutput || ''
+		},
 		sourceJobId: jobId,
-		schema: result.schema,
 		createdAt: new Date()
 	};
 
-	// Field spesifik per tipe
-	if (tipe === 'modul_ajar') {
-		Object.assign(baseData, {
-			templateId: userInput.templateId || 'modul-ajar-standar',
-			metode: userInput.metode,
-			modePembelajaran: userInput.modePembelajaran,
-			jumlahPertemuan: userInput.jumlahPertemuan,
-			alokasiPerPertemuan: userInput.alokasiPerPertemuan
-		});
-		// Untuk template kustom, simpan sections config agar bisa dirender oleh CustomTemplateRenderer
-		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
-			baseData.templateSections = userInput.customSections;
-		}
-	} else if (tipe === 'lkpd') {
-		Object.assign(baseData, {
-			templateId: userInput.templateId || 'lkpd-standar',
-			semester: userInput.semester,
-			jenisKegiatan: userInput.jenisKegiatan,
-			alokasiWaktu: userInput.alokasiWaktu
-		});
-		if (userInput.templateId?.startsWith('custom-') && userInput.customSections?.length > 0) {
-			baseData.templateSections = userInput.customSections;
-		}
-	} else if (tipe === 'soal') {
-		Object.assign(baseData, {
-			jenisSoal: userInput.jenisSoal,
-			jumlahSoal: userInput.jumlahSoal,
-			tingkat: userInput.tingkat,
-			levelBloom: userInput.levelBloom
-		});
-	}
-
 	try {
-		const r = await col.insertOne(baseData);
+		const r = await col.insertOne(doc);
 		return r.insertedId.toString();
 	} catch (err) {
-		// Jika race condition antar worker/hot-reload memicu insert bersamaan,
-		// index unique sourceJobId menjaga agar hanya satu dokumen yang lolos.
 		if (err?.code === 11000) {
 			const winner = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
 			if (winner?._id) return winner._id.toString();
@@ -346,30 +274,8 @@ async function saveResult(jobId, userInput, result) {
 	}
 }
 
-async function ensureResultIndexes() {
-	if (!ensureResultIndexesPromise) {
-		ensureResultIndexesPromise = (async () => {
-			const collections = ['modul_ajar', 'lkpd', 'soal'];
-			for (const name of collections) {
-				const col = await getCollection(name);
-				await col.createIndex(
-					{ sourceJobId: 1 },
-					{
-						name: 'sourceJobId_1',
-						unique: true,
-						partialFilterExpression: { sourceJobId: { $type: 'string' } }
-					}
-				);
-			}
-		})();
-	}
-
-	return ensureResultIndexesPromise;
-}
-
 /**
- * DB writer yang menulis langsung ke MongoDB (tanpa melalui /api/db-write).
- * Diinjeksikan ke globalThis.__getJobDBWriter() oleh write-db.tool.js.
+ * DB writer yang menulis langsung ke MongoDB.
  */
 function makeDirectDBWriter(userId) {
 	return async function writeDBDirect(collection, data) {
@@ -389,24 +295,15 @@ function makeDirectDBWriter(userId) {
 
 /**
  * Quota functions server-side untuk background job context.
- * Dipanggil oleh Orchestrator via globalThis.__getJobQuotaFns()
- *
- * @param {string} userId - MongoDB _id user sebagai string
+ * Kuota sudah di-reserve secara atomic di POST /api/generate-async.
  */
 function makeQuotaFns(userId) {
-	/**
-	 * Kuota sudah di-reserve secara atomic di POST /api/generate-async.
-	 * Fungsi ini dipertahankan agar kontrak orchestrator tetap sama.
-	 */
 	async function checkQuota() {
 		return { ok: true };
 	}
 
-	/**
-	 * Kuota sudah dikurangi sebelum job dimulai, jadi tidak ada aksi setelah selesai.
-	 */
 	async function consumeQuota() {
-		// no-op
+		// no-op — quota sudah dikurangi sebelum job dibuat
 	}
 
 	return { checkQuota, consumeQuota };

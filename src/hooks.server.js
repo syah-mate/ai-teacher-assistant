@@ -1,8 +1,12 @@
 import { lucia } from '$lib/server/auth';
 import { recoverStaleJobs } from '$lib/server/job-runner.js';
+import { ensureIndexes } from '$lib/server/ensure-indexes.js';
 
 // Pulihkan job yang terpotong saat server restart (fire & forget)
 recoverStaleJobs().catch((err) => console.error('[hooks] recoverStaleJobs failed:', err));
+
+// Pastikan index MongoDB tersedia
+ensureIndexes().catch((err) => console.error('[hooks] ensureIndexes failed:', err));
 
 export async function handle({ event, resolve }) {
 	// Authentication handling

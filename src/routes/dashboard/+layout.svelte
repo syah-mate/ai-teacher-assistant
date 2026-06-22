@@ -26,19 +26,9 @@
 
 	const navItems = [
 		{
-			href: '/dashboard/modul-ajar',
-			label: 'RPP/Modul Ajar Generator',
+			href: '/dashboard/template-builder',
+			label: 'Template Saya',
 			dotColor: 'bg-blue-500'
-		},
-		{
-			href: '/dashboard/lkpd',
-			label: 'LKPD Generator',
-			dotColor: 'bg-emerald-500'
-		},
-		{
-			href: '/dashboard/soal',
-			label: 'Generator Soal Otomatis',
-			dotColor: 'bg-violet-500'
 		}
 	];
 

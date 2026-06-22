@@ -1,12 +1,13 @@
 /**
  * POST /api/generate-async
  *
- * Endpoint untuk memulai generate (modul ajar, LKPD, soal) secara asynchronous.
+ * Endpoint untuk memulai generate secara asynchronous menggunakan flexible template.
  * Proses berjalan di background server — tidak bergantung pada koneksi browser.
  *
  * Request body:
  * {
- *   userInput: { jenis, judul, mapel, kelas, ... },
+ *   templateId: string,
+ *   userContext: { judul, mapel, kelas, ... },
  *   model: "google/gemini-3.5-flash",
  *   thinkingEffort: "medium"
  * }
@@ -20,7 +21,6 @@ import { getCollection } from '$lib/server/db.js';
 import { startJob } from '$lib/server/job-runner.js';
 import { ObjectId } from 'mongodb';
 import { ALLOWED_MODELS, DEFAULT_MODEL, ALLOWED_THINKING_EFFORTS } from '$lib/server/model-config.js';
-const ALLOWED_JENIS = new Set(['modul_ajar', 'lkpd', 'soal']);
 
 /**
  * Kurangi 1 kuota user secara atomic sebelum job dibuat.
@@ -73,21 +73,18 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { userInput, model: rawModel, thinkingEffort: rawEffort } = body;
+	const { templateId, userContext, model: rawModel, thinkingEffort: rawEffort } = body;
 
-	if (!userInput || !ALLOWED_JENIS.has(userInput.jenis)) {
-		return json({ error: 'userInput.jenis tidak valid' }, { status: 400 });
+	if (!templateId || typeof templateId !== 'string') {
+		return json({ error: 'templateId wajib diisi' }, { status: 400 });
 	}
 
-	if (!userInput.judul || !userInput.mapel) {
-		return json({ error: 'judul dan mapel wajib diisi' }, { status: 400 });
+	if (!userContext || typeof userContext !== 'object') {
+		return json({ error: 'userContext wajib diisi' }, { status: 400 });
 	}
 
 	const model = ALLOWED_MODELS.includes(rawModel) ? rawModel : DEFAULT_MODEL;
 	const thinkingEffort = ALLOWED_THINKING_EFFORTS.has(rawEffort) ? rawEffort : 'medium';
-
-	// Sertakan userId di userInput agar agent bisa menggunakannya saat menyimpan data
-	const enrichedInput = { ...userInput, userId };
 
 	try {
 		const quota = await reserveQuota(userId);
@@ -99,10 +96,11 @@ export async function POST({ request, locals }) {
 		const result = await col.insertOne({
 			userId,
 			status: 'queued',
-			userInput: enrichedInput,
+			templateId: templateId,
+			userContext: userContext,
 			model,
 			thinkingEffort,
-			progress: { step: 0, total: 6, message: 'Antrian job...' },
+			progress: { step: 0, total: 10, message: 'Antrian job...' },
 			createdAt: new Date()
 		});
 
