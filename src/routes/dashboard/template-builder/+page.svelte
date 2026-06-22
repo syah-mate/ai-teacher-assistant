@@ -1,14 +1,11 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import FlexGenerateModal from '$lib/components/FlexGenerateModal.svelte';
 
 	let templates = $state([]);
 	let kategoriList = $state([]);
 	let loading = $state(true);
 	let error = $state('');
-	let showGenerateModal = $state(false);
-	let selectedTemplate = $state(null);
 	let deleteConfirmId = $state(null);
 	let filterKategoriId = $state('');
 
@@ -57,21 +54,6 @@
 		} catch {
 			error = 'Gagal terhubung ke server';
 		}
-	}
-
-	function openGenerate(template) {
-		selectedTemplate = template;
-		showGenerateModal = true;
-	}
-
-	function closeGenerate() {
-		showGenerateModal = false;
-		selectedTemplate = null;
-	}
-
-	function handleGenerateSuccess() {
-		closeGenerate();
-		goto('/dashboard/riwayat');
 	}
 </script>
 
@@ -166,12 +148,6 @@
 							Edit
 						</button>
 						<button
-							onclick={() => openGenerate(template)}
-							class="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-						>
-							Generate
-						</button>
-						<button
 							onclick={() => (deleteConfirmId = template._id)}
 							class="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50"
 							title="Hapus template"
@@ -209,13 +185,4 @@
 			</div>
 		</div>
 	</div>
-{/if}
-
-<!-- Generate Modal -->
-{#if showGenerateModal && selectedTemplate}
-	<FlexGenerateModal
-		template={selectedTemplate}
-		onClose={closeGenerate}
-		onSuccess={handleGenerateSuccess}
-	/>
 {/if}

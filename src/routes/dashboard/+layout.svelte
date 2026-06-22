@@ -1,5 +1,6 @@
 <script>
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import QuotaIndicator from '$lib/components/QuotaIndicator.svelte';
 	import ThinkingSelector from '$lib/components/ThinkingSelector.svelte';
 	import { goto } from '$app/navigation';
@@ -8,6 +9,17 @@
 	let { children, data } = $props();
 	let sidebarOpen = $state(false);
 	let quotaIndicator;
+	let kategoriList = $state([]);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/kategori');
+			if (res.ok) {
+				const d = await res.json();
+				kategoriList = d.kategori || [];
+			}
+		} catch { /* silent */ }
+	});
 
 	async function handleLogout() {
 		try {
@@ -130,6 +142,27 @@
 				</svg>
 				<span class="truncate">Template</span>
 			</a>
+
+			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+				AI Generation
+			</p>
+			{#if kategoriList.length > 0}
+				{#each kategoriList as kat}
+					<a
+						href="/dashboard/ai-generation/{kat._id}"
+						class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page.url.pathname === '/dashboard/ai-generation/' + kat._id
+							? 'border border-emerald-100 bg-emerald-50 text-emerald-700'
+							: 'text-gray-600 hover:bg-gray-100'}"
+					>
+						<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+						</svg>
+						<span class="truncate">{kat.nama}</span>
+					</a>
+				{/each}
+			{:else}
+				<p class="px-2 text-xs text-gray-400 italic">Belum ada kategori</p>
+			{/if}
 
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
 				Riwayat
