@@ -7,6 +7,13 @@
 	let isGenerating = $state(false);
 	let error = $state('');
 
+	// Image template states
+	let isImageTemplate = $derived(template?.type === 'image');
+	let generatedImageUrl = $state(null);
+	let generatedImageBase64 = $state(null);
+	let isGeneratingImage = $state(false);
+	let imageError = $state('');
+
 	// Build userContext dari inputSchema (jika ada), atau fallback ke field bebas
 	let userContext = $state(
 		Object.fromEntries(
@@ -20,7 +27,7 @@
 	// Auto-compute canSubmit: semua required field harus terisi
 	const hasInputSchema = $derived((template.inputSchema ?? []).length > 0);
 	const canSubmit = $derived(() => {
-		if (isGenerating) return false;
+		if (isGenerating || isGeneratingImage) return false;
 		if (!hasInputSchema) return true; // fallback: no schema = always submittable
 		const schema = template.inputSchema ?? [];
 		for (const field of schema) {
@@ -96,6 +103,62 @@
 			error = err.message || 'Terjadi kesalahan.';
 		}
 	}
+
+	async function handleGenerateImage() {
+		const schema = template.inputSchema ?? [];
+
+		// Validasi required fields
+		const errors = [];
+		for (const field of schema) {
+			if (!field.required) continue;
+			const val = userContext[field.key];
+			const isEmpty = Array.isArray(val)
+				? val.length === 0
+				: val === '' || val === null || val === undefined || !val.toString().trim();
+			if (isEmpty) errors.push(field.label);
+		}
+		if (errors.length > 0) {
+			imageError = `Field berikut wajib diisi: ${errors.join(', ')}`;
+			return;
+		}
+
+		isGeneratingImage = true;
+		imageError = '';
+		generatedImageUrl = null;
+		generatedImageBase64 = null;
+
+		try {
+			const res = await fetch('/api/generate-image', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ templateId: template._id, userContext })
+			});
+
+			const data = await res.json().catch(() => ({}));
+
+			if (!res.ok) {
+				throw new Error(data.error || 'Gagal generate gambar');
+			}
+
+			generatedImageUrl = data.imageUrl;
+			generatedImageBase64 = data.imageBase64;
+		} catch (err) {
+			imageError = err.message || 'Terjadi kesalahan.';
+		} finally {
+			isGeneratingImage = false;
+		}
+	}
+
+	function downloadImage() {
+		if (generatedImageBase64) {
+			const a = document.createElement('a');
+			a.href = `data:image/png;base64,${generatedImageBase64}`;
+			a.download = `worksheet-${Date.now()}.png`;
+			a.click();
+		} else if (generatedImageUrl) {
+			window.open(generatedImageUrl, '_blank');
+		}
+	}
 </script>
 
 <!-- Overlay -->
@@ -128,8 +191,8 @@
 				<p class="mb-0.5 text-xs font-semibold tracking-wider text-blue-200 uppercase">
 					{template.name || 'Template'}
 				</p>
-				<h2 class="text-lg font-bold">Generate Dokumen</h2>
-				<p class="mt-1 text-xs text-blue-100">Isi detail untuk memulai generate</p>
+				<h2 class="text-lg font-bold">{isImageTemplate ? 'Generate Gambar' : 'Generate Dokumen'}</h2>
+				<p class="mt-1 text-xs text-blue-100">{isImageTemplate ? 'Isi parameter untuk membuat worksheet gambar' : 'Isi detail untuk memulai generate'}</p>
 			</div>
 			<button
 				onclick={onClose}
@@ -230,25 +293,58 @@
 			</div>
 		{/if}
 
+		<!-- Image result preview -->
+		{#if isImageTemplate && (generatedImageUrl || generatedImageBase64)}
+			<div class="mt-5 rounded-xl border border-purple-100 bg-purple-50 p-4">
+				<p class="mb-3 text-sm font-semibold text-purple-700">✓ Gambar berhasil dibuat!</p>
+				<div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+					<img
+						src={generatedImageBase64 ? `data:image/png;base64,${generatedImageBase64}` : generatedImageUrl}
+						alt="Generated worksheet"
+						class="w-full object-contain"
+					/>
+				</div>
+				<button
+					onclick={downloadImage}
+					class="mt-3 w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-700"
+				>
+					Download Gambar
+				</button>
+			</div>
+		{/if}
+
+		{#if imageError}
+			<div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+				{imageError}
+			</div>
+		{/if}
+
 		<!-- Action -->
 		<div class="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
 			<button
 				onclick={onClose}
-				disabled={isGenerating}
+				disabled={isGenerating || isGeneratingImage}
 				class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
 			>
 				Batal
 			</button>
 			<button
-				onclick={handleGenerate}
-				disabled={!canSubmit() || isGenerating}
+				onclick={isImageTemplate ? handleGenerateImage : handleGenerate}
+				disabled={!canSubmit() || isGenerating || isGeneratingImage}
 				class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
 			>
-				{#if isGenerating}
+				{#if isGeneratingImage}
+					<span class="flex items-center gap-2">
+						<span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+						Generating gambar...
+					</span>
+				{:else if isGenerating}
 					<span class="flex items-center gap-2">
 						<span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
 						Memproses...
 					</span>
+				{:else if isImageTemplate}
+					Generate Gambar
 				{:else}
 					Generate
 				{/if}

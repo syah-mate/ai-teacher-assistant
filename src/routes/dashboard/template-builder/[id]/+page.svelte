@@ -29,6 +29,19 @@
 		sections: []
 	});
 
+	// Tipe template: 'document' | 'image'
+	let templateType = $state('document');
+	let imageContext = $state('');
+	let imagePromptTemplate = $state('');
+	let imageModel = $state('black-forest-labs/flux-1-schnell');
+
+	const IMAGE_MODEL_OPTIONS = [
+		{ value: 'black-forest-labs/flux-1-schnell', label: 'FLUX 1 Schnell (Cepat)' },
+		{ value: 'black-forest-labs/flux-1.1-pro', label: 'FLUX 1.1 Pro (Kualitas Tinggi)' },
+		{ value: 'openai/dall-e-3', label: 'DALL·E 3' },
+		{ value: 'ideogram-ai/ideogram-v2', label: 'Ideogram V2' }
+	];
+
 	let kategoriList = $state([]);
 	let saving = $state(false);
 	let error = $state('');
@@ -88,6 +101,12 @@
 							}))
 						}))
 					};
+					// Baca type dan field image-specific
+					templateType = data.template.type || 'document';
+					imageContext = data.template.context || '';
+					imagePromptTemplate = data.template.templatePrompt || '';
+					imageModel = data.template.imageModel || 'black-forest-labs/flux-1-schnell';
+
 					// Periksa kepemilikan — hanya pemilik yang boleh edit
 					if (data.template.userId && data.template.userId !== currentUserId) {
 						readOnly = true;
@@ -251,7 +270,18 @@
 			return;
 		}
 
-		if (template.sections.length === 0) {
+		if (templateType === 'image') {
+			if (!imageContext.trim()) {
+				error = 'Context wajib diisi untuk template image';
+				return;
+			}
+			if (!imagePromptTemplate.trim()) {
+				error = 'Prompt template wajib diisi untuk template image';
+				return;
+			}
+		}
+
+		if (templateType === 'document' && template.sections.length === 0) {
 			error = 'Minimal 1 section diperlukan';
 			return;
 		}
@@ -293,9 +323,12 @@
 		saving = true;
 		try {
 			const body = {
+				type: templateType,
 				name: template.name.trim(),
 				description: template.description.trim(),
-				templatePrompt: template.templatePrompt.trim(),
+				templatePrompt: templateType === 'image' ? imagePromptTemplate.trim() : template.templatePrompt.trim(),
+				context: templateType === 'image' ? imageContext.trim() : undefined,
+				imageModel: templateType === 'image' ? imageModel : undefined,
 				kategoriId: template.kategoriId || null,
 				inputSchema: template.inputSchema
 					.filter((f) => f.key.trim() && f.label.trim())
@@ -308,7 +341,7 @@
 						required: f.required,
 						options: f.options.filter((o) => o.trim())
 					})),
-				sections: template.sections.map((s) => ({
+				sections: templateType === 'document' ? template.sections.map((s) => ({
 					id: s.id,
 					title: s.title.trim(),
 					sectionPrompt: s.sectionPrompt.trim(),
@@ -319,7 +352,7 @@
 						type: f.type,
 						fieldPrompt: f.fieldPrompt.trim()
 					}))
-				}))
+				})) : []
 			};
 
 			let res;
@@ -380,6 +413,41 @@
 				{isNew ? 'Buat Template Baru' : readOnly ? 'Lihat Template' : 'Edit Template'}
 			</h1>
 		</div>
+
+		<!-- Toggle Tipe Template -->
+		{#if !readOnly}
+		<div class="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+			<label class="mb-3 block text-sm font-semibold text-gray-700">Jenis Output Template</label>
+			<div class="flex gap-3">
+				<button
+					type="button"
+					onclick={() => (templateType = 'document')}
+					class="flex flex-1 flex-col items-center gap-2 rounded-xl border-2 p-4 text-sm font-medium transition-all {templateType === 'document'
+						? 'border-blue-500 bg-blue-50 text-blue-700'
+						: 'border-gray-200 text-gray-500 hover:border-gray-300'}"
+				>
+					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+					<span>Dokumen</span>
+					<span class="text-xs font-normal text-gray-400">Modul Ajar, LKPD, RPP</span>
+				</button>
+				<button
+					type="button"
+					onclick={() => (templateType = 'image')}
+					class="flex flex-1 flex-col items-center gap-2 rounded-xl border-2 p-4 text-sm font-medium transition-all {templateType === 'image'
+						? 'border-purple-500 bg-purple-50 text-purple-700'
+						: 'border-gray-200 text-gray-500 hover:border-gray-300'}"
+				>
+					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+					</svg>
+					<span>Gambar</span>
+					<span class="text-xs font-normal text-gray-400">Worksheet, Poster, Kartu</span>
+				</button>
+			</div>
+		</div>
+		{/if}
 
 		<!-- Read-only banner -->
 		{#if readOnly}
@@ -445,6 +513,7 @@
 				</p>
 			</div>
 
+			{#if templateType === 'document'}
 			<div>
 				<label class="mb-1.5 block text-sm font-medium text-gray-700">Prompt Global Template</label>
 				<textarea
@@ -456,6 +525,7 @@
 				></textarea>
 				<p class="mt-1 text-xs text-gray-400">Prompt ini digunakan sebagai konteks global saat AI menyempurnakan prompt setiap field.</p>
 			</div>
+		{/if}
 		</div>
 
 		<!-- Form Input Generate (inputSchema) -->
@@ -464,7 +534,11 @@
 				<div>
 					<h2 class="text-sm font-semibold uppercase tracking-wider text-gray-400">Form Input Generate</h2>
 					<p class="mt-1 text-xs text-gray-400">
-						Tentukan data apa yang perlu diisi enduser sebelum generate. Data ini akan menjadi acuan AI saat mengisi seluruh konten dokumen.
+						{#if templateType === 'image'}
+							Parameter yang diisi user saat generate. Key-nya harus cocok dengan <code class="text-purple-600">{'{{variable}}'}</code> di Prompt Template.
+						{:else}
+							Parameter yang diisi user sebelum generate dokumen.
+						{/if}
 					</p>
 				</div>
 				<span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
@@ -598,6 +672,7 @@
 		</div>
 
 		<!-- Sections -->
+		{#if templateType === 'document'}
 		<div class="mb-6">
 			<h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">
 				Section ({template.sections.length})
@@ -733,6 +808,65 @@
 				</button>
 			{/if}
 		</div>
+		{/if}
+
+		<!-- Image-specific form -->
+		{#if templateType === 'image'}
+		<div class="space-y-5">
+
+			<!-- Context / System Prompt -->
+			<div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+				<label class="mb-1.5 block text-sm font-semibold text-gray-700">
+					Context <span class="text-red-500">*</span>
+				</label>
+				<p class="mb-2 text-xs text-gray-400">
+					Peran dan instruksi umum untuk AI image generator. Jelaskan gaya visual, format, warna, dan karakter yang diinginkan.
+				</p>
+				<textarea
+					bind:value={imageContext}
+					disabled={readOnly}
+					rows="4"
+					placeholder="Contoh: Buat worksheet edukasi anak SD bergaya kartun lucu, warna cerah, layout A4 portrait, font besar dan jelas, ada judul di atas dan nomor pada setiap item..."
+					class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+				></textarea>
+			</div>
+
+			<!-- Prompt Template -->
+			<div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+				<label class="mb-1.5 block text-sm font-semibold text-gray-700">
+					Prompt Template <span class="text-red-500">*</span>
+				</label>
+				<p class="mb-2 text-xs text-gray-400">
+					Prompt spesifik worksheet. Gunakan <code class="rounded bg-gray-100 px-1 text-purple-600">{'{{nama_variable}}'}</code> untuk menyisipkan input dari user. Variable harus cocok dengan key di Input Parameter di bawah.
+				</p>
+				<textarea
+					bind:value={imagePromptTemplate}
+					disabled={readOnly}
+					rows="5"
+					placeholder={`Contoh: Buat worksheet ${'{{'}jenis_soal${'}}'} bertema ${'{{'}tema${'}}'} untuk ${'{{'}kelas${'}}'}. Jumlah soal: ${'{{'}jumlah_soal${'}}'}. Tampilkan ${'{{'}jumlah_soal${'}}'} pasangan di dua kolom dengan garis penghubung di tengah.`}
+					class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+				></textarea>
+			</div>
+
+			<!-- Image Model Selector -->
+			<div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+				<label class="mb-1.5 block text-sm font-semibold text-gray-700">Model AI Image</label>
+				<select
+					bind:value={imageModel}
+					disabled={readOnly}
+					class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+				>
+					{#each IMAGE_MODEL_OPTIONS as opt}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+				<p class="mt-1.5 text-xs text-gray-400">
+					FLUX Schnell: paling cepat dan hemat. FLUX Pro & DALL·E 3: kualitas lebih tinggi.
+				</p>
+			</div>
+
+		</div>
+		{/if}
 
 		<!-- Save button -->
 		<div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">

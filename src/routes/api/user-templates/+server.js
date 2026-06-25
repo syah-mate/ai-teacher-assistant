@@ -5,6 +5,7 @@
 
 import { json } from '@sveltejs/kit';
 import { getCollection } from '$lib/server/db.js';
+import { DEFAULT_IMAGE_MODEL } from '$lib/server/model-config.js';
 
 export async function GET({ locals }) {
 	if (!locals.user) {
@@ -35,8 +36,7 @@ export async function GET({ locals }) {
 
 		const templates = docs.map((doc) => ({
 			_id: doc._id.toString(),
-			name: doc.name,
-			description: doc.description || '',
+		type: doc.type || 'document',
 			templatePrompt: doc.templatePrompt || '',
 			inputSchema: doc.inputSchema || [],
 			kategoriId: doc.kategoriId || null,
@@ -69,7 +69,10 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { name, description, templatePrompt, sections, inputSchema, kategoriId } = body;
+	const { name, description, templatePrompt, sections, inputSchema, kategoriId, type, context, imageModel } = body;
+
+	const TEMPLATE_TYPES = new Set(['document', 'image']);
+	const resolvedType = TEMPLATE_TYPES.has(type) ? type : 'document';
 
 	// Validasi name
 	if (!name || typeof name !== 'string' || !name.trim()) {
@@ -107,10 +110,21 @@ export async function POST({ request, locals }) {
 		}
 	}
 
-	// Validasi sections
-	if (!Array.isArray(sections) || sections.length === 0) {
-		return json({ error: 'Minimal 1 section diperlukan' }, { status: 400 });
+	// Validasi image-specific
+	if (resolvedType === 'image') {
+		if (!context || typeof context !== 'string' || !context.trim()) {
+			return json({ error: 'Context wajib diisi untuk template image' }, { status: 400 });
+		}
+		if (!templatePrompt || typeof templatePrompt !== 'string' || !templatePrompt.trim()) {
+			return json({ error: 'Prompt template wajib diisi untuk template image' }, { status: 400 });
+		}
 	}
+
+	// Validasi sections (hanya untuk document)
+	if (resolvedType === 'document') {
+		if (!Array.isArray(sections) || sections.length === 0) {
+			return json({ error: 'Minimal 1 section diperlukan' }, { status: 400 });
+		}
 
 	for (let si = 0; si < sections.length; si++) {
 		const s = sections[si];
@@ -150,14 +164,18 @@ export async function POST({ request, locals }) {
 			}
 		}
 	}
+	} // close resolvedType === 'document'
 
 	try {
 		const col = await getCollection('user_templates');
 		const doc = {
 			userId,
+			type: resolvedType,
 			name: name.trim(),
 			description: description?.trim() ?? '',
 			templatePrompt: templatePrompt?.trim() ?? '',
+			context: resolvedType === 'image' ? (context?.trim() ?? '') : undefined,
+			imageModel: resolvedType === 'image' ? (imageModel?.trim() || DEFAULT_IMAGE_MODEL) : undefined,
 			kategoriId: kategoriId?.trim() || null,
 			inputSchema: (inputSchema ?? []).map((f, i) => ({
 				id: crypto.randomUUID(),
@@ -169,7 +187,7 @@ export async function POST({ request, locals }) {
 				required: f.required !== false,
 				options: ['select', 'multiselect'].includes(f.type) ? (f.options ?? []) : []
 			})),
-			sections: sections.map((s, si) => ({
+			sections: resolvedType === 'document' ? sections.map((s, si) => ({
 				id: crypto.randomUUID(),
 				order: si,
 				title: s.title.trim(),
@@ -182,7 +200,7 @@ export async function POST({ request, locals }) {
 					type: f.type ?? 'text',
 					fieldPrompt: f.fieldPrompt?.trim() ?? ''
 				}))
-			})),
+			})) : [],
 			createdAt: new Date()
 		};
 

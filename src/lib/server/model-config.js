@@ -20,3 +20,13 @@ export const MODELS_SUPPORTING_REASONING = new Set([
 ]);
 
 export const ALLOWED_THINKING_EFFORTS = new Set(['low', 'medium', 'high']);
+
+/** Model image generation yang diizinkan, dipanggil via OpenRouter */
+export const ALLOWED_IMAGE_MODELS = [
+  'black-forest-labs/flux-1-schnell',
+  'black-forest-labs/flux-1.1-pro',
+  'openai/dall-e-3',
+  'ideogram-ai/ideogram-v2'
+];
+
+export const DEFAULT_IMAGE_MODEL = 'black-forest-labs/flux-1-schnell';

@@ -7,6 +7,7 @@
 import { json } from '@sveltejs/kit';
 import { getCollection } from '$lib/server/db.js';
 import { ObjectId } from 'mongodb';
+import { DEFAULT_IMAGE_MODEL } from '$lib/server/model-config.js';
 
 export async function GET({ params, locals }) {
 	if (!locals.user) {
@@ -68,7 +69,9 @@ export async function PUT({ params, request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { name, description, templatePrompt, sections, inputSchema, kategoriId } = body;
+	const { name, description, templatePrompt, sections, inputSchema, kategoriId, type, context, imageModel } = body;
+
+	const TEMPLATE_TYPES = new Set(['document', 'image']);
 
 	const updateFields = { updatedAt: new Date() };
 
@@ -89,6 +92,19 @@ export async function PUT({ params, request, locals }) {
 
 	if (kategoriId !== undefined) {
 		updateFields.kategoriId = kategoriId?.trim() || null;
+	}
+
+	if (type !== undefined) {
+		const resolvedType = TEMPLATE_TYPES.has(type) ? type : 'document';
+		updateFields.type = resolvedType;
+	}
+
+	if (context !== undefined) {
+		updateFields.context = context?.trim() ?? '';
+	}
+
+	if (imageModel !== undefined) {
+		updateFields.imageModel = imageModel?.trim() || DEFAULT_IMAGE_MODEL;
 	}
 
 	if (inputSchema !== undefined) {
@@ -132,9 +148,12 @@ export async function PUT({ params, request, locals }) {
 	}
 
 	if (sections !== undefined) {
-		if (!Array.isArray(sections) || sections.length === 0) {
-			return json({ error: 'Minimal 1 section diperlukan' }, { status: 400 });
-		}
+		// Skip validasi sections jika type adalah image (baik dari body atau existing)
+		const effectiveType = type !== undefined ? (TEMPLATE_TYPES.has(type) ? type : 'document') : null;
+		if (effectiveType !== 'image') {
+			if (!Array.isArray(sections) || sections.length === 0) {
+				return json({ error: 'Minimal 1 section diperlukan' }, { status: 400 });
+			}
 
 		// Validasi sections
 		for (let si = 0; si < sections.length; si++) {
@@ -170,6 +189,7 @@ export async function PUT({ params, request, locals }) {
 				}
 			}
 		}
+		} // close effectiveType !== 'image'
 
 		// Replace seluruh sections
 		updateFields.sections = sections.map((s, si) => ({

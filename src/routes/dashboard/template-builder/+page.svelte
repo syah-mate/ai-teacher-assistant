@@ -132,6 +132,15 @@
 								{getKategoriNama(template.kategoriId)}
 							</span>
 						{/if}
+						{#if template.type === 'image'}
+							<span class="shrink-0 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600">
+								🖼 Gambar
+							</span>
+						{:else}
+							<span class="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+								📄 Dokumen
+							</span>
+						{/if}
 						{#if !isOwner(template)}
 							<span class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600" title="Dibuat oleh pengguna lain">
 								Bersama
