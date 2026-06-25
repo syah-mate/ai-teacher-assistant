@@ -419,6 +419,7 @@ async function saveImageResult(jobId, userId, templateId, userContext, template,
 		userId,
 		templateId,
 		templateName: template.name || 'Unknown',
+		templateDescription: template.description || '',
 		templateType: 'image',
 		userContext,
 		result: {
@@ -500,6 +501,7 @@ async function saveFlexResult(jobId, userId, templateId, userContext, result) {
 		userId,
 		templateId,
 		templateName: result.templateName || 'Unknown',
+		templateDescription: result.templateDescription || '',
 		userContext,
 		result: {
 			sections: result.sections || [],

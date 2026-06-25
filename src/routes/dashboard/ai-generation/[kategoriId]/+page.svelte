@@ -138,33 +138,79 @@
 				</button>
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 				{#each templates as template}
-					<div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:border-emerald-200 hover:shadow-md">
-						<h3 class="mb-1 text-base font-bold text-gray-800">{template.name}</h3>
-						<p class="mb-3 line-clamp-2 text-sm text-gray-500">
-							{template.description || 'Tanpa deskripsi'}
-						</p>
-						<div class="mb-4 flex items-center gap-3 text-xs text-gray-400">
-							<span class="flex items-center gap-1">
-								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+					{@const isImage = template.type === 'image'}
+					{@const accent = isImage ? 'from-purple-500 to-pink-500' : 'from-emerald-500 to-teal-500'}
+					{@const accentBg = isImage ? 'bg-purple-50' : 'bg-emerald-50'}
+					{@const accentText = isImage ? 'text-purple-700' : 'text-emerald-700'}
+					{@const accentBorder = isImage ? 'border-purple-200' : 'border-emerald-200'}
+					{@const accentBtn = isImage ? 'from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700' : 'from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'}
+
+					<div class="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+						<!-- Gradient accent strip at top -->
+						<div class="h-1.5 w-full bg-linear-to-r {accent}"></div>
+
+						<div class="p-5">
+							<!-- Header: Icon + Name + Badges -->
+							<div class="mb-3 flex items-start gap-3">
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {accentBg} {accentText} text-lg">
+									{#if isImage}
+										🖼️
+									{:else}
+										📄
+									{/if}
+								</div>
+								<div class="min-w-0 flex-1">
+									<h3 class="truncate text-base font-bold text-gray-800" title={template.name}>
+										{template.name || 'Template Tanpa Nama'}
+									</h3>
+									<div class="mt-1 flex flex-wrap items-center gap-1.5">
+										{#if isImage}
+											<span class="shrink-0 rounded-full bg-linear-to-r from-purple-100 to-pink-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+												Gambar
+											</span>
+										{:else}
+											<span class="shrink-0 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+												Dokumen
+											</span>
+										{/if}
+									</div>
+								</div>
+							</div>
+
+							<!-- Description -->
+							<p class="mb-4 line-clamp-2 min-h-10 text-sm leading-relaxed text-gray-500">
+								{template.description || 'Belum ada deskripsi untuk template ini.'}
+							</p>
+
+							<!-- Meta info -->
+							<div class="mb-4 flex items-center gap-4 text-xs text-gray-400">
+								<span class="flex items-center gap-1.5">
+									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+									</svg>
+									{template.sectionCount} section
+								</span>
+								<span class="flex items-center gap-1.5">
+									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+									</svg>
+									{new Date(template.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+								</span>
+							</div>
+
+							<!-- Generate button -->
+							<button
+								onclick={() => openGenerate(template)}
+								class="w-full rounded-xl bg-linear-to-r {accentBtn} px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97]"
+							>
+								<svg class="mr-1.5 inline-block h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
 								</svg>
-								{template.sectionCount} section
-							</span>
-							<span>
-								{new Date(template.createdAt).toLocaleDateString('id-ID')}
-							</span>
+								Generate Sekarang
+							</button>
 						</div>
-						<button
-							onclick={() => openGenerate(template)}
-							class="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
-						>
-							<svg class="mr-1.5 inline-block h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-							</svg>
-							Generate
-						</button>
 					</div>
 				{/each}
 			</div>

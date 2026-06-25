@@ -36,6 +36,7 @@ export async function GET({ params, locals }) {
 			_id: doc._id.toString(),
 			templateId: doc.templateId || null,
 			templateName: doc.templateName || 'Unknown',
+			templateDescription: doc.templateDescription || '',
 			userContext: doc.userContext || {},
 			result: doc.result || null,
 			editedHtml: doc.editedHtml || null,

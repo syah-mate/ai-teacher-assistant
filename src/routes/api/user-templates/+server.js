@@ -36,7 +36,9 @@ export async function GET({ locals }) {
 
 		const templates = docs.map((doc) => ({
 			_id: doc._id.toString(),
-		type: doc.type || 'document',
+			name: doc.name || '',
+			description: doc.description || '',
+			type: doc.type || 'document',
 			templatePrompt: doc.templatePrompt || '',
 			inputSchema: doc.inputSchema || [],
 			kategoriId: doc.kategoriId || null,

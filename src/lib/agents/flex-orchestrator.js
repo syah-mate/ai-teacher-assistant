@@ -87,6 +87,7 @@ export class FlexOrchestrator {
 		return {
 			success: true,
 			templateName: template.name,
+			templateDescription: template.description || '',
 			sections: sectionResults,
 			htmlOutput
 		};

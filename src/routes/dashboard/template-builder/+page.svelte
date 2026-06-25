@@ -122,70 +122,112 @@
 			</button>
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 			{#each filteredTemplates as template}
-				<div class="group rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:border-gray-200 hover:shadow-md">
-					<div class="mb-2 flex items-center gap-2">
-						<h3 class="text-base font-bold text-gray-800">{template.name}</h3>
-						{#if getKategoriNama(template.kategoriId)}
-							<span class="shrink-0 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600">
-								{getKategoriNama(template.kategoriId)}
-							</span>
-						{/if}
-						{#if template.type === 'image'}
-							<span class="shrink-0 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600">
-								🖼 Gambar
-							</span>
-						{:else}
-							<span class="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-								📄 Dokumen
-							</span>
-						{/if}
-						{#if !isOwner(template)}
-							<span class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600" title="Dibuat oleh pengguna lain">
-								Bersama
-							</span>
-						{/if}
-					</div>
-					<p class="mb-3 line-clamp-2 text-sm text-gray-500">
-						{template.description || 'Tanpa deskripsi'}
-					</p>
-					<div class="mb-4 flex items-center gap-3 text-xs text-gray-400">
-						<span class="flex items-center gap-1">
-							<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-							</svg>
-							{template.sectionCount} section
-						</span>
-						<span>
-							{new Date(template.createdAt).toLocaleDateString('id-ID')}
-						</span>
-					</div>
-					<div class="flex items-center gap-2">
-						{#if isOwner(template)}
-							<button
-								onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
-								class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-							>
-								Edit
-							</button>
-							<button
-								onclick={() => (deleteConfirmId = template._id)}
-								class="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50"
-								title="Hapus template"
-							>
+				{@const isImage = template.type === 'image'}
+				{@const accent = isImage ? 'from-purple-500 to-pink-500' : 'from-blue-500 to-cyan-500'}
+				{@const accentBg = isImage ? 'bg-purple-50' : 'bg-blue-50'}
+				{@const accentText = isImage ? 'text-purple-700' : 'text-blue-700'}
+				{@const accentBorder = isImage ? 'border-purple-200' : 'border-blue-200'}
+				{@const accentBtn = isImage ? 'from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700' : 'from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'}
+
+				<div class="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+					<!-- Gradient accent strip at top -->
+					<div class="h-1.5 w-full bg-linear-to-r {accent}"></div>
+
+					<div class="p-5">
+						<!-- Header: Icon + Name + Badges -->
+						<div class="mb-3 flex items-start gap-3">
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {accentBg} {accentText} text-lg">
+								{#if isImage}
+									🖼️
+								{:else}
+									📄
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								<h3 class="truncate text-base font-bold text-gray-800" title={template.name}>
+									{template.name || 'Template Tanpa Nama'}
+								</h3>
+								<div class="mt-1 flex flex-wrap items-center gap-1.5">
+									{#if getKategoriNama(template.kategoriId)}
+										<span class="shrink-0 rounded-full border {accentBorder} {accentBg} px-2 py-0.5 text-[11px] font-medium {accentText}">
+											{getKategoriNama(template.kategoriId)}
+										</span>
+									{/if}
+									{#if isImage}
+										<span class="shrink-0 rounded-full bg-linear-to-r from-purple-100 to-pink-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+											Gambar
+										</span>
+									{:else}
+										<span class="shrink-0 rounded-full bg-linear-to-r from-blue-100 to-cyan-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+											Dokumen
+										</span>
+									{/if}
+									{#if !isOwner(template)}
+										<span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700" title="Dibuat oleh pengguna lain">
+											Bersama
+										</span>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<!-- Description -->
+						<p class="mb-4 line-clamp-2 min-h-10 text-sm leading-relaxed text-gray-500">
+							{template.description || 'Belum ada deskripsi untuk template ini.'}
+						</p>
+
+						<!-- Meta info -->
+						<div class="mb-4 flex items-center gap-4 text-xs text-gray-400">
+							<span class="flex items-center gap-1.5">
 								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
 								</svg>
-							</button>
-						{:else}
-							<button
-								onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
-								class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50"
-							>
-								Lihat
-							</button>
-						{/if}
+								{template.sectionCount} section
+							</span>
+							<span class="flex items-center gap-1.5">
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								{new Date(template.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+							</span>
+						</div>
+
+						<!-- Action buttons -->
+						<div class="flex items-center gap-2">
+							{#if isOwner(template)}
+								<button
+									onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
+									class="flex-1 rounded-xl bg-linear-to-r {accentBtn} px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97]"
+								>
+									<svg class="mr-1.5 -ml-0.5 inline-block h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+									</svg>
+									Edit Template
+								</button>
+								<button
+									onclick={() => (deleteConfirmId = template._id)}
+									class="rounded-xl border border-red-200 bg-white px-3 py-2.5 text-xs font-semibold text-red-500 transition-all duration-200 hover:bg-red-50 hover:border-red-300 active:scale-[0.97]"
+									title="Hapus template"
+								>
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
+							{:else}
+								<button
+									onclick={() => goto(`/dashboard/template-builder/${template._id}`)}
+									class="flex-1 rounded-xl border-2 {accentBorder} bg-white px-4 py-2.5 text-xs font-semibold {accentText} transition-all duration-200 hover:bg-gray-50 active:scale-[0.97]"
+								>
+									<svg class="mr-1.5 -ml-0.5 inline-block h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+									</svg>
+									Lihat Template
+								</button>
+							{/if}
+						</div>
 					</div>
 				</div>
 			{/each}

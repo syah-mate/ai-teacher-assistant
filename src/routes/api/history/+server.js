@@ -33,6 +33,7 @@ export async function GET({ locals, url }) {
 			_id: doc._id.toString(),
 			templateId: doc.templateId || null,
 			templateName: doc.templateName || 'Unknown',
+			templateDescription: doc.templateDescription || '',
 			userContext: doc.userContext || {},
 			createdAt: doc.createdAt
 		}));

@@ -168,30 +168,56 @@
 			</button>
 		</div>
 	{:else}
-		<div class="space-y-3">
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each items as item (item._id)}
+				{@const hasDesc = item.templateDescription && item.templateDescription.trim()}
 				<a
 					href="/dashboard/riwayat/{item._id}"
-					class="block rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
+					class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
 				>
-					<div class="flex items-start justify-between">
-						<div class="min-w-0 flex-1">
-							<h3 class="mb-1 text-sm font-bold text-gray-800 truncate">
-								{getUserContextSummary(item.userContext)}
-							</h3>
-							<div class="flex items-center gap-3 text-xs text-gray-400">
-								<span class="flex items-center gap-1">
-									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-									</svg>
+					<!-- Gradient accent strip at top -->
+					<div class="h-1.5 w-full bg-linear-to-r from-amber-400 to-orange-500"></div>
+
+					<div class="flex flex-1 flex-col p-5">
+						<!-- Header: Icon + Template Name + Description -->
+						<div class="mb-3 flex items-start gap-3">
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-lg text-amber-600">
+								📋
+							</div>
+							<div class="min-w-0 flex-1">
+								<h3 class="truncate text-sm font-bold text-gray-800" title={item.templateName}>
 									{item.templateName || 'Template'}
-								</span>
-								<span>{formatDate(item.createdAt)}</span>
+								</h3>
+								{#if hasDesc}
+									<p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500">
+										{item.templateDescription}
+									</p>
+								{/if}
 							</div>
 						</div>
-						<svg class="mt-1 h-4 w-4 shrink-0 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-						</svg>
+
+						<!-- User context summary -->
+						<div class="mb-3 flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+							</svg>
+							<span class="truncate text-xs font-medium text-gray-600">
+								{getUserContextSummary(item.userContext)}
+							</span>
+						</div>
+
+						<!-- Meta info + chevron -->
+						<div class="mt-auto flex items-center justify-between">
+							<span class="flex items-center gap-1.5 text-xs text-gray-400">
+								<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								{formatDate(item.createdAt)}
+							</span>
+							<svg class="h-4 w-4 text-gray-300 transition-colors group-hover:text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
+						</div>
 					</div>
 				</a>
 			{/each}
