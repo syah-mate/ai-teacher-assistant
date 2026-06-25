@@ -20,10 +20,11 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { env } from '$env/dynamic/private';
 import { getCollection } from '$lib/server/db.js';
 import { ObjectId } from 'mongodb';
 import { createServerAIClient } from '$lib/server/ai-client-server.js';
-import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL } from '$lib/server/model-config.js';
+import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, ALLOWED_IMAGE_MODELS } from '$lib/server/model-config.js';
 
 // ---------- AsyncLocalStorage Setup ----------
 const jobStorage = new AsyncLocalStorage();
@@ -123,6 +124,15 @@ async function runJob(jobId) {
 
 		// Baca config AI dari DB (bukan dari job — sudah dipusatkan di app_config)
 		const aiConfig = await getAIConfig();
+
+		// ── Cek tipe template: image vs document ──────────────────────
+		const template = await loadTemplateForJob(job.templateId);
+		if (template && template.type === 'image') {
+			// Template image → gunakan image generation flow (bukan orchestrator)
+			await runImageJob(jobId, job, template, aiConfig, col);
+			return;
+		}
+
 		console.log(`[JobRunner] Job ${jobId} menggunakan model: ${aiConfig.textModel}, thinking: ${aiConfig.thinkingEffort}`);
 		const aiClient = createServerAIClient(aiConfig.textModel, aiConfig.thinkingEffort);
 
@@ -221,6 +231,217 @@ async function runJob(jobId) {
 		} catch {
 			// ignore
 		}
+	}
+}
+
+// ---------- OpenRouter Image API ----------
+const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
+
+/**
+ * Load template dari DB untuk cek tipe (document vs image).
+ */
+async function loadTemplateForJob(templateId) {
+	try {
+		const col = await getCollection('user_templates');
+		const doc = await col.findOne({ _id: new ObjectId(templateId) });
+		return doc;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Jalankan image generation untuk template bertipe "image".
+ * Flow ini MIRIP dengan /api/generate-image, tapi berjalan di background job.
+ */
+async function runImageJob(jobId, job, template, aiConfig, col) {
+	try {
+		// Update progress
+		await col.updateOne(
+			{ _id: new ObjectId(jobId) },
+			{
+				$set: {
+					progress: { step: 2, total: 10, message: 'Menyiapkan prompt image...' }
+				},
+				$push: { log: { timestamp: new Date(), message: '🖼️ Template tipe image — menyiapkan prompt...', type: 'info' } }
+			}
+		);
+
+		// Resolusi model — prioritas: config global DB > template.imageModel > DEFAULT_IMAGE_MODEL
+		const configModel = aiConfig.imageModel;
+		const modelId = ALLOWED_IMAGE_MODELS.includes(configModel)
+			? configModel
+			: ALLOWED_IMAGE_MODELS.includes(template.imageModel)
+				? template.imageModel
+				: DEFAULT_IMAGE_MODEL;
+
+		console.log(`[JobRunner] Job ${jobId} (image) menggunakan model: ${modelId}`);
+
+		// Interpolasi {{variable}} di templatePrompt dengan userContext
+		const ctx = job.userContext || {};
+		let finalPrompt = (template.templatePrompt || '').replace(
+			/\{\{(\w+)\}\}/g,
+			(_, key) => ctx[key] ?? ''
+		);
+
+		// Gabungkan context + finalPrompt sebagai prompt lengkap
+		const fullPrompt = [template.context?.trim(), finalPrompt.trim()]
+			.filter(Boolean)
+			.join('\n\n');
+
+		if (!fullPrompt.trim()) {
+			throw new Error('Prompt kosong setelah interpolasi — pastikan template memiliki templatePrompt dan/atau context');
+		}
+
+		await col.updateOne(
+			{ _id: new ObjectId(jobId) },
+			{
+				$set: {
+					progress: { step: 4, total: 10, message: 'Memanggil AI image generation...' }
+				},
+				$push: { log: { timestamp: new Date(), message: `🎨 Memanggil image model: ${modelId}`, type: 'info' } }
+			}
+		);
+
+		// Panggil OpenRouter chat completions API (image model via chat endpoint)
+		const apiKey = env.OPENROUTER_API_KEY?.trim();
+		if (!apiKey) {
+			throw new Error('OPENROUTER_API_KEY tidak dikonfigurasi di server');
+		}
+
+		const response = await fetch(OPENROUTER_CHAT_URL, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${apiKey}`,
+				'HTTP-Referer': HTTP_REFERER,
+				'X-Title': 'Asisten Guru AI'
+			},
+			body: JSON.stringify({
+				model: modelId,
+				messages: [{ role: 'user', content: fullPrompt }]
+			})
+		});
+
+		if (!response.ok) {
+			const errData = await response.json().catch(() => ({}));
+			throw new Error(
+				errData.error?.message || `Image API error: HTTP ${response.status}`
+			);
+		}
+
+		const imageResult = await response.json();
+
+		// Ekstrak gambar dari response chat completions
+		// Format OpenRouter untuk image model: choices[0].message.images[0].image_url.url
+		const msg = imageResult?.choices?.[0]?.message;
+		const content = msg?.content || '';
+		const images = msg?.images || [];
+
+		let imageUrl =
+			images[0]?.image_url?.url ||           // OpenRouter image model (base64 / URL)
+			imageResult?.data?.[0]?.url ||          // Image generation API format
+			imageResult?.data?.[0]?.b64_json ||
+			imageResult?.url ||
+			null;
+
+		if (!imageUrl) {
+			throw new Error('Image API tidak mengembalikan URL gambar');
+		}
+
+		await col.updateOne(
+			{ _id: new ObjectId(jobId) },
+			{
+				$set: {
+					progress: { step: 8, total: 10, message: 'Menyimpan hasil image...' }
+				},
+				$push: { log: { timestamp: new Date(), message: '✅ Image berhasil digenerate', type: 'success' } }
+			}
+		);
+
+		// Simpan hasil ke generated_docs
+		const resultId = await saveImageResult(
+			jobId,
+			job.userId,
+			job.templateId,
+			job.userContext,
+			template,
+			imageUrl,
+			modelId
+		);
+
+		await col.updateOne(
+			{ _id: new ObjectId(jobId) },
+			{
+				$set: {
+					status: 'completed',
+					completedAt: new Date(),
+					resultId,
+					progress: { step: 10, total: 10, message: 'Selesai ✓' }
+				},
+				$push: { log: { timestamp: new Date(), message: '✅ Generate image selesai — hasil disimpan', type: 'success' } }
+			}
+		);
+	} catch (err) {
+		console.error(`[JobRunner] Image job ${jobId} error:`, err);
+		await col.updateOne(
+			{ _id: new ObjectId(jobId) },
+			{
+				$set: {
+					status: 'failed',
+					completedAt: new Date(),
+					error: err.message || 'Image generation gagal',
+					progress: { step: 0, total: 10, message: '❌ ' + (err.message || 'Image generation gagal') }
+				},
+				$push: { log: { timestamp: new Date(), message: '❌ ' + (err.message || 'Image generation gagal'), type: 'error' } }
+			}
+		);
+	}
+}
+
+/**
+ * Simpan hasil image generation ke collection `generated_docs`.
+ */
+async function saveImageResult(jobId, userId, templateId, userContext, template, imageUrl, modelId) {
+	const col = await getCollection('generated_docs');
+
+	console.log(`[JobRunner] saveImageResult called: jobId=${jobId}, userId=${userId}, userIdType=${typeof userId}`);
+
+	// Idempotensi per job
+	const existing = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
+	if (existing?._id) {
+		console.log(`[JobRunner] saveImageResult: existing doc found ${existing._id}`);
+		return existing._id.toString();
+	}
+
+	const doc = {
+		userId,
+		templateId,
+		templateName: template.name || 'Unknown',
+		templateType: 'image',
+		userContext,
+		result: {
+			imageUrl,
+			modelUsed: modelId,
+			prompt: template.templatePrompt || '',
+			htmlOutput: `<div class="generated-image"><img src="${imageUrl}" alt="${template.name || 'Generated Image'}" style="max-width:100%;height:auto;" /></div>`
+		},
+		sourceJobId: jobId,
+		createdAt: new Date()
+	};
+
+	try {
+		const r = await col.insertOne(doc);
+		console.log(`[JobRunner] saveImageResult: inserted doc _id=${r.insertedId}, userId=${userId}`);
+		return r.insertedId.toString();
+	} catch (err) {
+		console.error(`[JobRunner] saveImageResult insert error:`, err.message, 'code:', err?.code);
+		if (err?.code === 11000) {
+			const winner = await col.findOne({ sourceJobId: jobId }, { projection: { _id: 1 } });
+			if (winner?._id) return winner._id.toString();
+		}
+		throw err;
 	}
 }
 
