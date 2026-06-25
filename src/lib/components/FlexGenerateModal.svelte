@@ -1,6 +1,4 @@
 <script>
-	import { get } from 'svelte/store';
-	import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
 
 	let { template, onClose, onSuccess } = $props();
 
@@ -79,13 +77,11 @@
 		}
 
 		try {
-			const model = get(selectedModel);
-			const thinkingEffort = get(selectedThinking);
 
 			const res = await fetch('/api/generate-async', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ templateId: template._id, userContext: cleanContext, model, thinkingEffort })
+				body: JSON.stringify({ templateId: template._id, userContext: cleanContext })
 			});
 
 			const data = await res.json().catch(() => ({}));

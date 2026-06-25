@@ -2,9 +2,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import QuotaIndicator from '$lib/components/QuotaIndicator.svelte';
-	import ThinkingSelector from '$lib/components/ThinkingSelector.svelte';
 	import { goto } from '$app/navigation';
-	import { selectedModel, AI_MODELS } from '$lib/stores/modelStore.js';
 
 	let { children, data } = $props();
 	let sidebarOpen = $state(false);
@@ -196,6 +194,19 @@
 					<span class="truncate">{item.label}</span>
 				</a>
 			{/each}
+
+			<!-- Config AI Model link -->
+			<a
+				href="/dashboard/pengaturan/config"
+				class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {$page.url.pathname === '/dashboard/pengaturan/config'
+					? 'border border-blue-100 bg-blue-50 text-blue-700'
+					: 'text-gray-600 hover:bg-gray-100'}"
+			>
+				<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" />
+				</svg>
+				<span class="truncate">Config AI Model</span>
+			</a>
 		</nav>
 
 		<!-- User info -->
@@ -275,28 +286,6 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-3">
-				<!-- Model Selector -->
-				<div class="relative hidden sm:block">
-					<select
-						value={$selectedModel}
-						onchange={(e) => selectedModel.select(e.target.value)}
-						class="h-8 appearance-none rounded-lg border border-gray-200 bg-white pl-3 pr-8 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none cursor-pointer"
-						title="Pilih Model AI"
-					>
-						{#each AI_MODELS as model}
-							<option value={model.id}>{model.label} ({model.provider})</option>
-						{/each}
-					</select>
-					<svg class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-					</svg>
-				</div>
-
-				<!-- Thinking Effort Selector -->
-				<ThinkingSelector />
-
-				<!-- Divider -->
-				<div class="hidden h-5 w-px bg-gray-200 sm:block"></div>
 
 				<!-- Quota Indicator -->
 				<QuotaIndicator bind:this={quotaIndicator} />

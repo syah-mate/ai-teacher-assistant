@@ -1,5 +1,5 @@
 <script>
-	import { selectedModel, selectedThinking, AI_MODELS, THINKING_LEVELS } from '$lib/stores/modelStore.js';
+	import { selectedThinking, AI_MODELS, THINKING_LEVELS } from '$lib/stores/modelStore.js';
 
 	let currentModelMeta = $derived(AI_MODELS.find((m) => m.id === $selectedModel));
 	let supportsReasoning = $derived(currentModelMeta?.supportsReasoning ?? false);

@@ -20,7 +20,6 @@ import { json } from '@sveltejs/kit';
 import { getCollection } from '$lib/server/db.js';
 import { startJob } from '$lib/server/job-runner.js';
 import { ObjectId } from 'mongodb';
-import { ALLOWED_MODELS, DEFAULT_MODEL, ALLOWED_THINKING_EFFORTS } from '$lib/server/model-config.js';
 
 /**
  * Kurangi 1 kuota user secara atomic sebelum job dibuat.
@@ -73,7 +72,7 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Request body tidak valid' }, { status: 400 });
 	}
 
-	const { templateId, userContext, model: rawModel, thinkingEffort: rawEffort } = body;
+	const { templateId, userContext } = body;
 
 	if (!templateId || typeof templateId !== 'string') {
 		return json({ error: 'templateId wajib diisi' }, { status: 400 });
@@ -82,9 +81,6 @@ export async function POST({ request, locals }) {
 	if (!userContext || typeof userContext !== 'object') {
 		return json({ error: 'userContext wajib diisi' }, { status: 400 });
 	}
-
-	const model = ALLOWED_MODELS.includes(rawModel) ? rawModel : DEFAULT_MODEL;
-	const thinkingEffort = ALLOWED_THINKING_EFFORTS.has(rawEffort) ? rawEffort : 'medium';
 
 	try {
 		const quota = await reserveQuota(userId);
@@ -98,8 +94,6 @@ export async function POST({ request, locals }) {
 			status: 'queued',
 			templateId: templateId,
 			userContext: userContext,
-			model,
-			thinkingEffort,
 			progress: { step: 0, total: 10, message: 'Antrian job...' },
 			createdAt: new Date()
 		});

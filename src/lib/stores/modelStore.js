@@ -1,5 +1,3 @@
-import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
 
 export const AI_MODELS = [
 	{
@@ -49,47 +47,8 @@ export const THINKING_LEVELS = [
 	}
 ];
 
-const MODEL_STORAGE_KEY = 'ai_selected_model';
-const THINKING_STORAGE_KEY = 'ai_thinking_effort';
-
-const DEFAULT_MODEL = AI_MODELS[0].id;
-const DEFAULT_THINKING = 'medium';
-
-function createModelStore() {
-	const initial = browser
-		? (localStorage.getItem(MODEL_STORAGE_KEY) ?? DEFAULT_MODEL)
-		: DEFAULT_MODEL;
-
-	const { subscribe, set } = writable(initial);
-
-	return {
-		subscribe,
-		select(modelId) {
-			const valid = AI_MODELS.find((m) => m.id === modelId);
-			const value = valid ? modelId : DEFAULT_MODEL;
-			if (browser) localStorage.setItem(MODEL_STORAGE_KEY, value);
-			set(value);
-		}
-	};
-}
-
-function createThinkingStore() {
-	const initial = browser
-		? (localStorage.getItem(THINKING_STORAGE_KEY) ?? DEFAULT_THINKING)
-		: DEFAULT_THINKING;
-
-	const { subscribe, set } = writable(initial);
-
-	return {
-		subscribe,
-		select(level) {
-			const valid = THINKING_LEVELS.find((l) => l.id === level);
-			const value = valid ? level : DEFAULT_THINKING;
-			if (browser) localStorage.setItem(THINKING_STORAGE_KEY, value);
-			set(value);
-		}
-	};
-}
-
-export const selectedModel = createModelStore();
-export const selectedThinking = createThinkingStore();
+// ---------------------------------------------------------------------------
+// NOTE: AI model & thinking effort sekarang dikelola oleh admin melalui
+// halaman /dashboard/pengaturan/config dan disimpan di MongoDB app_config.
+// File ini sekarang hanya berisi data referensi untuk UI (daftar model).
+// ---------------------------------------------------------------------------

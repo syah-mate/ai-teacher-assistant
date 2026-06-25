@@ -23,6 +23,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { getCollection } from '$lib/server/db.js';
 import { ObjectId } from 'mongodb';
 import { createServerAIClient } from '$lib/server/ai-client-server.js';
+import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL } from '$lib/server/model-config.js';
 
 // ---------- AsyncLocalStorage Setup ----------
 const jobStorage = new AsyncLocalStorage();
@@ -73,6 +74,29 @@ export async function recoverStaleJobs() {
 
 // ---------- Internal ----------
 
+/**
+ * Ambil AI config dari MongoDB app_config.
+ * Fallback ke default jika belum pernah dikonfigurasi.
+ */
+async function getAIConfig() {
+  try {
+    const col = await getCollection('app_config');
+    const config = await col.findOne({ _id: 'ai_model_config' });
+    return {
+      textModel: config?.textModel || DEFAULT_MODEL,
+      thinkingEffort: config?.thinkingEffort || 'medium',
+      imageModel: config?.imageModel || DEFAULT_IMAGE_MODEL
+    };
+  } catch (err) {
+    console.warn('[JobRunner] Gagal baca AI config, pakai default:', err.message);
+    return {
+      textModel: DEFAULT_MODEL,
+      thinkingEffort: 'medium',
+      imageModel: DEFAULT_IMAGE_MODEL
+    };
+  }
+}
+
 async function runJob(jobId) {
 	const col = await getCollection('jobs');
 	let job;
@@ -97,8 +121,10 @@ async function runJob(jobId) {
 			}
 		);
 
-		// Buat AI client dikunci ke pilihan model user
-		const aiClient = createServerAIClient(job.model, job.thinkingEffort);
+		// Baca config AI dari DB (bukan dari job — sudah dipusatkan di app_config)
+		const aiConfig = await getAIConfig();
+		console.log(`[JobRunner] Job ${jobId} menggunakan model: ${aiConfig.textModel}, thinking: ${aiConfig.thinkingEffort}`);
+		const aiClient = createServerAIClient(aiConfig.textModel, aiConfig.thinkingEffort);
 
 		// DB writer server-side langsung ke MongoDB
 		const dbWriter = makeDirectDBWriter(job.userId);

@@ -7,12 +7,7 @@
  * - Timeout handling
  * - User-friendly error messages dalam bahasa Indonesia
  */
-
-import { get } from 'svelte/store';
-import { selectedModel, selectedThinking } from '$lib/stores/modelStore.js';
-
-/**
- * Call AI API melalui endpoint internal
+/** Call AI API melalui endpoint internal
  *
  * @param {string} prompt - Prompt untuk dikirim ke AI
  * @param {object} options - Konfigurasi tambahan
@@ -31,8 +26,6 @@ export async function callGeminiAPI(prompt, options = {}) {
 	}
 
 	const { maxRetries = 3, timeout = 120000 } = options;
-	const model = get(selectedModel);
-	const thinkingEffort = get(selectedThinking);
 
 	let lastError = null;
 
@@ -44,7 +37,7 @@ export async function callGeminiAPI(prompt, options = {}) {
 			const response = await fetch('/api/gemini', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ prompt, model, thinkingEffort }),
+				body: JSON.stringify({ prompt }),
 				signal: controller.signal
 			});
 

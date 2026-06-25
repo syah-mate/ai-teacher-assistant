@@ -13,6 +13,19 @@ import { ALLOWED_IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '$lib/server/model-con
 const OPENROUTER_IMAGE_URL = 'https://openrouter.ai/api/v1/images/generations';
 const HTTP_REFERER = env.VITE_APP_URL || 'https://asisten-guru-ai.app';
 
+/**
+ * Ambil image model dari app_config global, fallback ke null jika tidak ada.
+ */
+async function getImageModelFromConfig() {
+  try {
+    const col = await getCollection('app_config');
+    const config = await col.findOne({ _id: 'ai_model_config' });
+    return config?.imageModel || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST({ request, locals }) {
 	if (!locals.user) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
@@ -61,10 +74,13 @@ export async function POST({ request, locals }) {
 		return json({ error: 'Prompt kosong setelah interpolasi' }, { status: 400 });
 	}
 
-	// Resolusi model
-	const modelId = ALLOWED_IMAGE_MODELS.includes(template.imageModel)
-		? template.imageModel
-		: DEFAULT_IMAGE_MODEL;
+	// Resolusi model — prioritas: config global DB > template.imageModel > DEFAULT_IMAGE_MODEL
+	const configModel = await getImageModelFromConfig();
+	const modelId = ALLOWED_IMAGE_MODELS.includes(configModel)
+		? configModel
+		: ALLOWED_IMAGE_MODELS.includes(template.imageModel)
+			? template.imageModel
+			: DEFAULT_IMAGE_MODEL;
 
 	// Panggil OpenRouter image generation
 	const apiKey = env.OPENROUTER_API_KEY?.trim();

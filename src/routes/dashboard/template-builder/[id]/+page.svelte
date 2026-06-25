@@ -33,13 +33,12 @@
 	let templateType = $state('document');
 	let imageContext = $state('');
 	let imagePromptTemplate = $state('');
-	let imageModel = $state('black-forest-labs/flux-1-schnell');
+	let imageModel = $state('bytedance-seed/seedream-4.5');
 
 	const IMAGE_MODEL_OPTIONS = [
-		{ value: 'black-forest-labs/flux-1-schnell', label: 'FLUX 1 Schnell (Cepat)' },
-		{ value: 'black-forest-labs/flux-1.1-pro', label: 'FLUX 1.1 Pro (Kualitas Tinggi)' },
-		{ value: 'openai/dall-e-3', label: 'DALL·E 3' },
-		{ value: 'ideogram-ai/ideogram-v2', label: 'Ideogram V2' }
+		{ value: 'bytedance-seed/seedream-4.5', label: 'Seedream 4.5 (ByteDance)' },
+		{ value: 'google/gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image (Google)' },
+		{ value: 'openai/gpt-5-image-mini', label: 'GPT-5 Image Mini (OpenAI)' }
 	];
 
 	let kategoriList = $state([]);
@@ -105,7 +104,7 @@
 					templateType = data.template.type || 'document';
 					imageContext = data.template.context || '';
 					imagePromptTemplate = data.template.templatePrompt || '';
-					imageModel = data.template.imageModel || 'black-forest-labs/flux-1-schnell';
+					imageModel = data.template.imageModel || 'bytedance-seed/seedream-4.5';
 
 					// Periksa kepemilikan — hanya pemilik yang boleh edit
 					if (data.template.userId && data.template.userId !== currentUserId) {
@@ -861,7 +860,7 @@
 					{/each}
 				</select>
 				<p class="mt-1.5 text-xs text-gray-400">
-					FLUX Schnell: paling cepat dan hemat. FLUX Pro & DALL·E 3: kualitas lebih tinggi.
+					Seedream 4.5: cepat & kreatif. Gemini 2.5 Flash Image: pemahaman konteks kuat. GPT-5 Image Mini: ringan & efisien.
 				</p>
 			</div>
 

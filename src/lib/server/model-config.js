@@ -23,10 +23,9 @@ export const ALLOWED_THINKING_EFFORTS = new Set(['low', 'medium', 'high']);
 
 /** Model image generation yang diizinkan, dipanggil via OpenRouter */
 export const ALLOWED_IMAGE_MODELS = [
-  'black-forest-labs/flux-1-schnell',
-  'black-forest-labs/flux-1.1-pro',
-  'openai/dall-e-3',
-  'ideogram-ai/ideogram-v2'
+  'bytedance-seed/seedream-4.5',
+  'google/gemini-2.5-flash-image',
+  'openai/gpt-5-image-mini'
 ];
 
-export const DEFAULT_IMAGE_MODEL = 'black-forest-labs/flux-1-schnell';
+export const DEFAULT_IMAGE_MODEL = 'bytedance-seed/seedream-4.5';
