@@ -2,11 +2,209 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+/* ═══════════════════════════════════════════════════════════════════
+   Claude Design System — Warm Cream + Coral + Dark Navy
+   Based on DESIGN-claude.md
+   ═══════════════════════════════════════════════════════════════════ */
+
+@theme {
+	/* ── Surface & Canvas ── */
+	--color-canvas: #faf9f5;
+	--color-surface-soft: #f5f0e8;
+	--color-surface-card: #efe9de;
+	--color-surface-cream-strong: #e8e0d2;
+	--color-surface-dark: #181715;
+	--color-surface-dark-elevated: #252320;
+	--color-surface-dark-soft: #1f1e1b;
+
+	/* ── Brand Coral (replaces blue) ── */
+	--color-primary: #cc785c;
+	--color-primary-active: #a9583e;
+	--color-primary-disabled: #e6dfd8;
+
+	/* ── Accent ── */
+	--color-accent-teal: #5db8a6;
+	--color-accent-amber: #e8a55a;
+
+	/* ── Semantic ── */
+	--color-success: #5db872;
+	--color-warning: #d4a017;
+	--color-error: #c64545;
+
+	/* ── Ink / Text ── */
+	--color-ink: #141413;
+	--color-body-strong: #252523;
+	--color-body: #3d3d3a;
+	--color-muted: #6c6a64;
+	--color-muted-soft: #8e8b82;
+	--color-on-primary: #ffffff;
+	--color-on-dark: #faf9f5;
+	--color-on-dark-soft: #a09d96;
+
+	/* ── Hairlines ── */
+	--color-hairline: #e6dfd8;
+	--color-hairline-soft: #ebe6df;
+
+	/* ── Override Tailwind gray palette → Claude warm tones ── */
+	--color-gray-50: #f5f0e8;
+	--color-gray-100: #efe9de;
+	--color-gray-200: #e6dfd8;
+	--color-gray-300: #d9d2c8;
+	--color-gray-400: #8e8b82;
+	--color-gray-500: #6c6a64;
+	--color-gray-600: #3d3d3a;
+	--color-gray-700: #252523;
+	--color-gray-800: #141413;
+	--color-gray-900: #141413;
+	--color-gray-950: #181715;
+
+	/* ── Override Tailwind blue → Claude coral ── */
+	--color-blue-50: #faf0eb;
+	--color-blue-100: #f5e2da;
+	--color-blue-200: #e6dfd8;
+	--color-blue-300: #d9c4b8;
+	--color-blue-400: #cc785c;
+	--color-blue-500: #cc785c;
+	--color-blue-600: #cc785c;
+	--color-blue-700: #a9583e;
+
+	/* ── Override indigo → coral dark ── */
+	--color-indigo-600: #a9583e;
+	--color-indigo-700: #8c4a34;
+
+	/* ── Override emerald → accent-teal ── */
+	--color-emerald-50: #edf7f4;
+	--color-emerald-100: #dbefe9;
+	--color-emerald-200: #b8e1d5;
+	--color-emerald-400: #5db8a6;
+	--color-emerald-500: #5db8a6;
+	--color-emerald-600: #5db8a6;
+	--color-emerald-700: #4a9e8e;
+
+	/* ── Override red → Claude error ── */
+	--color-red-50: #fdf2f2;
+	--color-red-100: #f9e2e2;
+	--color-red-200: #f3cccc;
+	--color-red-400: #d47373;
+	--color-red-500: #c64545;
+	--color-red-600: #c64545;
+	--color-red-700: #a93a3a;
+
+	/* ── Override amber → accent-amber ── */
+	--color-amber-50: #fdf6ed;
+	--color-amber-100: #faead4;
+	--color-amber-200: #f5dbb0;
+	--color-amber-400: #e8a55a;
+	--color-amber-500: #e8a55a;
+	--color-amber-600: #d49540;
+	--color-amber-700: #b87d30;
+
+	/* ── Override purple → warm mauve/coral ── */
+	--color-purple-50: #f5f0ec;
+	--color-purple-100: #ede2d8;
+	--color-purple-200: #e0cfc0;
+	--color-purple-500: #a9583e;
+	--color-purple-600: #a9583e;
+	--color-purple-700: #8c4a34;
+
+	/* ── Override pink → coral ── */
+	--color-pink-100: #f5e2da;
+	--color-pink-500: #cc785c;
+	--color-pink-600: #cc785c;
+	--color-pink-700: #a9583e;
+
+	/* ── Override cyan → teal ── */
+	--color-cyan-100: #d4ede6;
+	--color-cyan-400: #5db8a6;
+	--color-cyan-500: #5db8a6;
+	--color-cyan-600: #5db8a6;
+
+	/* ── Override sky → muted teal ── */
+	--color-sky-100: #e0edf2;
+	--color-sky-300: #8cc4d6;
+	--color-sky-700: #3a7a8c;
+
+	/* ── Override violet → muted mauve ── */
+	--color-violet-100: #e8e0ec;
+	--color-violet-300: #b8a0c4;
+	--color-violet-700: #6b4e7a;
+
+	/* ── Override teal → same as accent-teal ── */
+	--color-teal-100: #d4ede6;
+	--color-teal-500: #5db8a6;
+	--color-teal-600: #5db8a6;
+	--color-teal-700: #4a9e8e;
+
+	/* ── Override orange → coral ── */
+	--color-orange-500: #cc785c;
+
+	/* ── Override green → success ── */
+	--color-green-50: #edf7f1;
+	--color-green-100: #dbefe4;
+	--color-green-400: #5db872;
+	--color-green-600: #5db872;
+	--color-green-700: #4a9e5e;
+	--color-green-900: #2d5a38;
+
+	/* ── Override white & black ── */
+	--color-white: #faf9f5;
+	--color-black: #141413;
+
+	/* ── Font families ── */
+	--font-display: 'Cormorant Garamond', 'EB Garamond', Garamond, 'Times New Roman', serif;
+	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+	/* ── Border radius ── */
+	--radius-xs: 4px;
+	--radius-sm: 6px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+	--radius-xl: 16px;
+	--radius-2xl: 16px;
+	--radius-3xl: 16px;
+	--radius-4xl: 16px;
+}
+
+/* ── Global base styles ── */
 @layer base {
+	html {
+		font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	}
+
+	body {
+		background-color: #faf9f5;
+		color: #141413;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	h1, h2, h3, h4 {
+		font-family: 'Cormorant Garamond', 'EB Garamond', Garamond, 'Times New Roman', serif;
+		font-weight: 400;
+		letter-spacing: -0.02em;
+	}
+
+	h1 {
+		letter-spacing: -0.03em;
+	}
+
+	h2 {
+		letter-spacing: -0.02em;
+	}
+
 	button:not([disabled]),
 	a[href],
 	select,
 	[role='button']:not([disabled]) {
 		cursor: pointer;
+	}
+
+	/* ── Focus rings: coral ── */
+	input:focus,
+	select:focus,
+	textarea:focus {
+		--tw-ring-color: #cc785c;
+		border-color: #cc785c;
 	}
 }

@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import QuotaIndicator from '$lib/components/QuotaIndicator.svelte';
 	import { goto } from '$app/navigation';
+	import logo from '$lib/assets/logo.png';
 
 	let { children, data } = $props();
 	let sidebarOpen = $state(false);
@@ -71,21 +72,8 @@
 		<!-- Logo -->
 		<div class="border-b border-gray-100 p-5">
 			<div class="flex items-center gap-3">
-				<div class="shrink-0 rounded-xl bg-blue-600 p-2">
-					<svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 14l9-5-9-5-9 5 9 5z"
-						/>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-						/>
-					</svg>
+				<div class="shrink-0 rounded-xl bg-primary p-2">
+					<img src={logo} alt="Asisten Guru AI Logo" class="h-8 w-8" />
 				</div>
 				<div>
 					<p class="text-sm font-bold leading-tight text-gray-800">Asisten Guru AI</p>
@@ -263,21 +251,8 @@
 					</svg>
 				</button>
 				<div class="hidden items-center gap-3 sm:flex">
-					<div class="rounded-lg bg-blue-600 p-1.5">
-						<svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 14l9-5-9-5-9 5 9 5z"
-							/>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-							/>
-						</svg>
+					<div class="rounded-lg bg-primary p-1.5">
+						<img src={logo} alt="Asisten Guru AI Logo" class="h-6 w-6" />
 					</div>
 					<div>
 						<p class="text-sm font-semibold text-gray-800">Asisten Guru AI</p>

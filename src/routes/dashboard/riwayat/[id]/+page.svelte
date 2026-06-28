@@ -286,16 +286,16 @@
 <style>
 	:global(.doc-preview h1) {
 		font-size: 1.8rem;
-		color: #1e3a8a;
-		border-bottom: 3px solid #1e3a8a;
+		color: #141413;
+		border-bottom: 3px solid #cc785c;
 		padding-bottom: 12px;
 		margin-bottom: 32px;
 	}
 
 	:global(.doc-preview h2) {
 		font-size: 1.2rem;
-		color: #1d4ed8;
-		border-left: 4px solid #1d4ed8;
+		color: #cc785c;
+		border-left: 4px solid #cc785c;
 		padding-left: 12px;
 		margin-bottom: 16px;
 		margin-top: 32px;
@@ -303,21 +303,21 @@
 
 	:global(.doc-preview h3) {
 		font-size: 0.95rem;
-		color: #374151;
+		color: #3d3d3a;
 		font-weight: 600;
 		margin-bottom: 8px;
 		margin-top: 24px;
 	}
 
 	:global(.doc-preview p) {
-		color: #374151;
+		color: #3d3d3a;
 		line-height: 1.7;
 		margin: 0 0 12px 0;
 	}
 
 	:global(.doc-preview ul) {
 		padding-left: 20px;
-		color: #374151;
+		color: #3d3d3a;
 		line-height: 1.8;
 	}
 
@@ -329,19 +329,19 @@
 	}
 
 	:global(.doc-preview th) {
-		background: #1d4ed8;
+		background: #cc785c;
 		color: white;
 		padding: 8px 12px;
 		text-align: left;
 	}
 
 	:global(.doc-preview td) {
-		border: 1px solid #e5e7eb;
+		border: 1px solid #e6dfd8;
 		padding: 8px 12px;
 	}
 
 	:global(.doc-preview tr:nth-child(even) td) {
-		background: #f8faff;
+		background: #faf9f5;
 	}
 
 	@media print {
