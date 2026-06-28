@@ -19,7 +19,7 @@ export class FlexFieldAgent {
 	async execute(userContext) {
 		const outputInstruction = this._buildOutputInstruction();
 
-		const prompt = [
+		const promptText = [
 			this.refinedPrompt,
 			'',
 			'KONTEKS DOKUMEN:',
@@ -28,7 +28,20 @@ export class FlexFieldAgent {
 			outputInstruction
 		].join('\n');
 
-		const result = await callGeminiAPI(prompt, { timeout: 120000, maxRetries: 3 });
+		// Cek apakah ada gambar di userContext (field tipe 'file')
+		const images = this._extractImages(userContext);
+
+		// Jika ada gambar, bangun content array untuk vision API
+		// Jika tidak ada, kirim string biasa seperti sebelumnya
+		const content =
+			images.length > 0
+				? [
+						{ type: 'text', text: promptText },
+						...images.map((url) => ({ type: 'image_url', image_url: { url } }))
+					]
+				: promptText;
+
+		const result = await callGeminiAPI(content, { timeout: 120000, maxRetries: 3 });
 
 		if (!result.success) {
 			return { success: false, error: result.error, fieldKey: this.field.key };
@@ -59,7 +72,12 @@ export class FlexFieldAgent {
 	_formatUserContext(ctx) {
 		return Object.entries(ctx)
 			.filter(([, v]) => {
-				if (Array.isArray(v)) return v.length > 0;
+				if (Array.isArray(v)) {
+					// Skip jika semua element adalah base64 images
+					if (v.length > 0 && typeof v[0] === 'string' && v[0].startsWith('data:image/')) return false;
+					return v.length > 0;
+				}
+				if (typeof v === 'string' && v.startsWith('data:image/')) return false; // skip gambar
 				return v !== null && v !== undefined && v !== '';
 			})
 			.map(([k, v]) => {
@@ -67,6 +85,29 @@ export class FlexFieldAgent {
 				return `${k}: ${val}`;
 			})
 			.join('\n');
+	}
+
+	/**
+	 * Ekstrak semua value dari userContext yang merupakan base64 image dataURL.
+	 * Ini adalah field bertipe 'file' yang sudah dikonversi di browser.
+	 * @param {Object} ctx
+	 * @returns {string[]} array base64 dataURL
+	 */
+	_extractImages(ctx) {
+		const images = [];
+		for (const v of Object.values(ctx)) {
+			if (typeof v === 'string' && v.startsWith('data:image/')) {
+				images.push(v);
+			} else if (Array.isArray(v)) {
+				// multi-page PDF yang disimpan sebagai array
+				for (const item of v) {
+					if (typeof item === 'string' && item.startsWith('data:image/')) {
+						images.push(item);
+					}
+				}
+			}
+		}
+		return images;
 	}
 
 	_parseResult(rawText) {

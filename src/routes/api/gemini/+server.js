@@ -31,7 +31,7 @@ export async function POST({ request, locals }) {
 		const body = await request.json();
 		const { prompt, model: requestedModel, thinkingEffort: requestedEffort } = body;
 
-		if (!prompt || typeof prompt !== 'string') {
+		if (!prompt || (typeof prompt !== 'string' && !Array.isArray(prompt))) {
 			return json({ error: 'Prompt is required' }, { status: 400 });
 		}
 
@@ -97,6 +97,9 @@ async function callOpenRouter(apiKey, prompt, model, thinkingEffort = null) {
 		? { reasoning: { effort: thinkingEffort } }
 		: {};
 
+	// content bisa berupa string (text only) atau array [{type,text},{type,image_url,...}]
+	const messageContent = Array.isArray(prompt) ? prompt : prompt;
+
 	try {
 		const response = await fetch(OPENROUTER_BASE_URL, {
 			method: 'POST',
@@ -108,7 +111,7 @@ async function callOpenRouter(apiKey, prompt, model, thinkingEffort = null) {
 			},
 			body: JSON.stringify({
 				model,
-				messages: [{ role: 'user', content: prompt }],
+				messages: [{ role: 'user', content: messageContent }],
 				...reasoningParam
 			}),
 			signal: controller.signal

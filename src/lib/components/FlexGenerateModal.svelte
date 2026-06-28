@@ -22,6 +22,129 @@
 		)
 	);
 
+	// File upload states
+	let filePreviews = $state({});      // { fieldKey: dataURL } untuk preview thumbnail
+	let fileNames = $state({});         // { fieldKey: 'nama_file.jpg' }
+	let fileUploadErrors = $state({});  // { fieldKey: 'pesan error' }
+	let fileUploadLoading = $state({}); // { fieldKey: true/false }
+
+	/**
+	 * Kompres + resize gambar ke max 1200px, quality 0.82.
+	 * Return base64 dataURL "data:image/jpeg;base64,..."
+	 */
+	async function compressImageToBase64(file) {
+		return new Promise((resolve, reject) => {
+			// Gunakan FileReader (data: URL) bukan URL.createObjectURL (blob: URL)
+			// karena CSP img-src hanya allow 'self' data: , tidak allow blob:
+			const reader = new FileReader();
+			reader.onload = () => {
+				const img = new Image();
+				img.onload = () => {
+					const MAX = 1200;
+					let { width, height } = img;
+					if (width > MAX || height > MAX) {
+						if (width > height) {
+							height = Math.round((height * MAX) / width);
+							width = MAX;
+						} else {
+							width = Math.round((width * MAX) / height);
+							height = MAX;
+						}
+					}
+					const canvas = document.createElement('canvas');
+					canvas.width = width;
+					canvas.height = height;
+					canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+					resolve(canvas.toDataURL('image/jpeg', 0.82));
+				};
+				img.onerror = () => reject(new Error('Gagal memuat gambar'));
+				img.src = /** @type {string} */ (reader.result);
+			};
+			reader.onerror = () => reject(new Error('Gagal membaca file'));
+			reader.readAsDataURL(file);
+		});
+	}
+
+	/**
+	 * Konversi PDF ke array base64 images via pdf.js CDN (lazy load).
+	 * Return array dataURL, 1 per halaman, max maxPages halaman.
+	 */
+	async function pdfToBase64Images(file, maxPages = 5) {
+		if (!window.pdfjsLib) {
+			await new Promise((resolve, reject) => {
+				const script = document.createElement('script');
+				script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+				script.onload = resolve;
+				script.onerror = reject;
+				document.head.appendChild(script);
+			});
+			window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+				'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+		}
+
+		const arrayBuffer = await file.arrayBuffer();
+		const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+		const total = Math.min(pdf.numPages, maxPages);
+		const results = [];
+
+		for (let i = 1; i <= total; i++) {
+			const page = await pdf.getPage(i);
+			const viewport = page.getViewport({ scale: 1.5 });
+			const canvas = document.createElement('canvas');
+			canvas.width = viewport.width;
+			canvas.height = viewport.height;
+			await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+			results.push(canvas.toDataURL('image/jpeg', 0.82));
+		}
+		return results;
+	}
+
+	/**
+	 * Handle upload file untuk field tipe 'file'.
+	 * Support: JPG, PNG, WEBP (1 gambar), PDF (multi-halaman → multi-gambar).
+	 */
+	async function handleFileUpload(e, fieldKey) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		fileUploadErrors[fieldKey] = '';
+		fileUploadLoading[fieldKey] = true;
+
+		const MAX_MB = 10;
+		if (file.size > MAX_MB * 1024 * 1024) {
+			fileUploadErrors[fieldKey] = `File terlalu besar (maks ${MAX_MB}MB)`;
+			fileUploadLoading[fieldKey] = false;
+			return;
+		}
+
+		try {
+			if (file.type === 'application/pdf') {
+				const images = await pdfToBase64Images(file, 5);
+				if (images.length === 1) {
+					userContext[fieldKey] = images[0];
+				} else {
+					// Multi-halaman: simpan semua sebagai array
+					userContext[fieldKey] = images;
+				}
+				filePreviews[fieldKey] = images[0]; // tampilkan halaman 1 sebagai preview
+				fileNames[fieldKey] = `${file.name} (${images.length} halaman)`;
+			} else if (file.type.startsWith('image/')) {
+				const dataUrl = await compressImageToBase64(file);
+				userContext[fieldKey] = dataUrl;
+				filePreviews[fieldKey] = dataUrl;
+				fileNames[fieldKey] = file.name;
+			} else {
+				fileUploadErrors[fieldKey] = 'Format tidak didukung. Gunakan JPG, PNG, atau PDF.';
+			}
+		} catch (err) {
+			fileUploadErrors[fieldKey] = 'Gagal memproses file. Coba lagi.';
+			console.error('[FileUpload]', err);
+		} finally {
+			fileUploadLoading[fieldKey] = false;
+			e.target.value = ''; // reset input agar bisa upload file yang sama lagi
+		}
+	}
+
 	// Auto-compute canSubmit: semua required field harus terisi
 	const hasInputSchema = $derived((template.inputSchema ?? []).length > 0);
 	const canSubmit = $derived(() => {
@@ -31,6 +154,14 @@
 		for (const field of schema) {
 			if (!field.required) continue;
 			const val = userContext[field.key];
+			if (field.type === 'file') {
+				const isEmpty =
+					!val ||
+					(typeof val === 'string' && !val.startsWith('data:image/')) ||
+					(Array.isArray(val) && val.length === 0);
+				if (isEmpty) return false;
+				continue;
+			}
 			const isEmpty = Array.isArray(val)
 				? val.length === 0
 				: val === '' || val === null || val === undefined || !val.toString().trim();
@@ -47,6 +178,14 @@
 		for (const field of schema) {
 			if (!field.required) continue;
 			const val = userContext[field.key];
+			if (field.type === 'file') {
+				const isEmpty =
+					!val ||
+					(typeof val === 'string' && !val.startsWith('data:image/')) ||
+					(Array.isArray(val) && val.length === 0);
+				if (isEmpty) errors.push(field.label);
+				continue;
+			}
 			const isEmpty = Array.isArray(val)
 				? val.length === 0
 				: val === '' || val === null || val === undefined || !val.toString().trim();
@@ -60,11 +199,14 @@
 		isGenerating = true;
 		error = '';
 
-		// Clean userContext: number → actual number, remove empty
+		// Clean userContext: number → actual number, remove empty, keep file data as-is
 		const cleanContext = {};
 		for (const field of schema) {
 			const val = userContext[field.key];
-			if (Array.isArray(val)) {
+			if (field.type === 'file') {
+				// Keep file data as-is (dataURL string or array of dataURLs)
+				if (val) cleanContext[field.key] = val;
+			} else if (Array.isArray(val)) {
 				if (val.length > 0) cleanContext[field.key] = val;
 			} else if (field.type === 'number') {
 				const num = Number(val);
@@ -108,6 +250,14 @@
 		for (const field of schema) {
 			if (!field.required) continue;
 			const val = userContext[field.key];
+			if (field.type === 'file') {
+				const isEmpty =
+					!val ||
+					(typeof val === 'string' && !val.startsWith('data:image/')) ||
+					(Array.isArray(val) && val.length === 0);
+				if (isEmpty) errors.push(field.label);
+				continue;
+			}
 			const isEmpty = Array.isArray(val)
 				? val.length === 0
 				: val === '' || val === null || val === undefined || !val.toString().trim();
@@ -278,6 +428,68 @@
 										{opt}
 									</label>
 								{/each}
+							</div>
+
+						{:else if field.type === 'file'}
+							<div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+
+								{#if fileUploadLoading[field.key]}
+									<!-- Loading state -->
+									<div class="flex items-center gap-3 py-4">
+										<div class="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+										<span class="text-sm text-gray-500">Memproses file...</span>
+									</div>
+
+								{:else if filePreviews[field.key]}
+									<!-- Preview state -->
+									<div class="flex items-start gap-3">
+										<img
+											src={filePreviews[field.key]}
+											alt="Preview"
+											class="h-20 w-16 shrink-0 rounded-lg border border-gray-200 object-cover"
+										/>
+										<div class="flex-1 min-w-0">
+											<p class="truncate text-sm font-medium text-gray-700">{fileNames[field.key]}</p>
+											<p class="mt-0.5 text-xs text-emerald-600">✓ File siap diproses AI</p>
+											<button
+												type="button"
+												onclick={() => {
+													userContext[field.key] = '';
+													filePreviews[field.key] = null;
+													fileNames[field.key] = '';
+													fileUploadErrors[field.key] = '';
+												}}
+												class="mt-2 text-xs text-red-500 hover:text-red-700 hover:underline"
+											>
+												Hapus & upload ulang
+											</button>
+										</div>
+									</div>
+
+								{:else}
+									<!-- Upload state -->
+									<label class="flex cursor-pointer flex-col items-center gap-2.5 rounded-xl border-2 border-dashed border-gray-300 p-5 transition hover:border-blue-400 hover:bg-blue-50">
+										<svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+												d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+										</svg>
+										<div class="text-center">
+											<p class="text-sm font-medium text-gray-600">{field.placeholder || 'Klik untuk upload file'}</p>
+											<p class="mt-0.5 text-xs text-gray-400">JPG, PNG, PDF · Maks 10MB · PDF max 5 halaman</p>
+										</div>
+										<input
+											type="file"
+											accept="image/jpeg,image/png,image/webp,application/pdf"
+											class="hidden"
+											onchange={(e) => handleFileUpload(e, field.key)}
+										/>
+									</label>
+								{/if}
+
+								{#if fileUploadErrors[field.key]}
+									<p class="mt-2 text-xs text-red-600">{fileUploadErrors[field.key]}</p>
+								{/if}
+
 							</div>
 						{/if}
 					</div>

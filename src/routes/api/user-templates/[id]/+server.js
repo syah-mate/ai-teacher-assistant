@@ -111,7 +111,7 @@ export async function PUT({ params, request, locals }) {
 		if (!Array.isArray(inputSchema)) {
 			return json({ error: 'inputSchema harus berupa array' }, { status: 400 });
 		}
-		const INPUT_SCHEMA_TYPES = new Set(['text', 'textarea', 'number', 'select', 'multiselect']);
+		const INPUT_SCHEMA_TYPES = new Set(['text', 'textarea', 'number', 'select', 'multiselect', 'file']);
 		const inputKeys = new Set();
 		for (let i = 0; i < inputSchema.length; i++) {
 			const f = inputSchema[i];

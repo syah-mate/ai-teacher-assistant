@@ -49,6 +49,9 @@ export function createServerAIClient(model, thinkingEffort = null) {
 				const reasoningParam =
 					thinkingEffort && supportsReasoning ? { reasoning: { effort: thinkingEffort } } : {};
 
+				// content bisa berupa string (text only) atau array [{type,text},{type,image_url,...}]
+				const messageContent = Array.isArray(prompt) ? prompt : prompt;
+
 				const response = await fetch(OPENROUTER_BASE_URL, {
 					method: 'POST',
 					headers: {
@@ -59,7 +62,7 @@ export function createServerAIClient(model, thinkingEffort = null) {
 					},
 					body: JSON.stringify({
 						model: resolvedModel,
-						messages: [{ role: 'user', content: prompt }],
+						messages: [{ role: 'user', content: messageContent }],
 						max_tokens: 8192,
 						...reasoningParam
 					}),

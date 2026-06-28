@@ -17,7 +17,8 @@
 		{ value: 'textarea', label: 'Textarea (Paragraf)' },
 		{ value: 'number', label: 'Number (Angka)' },
 		{ value: 'select', label: 'Pilihan Tunggal (Dropdown)' },
-		{ value: 'multiselect', label: 'Pilihan Ganda (Checkbox)' }
+		{ value: 'multiselect', label: 'Pilihan Ganda (Checkbox)' },
+		{ value: 'file', label: 'File Upload (Gambar/PDF)' }
 	];
 
 	let template = $state({

@@ -82,7 +82,7 @@ export async function POST({ request, locals }) {
 	}
 
 	// Validasi inputSchema (opsional, boleh array kosong)
-	const INPUT_SCHEMA_TYPES = new Set(['text', 'textarea', 'number', 'select', 'multiselect']);
+	const INPUT_SCHEMA_TYPES = new Set(['text', 'textarea', 'number', 'select', 'multiselect', 'file']);
 	if (inputSchema !== undefined) {
 		if (!Array.isArray(inputSchema)) {
 			return json({ error: 'inputSchema harus berupa array' }, { status: 400 });
