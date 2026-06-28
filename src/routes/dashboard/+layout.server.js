@@ -6,6 +6,7 @@ export function load({ locals }) {
 	}
 
 	return {
-		user: locals.user
+		user: locals.user,
+		isAdmin: locals.user?.role === 'admin'
 	};
 }

@@ -103,6 +103,7 @@
 				Beranda Utama
 			</a>
 
+			{#if data.isAdmin}
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
 				Data Master
 			</p>
@@ -128,6 +129,7 @@
 				</svg>
 				<span class="truncate">Template</span>
 			</a>
+		{/if}
 
 			<p class="mt-5 mb-2 px-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
 				AI Generation

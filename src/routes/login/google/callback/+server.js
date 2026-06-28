@@ -82,6 +82,8 @@ export async function GET({ url, cookies }) {
 					picture: googleUser.picture,
 					email_verified: googleUser.email_verified ?? false,
 					role: 'guru', // default role untuk user baru
+					quota_remaining: 2,
+					quota_total: 2,
 					created_at: new Date(),
 					updated_at: new Date()
 				});
