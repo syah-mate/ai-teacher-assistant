@@ -2,7 +2,8 @@
 	let { data } = $props();
 	const item = $derived(data.item);
 
-	let isPrinting = $state(false);
+	let isDownloadingPdf = $state(false);
+	let isDownloadingDocx = $state(false);
 	let isSaving = $state(false);
 	let saveResult = $state(/** @type {'saved'|'error'|null} */ (null));
 
@@ -43,12 +44,136 @@
 		});
 	}
 
-	function downloadPdf() {
-		isPrinting = true;
-		setTimeout(() => {
-			window.print();
-			isPrinting = false;
-		}, 100);
+	/**
+	 * html2canvas v1.4.1 tidak bisa parse oklch() — ganti semua oklch() di <style>
+	 * dengan rgb() hasil resolve browser di cloned document.
+	 * @param {Document} clonedDoc
+	 */
+	function resolveOklchInStyles(clonedDoc) {
+		const styles = clonedDoc.querySelectorAll('style');
+		if (styles.length === 0) return;
+
+		// Kumpulkan semua oklch(...) unik
+		const oklchSet = new Set();
+		const oklchRe = /oklch\([^)]+\)/gi;
+		for (const s of styles) {
+			const matches = s.textContent.match(oklchRe);
+			if (matches) {
+				for (const m of matches) oklchSet.add(m);
+			}
+		}
+		if (oklchSet.size === 0) return;
+
+		// Resolve tiap oklch → rgb via browser di cloned document
+		const map = new Map();
+		const dummy = clonedDoc.createElement('div');
+		dummy.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+		clonedDoc.body.appendChild(dummy);
+		for (const oklchStr of oklchSet) {
+			dummy.style.color = oklchStr;
+			const rgb = clonedDoc.defaultView.getComputedStyle(dummy).color;
+			map.set(oklchStr, rgb);
+		}
+		clonedDoc.body.removeChild(dummy);
+
+		// Replace di semua <style>
+		for (const s of styles) {
+			for (const [oklchStr, rgb] of map) {
+				const escaped = oklchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				s.textContent = s.textContent.replace(new RegExp(escaped, 'gi'), rgb);
+			}
+		}
+	}
+
+	async function downloadPdf() {
+		isDownloadingPdf = true;
+		try {
+			const { jsPDF } = await import('jspdf');
+
+			const docPdf = new jsPDF({
+				orientation: 'portrait',
+				unit: 'mm',
+				format: 'a4'
+			});
+
+			const element = document.querySelector('.doc-preview');
+			if (!element) throw new Error('Elemen dokumen tidak ditemukan');
+
+			// Inject style sementara supaya jsPDF bisa baca warna dari computed style
+			const tempStyle = document.createElement('style');
+			tempStyle.id = '__jspdf_temp__';
+			tempStyle.textContent = `
+				.doc-preview h1 { color: #141413 !important; font-size: 22pt !important; font-weight: bold !important; }
+				.doc-preview h2 { color: #cc785c !important; font-size: 14pt !important; font-weight: bold !important; }
+				.doc-preview h3 { color: #3d3d3a !important; font-size: 11pt !important; font-weight: bold !important; }
+				.doc-preview p, .doc-preview li { color: #3d3d3a !important; font-size: 10.5pt !important; line-height: 1.7; }
+				.doc-preview th { background-color: #cc785c !important; color: white !important; padding: 7px 10px; }
+				.doc-preview td { border: 1px solid #e6dfd8 !important; padding: 7px 10px; }
+				.doc-preview tr:nth-child(even) td { background-color: #faf9f5 !important; }
+				.doc-preview table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+			`;
+			document.head.appendChild(tempStyle);
+
+			await new Promise((resolve, reject) => {
+				docPdf.html(element, {
+					callback: (pdf) => {
+						const s = document.getElementById('__jspdf_temp__');
+						if (s) document.head.removeChild(s);
+						pdf.save((getTitle() || 'dokumen') + '.pdf');
+						resolve();
+					},
+					x: 10,
+					y: 10,
+					width: 190,
+					windowWidth: 794,
+					autoPaging: 'text',
+					margin: [10, 10, 10, 10],
+					html2canvas: {
+						onclone: (clonedDoc) => {
+							// html2canvas v1.4.1 tidak support oklch() dari Tailwind v4.
+							// Ganti semua oklch(...) di <style> element dengan rgb() hasil resolve browser.
+							resolveOklchInStyles(clonedDoc);
+						}
+					},
+					onError: (err) => {
+						const s = document.getElementById('__jspdf_temp__');
+						if (s) document.head.removeChild(s);
+						reject(err);
+					}
+				});
+			});
+
+		} catch (e) {
+			console.error('[PDF]', e);
+			alert('Gagal generate PDF: ' + e.message);
+		} finally {
+			isDownloadingPdf = false;
+		}
+	}
+
+	async function downloadDocx() {
+		isDownloadingDocx = true;
+		try {
+			const res = await fetch(`/api/export/docx/${item._id}`);
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.message || body.error || `HTTP ${res.status}`);
+			}
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = (getTitle() || 'dokumen') + '.docx';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			console.error('[DOCX]', e);
+			alert('Gagal download Word: ' + e.message);
+		} finally {
+			isDownloadingDocx = false;
+		}
 	}
 
 	function toggleEdit() {
@@ -191,13 +316,40 @@
 					Selesai Edit
 				</button>
 			{:else}
+				<!-- Tombol Download Word -->
+				<button
+					onclick={downloadDocx}
+					disabled={isDownloadingDocx || isDownloadingPdf}
+					class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{#if isDownloadingDocx}
+						<svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+						</svg>
+						Menyiapkan...
+					{:else}
+						⬇ Word
+					{/if}
+				</button>
+
+				<!-- Tombol Download PDF -->
 				<button
 					onclick={downloadPdf}
-					disabled={isPrinting}
-					class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+					disabled={isDownloadingPdf || isDownloadingDocx}
+					class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
-					{isPrinting ? 'Membuka...' : 'Cetak PDF'}
+					{#if isDownloadingPdf}
+						<svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+						</svg>
+						Menyiapkan...
+					{:else}
+						⬇ PDF
+					{/if}
 				</button>
+
 				<button
 					onclick={toggleEdit}
 					class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"

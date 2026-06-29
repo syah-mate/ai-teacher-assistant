@@ -61,8 +61,7 @@ export const lucia = new Lucia(adapter, {
 			name: dbUser.name,
 			role: dbUser.role ?? 'guru',
 			email: dbUser.email ?? null,
-			picture: dbUser.picture ?? null,
-			provider: dbUser.google_id ? 'google' : 'credentials'
+			picture: dbUser.picture ?? null
 		};
 	}
 });

@@ -52,44 +52,24 @@ export async function GET({ url, cookies }) {
 		const googleUsername = getGoogleUsername(googleUser.sub);
 
 		if (!user) {
-			// Cek apakah email sudah terdaftar via credentials
-			const existingEmailUser = await usersCollection.findOne({ email: googleUser.email });
+			// Buat user baru dari Google dengan string ID (Lucia-compatible)
+			const newUserId = generateIdFromEntropySize(10); // 16-char string
+			await usersCollection.insertOne({
+				_id: newUserId,
+				username: googleUsername,
+				google_id: googleUser.sub,
+				email: googleUser.email,
+				name: googleUser.name,
+				picture: googleUser.picture,
+				email_verified: googleUser.email_verified ?? false,
+				role: 'guru', // default role untuk user baru
+				quota_remaining: 2,
+				quota_total: 2,
+				created_at: new Date(),
+				updated_at: new Date()
+			});
 
-			if (existingEmailUser) {
-				// Hubungkan akun Google ke akun credentials yang sudah ada
-				await usersCollection.updateOne(
-					{ _id: existingEmailUser._id },
-					{
-						$set: {
-							google_id: googleUser.sub,
-							username: existingEmailUser.username || googleUsername,
-							picture: googleUser.picture,
-							email_verified: googleUser.email_verified,
-							updated_at: new Date()
-						}
-					}
-				);
-				user = existingEmailUser;
-			} else {
-				// Buat user baru dari Google dengan string ID (Lucia-compatible)
-				const newUserId = generateIdFromEntropySize(10); // 16-char string
-				await usersCollection.insertOne({
-					_id: newUserId,
-					username: googleUsername,
-					google_id: googleUser.sub,
-					email: googleUser.email,
-					name: googleUser.name,
-					picture: googleUser.picture,
-					email_verified: googleUser.email_verified ?? false,
-					role: 'guru', // default role untuk user baru
-					quota_remaining: 2,
-					quota_total: 2,
-					created_at: new Date(),
-					updated_at: new Date()
-				});
-
-				user = { _id: newUserId };
-			}
+			user = { _id: newUserId };
 		} else {
 			// Update foto profil jika user sudah ada (foto Google bisa berubah)
 			await usersCollection.updateOne(

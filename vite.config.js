@@ -15,5 +15,8 @@ export default defineConfig({
 				handler(warning);
 			}
 		})
-	] 
+	],
+	server: {
+		allowedHosts: ['aiteacher.healtyhappiness.com']
+	}
 });
